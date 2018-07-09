@@ -1,0 +1,21 @@
+group = 'io.gitdetective.web'
+
+apply plugin: 'application'
+mainClassName = 'io.gitdetective.web.WebLauncher'
+
+dependencies {
+    compile group: 'io.dropwizard.metrics', name: 'metrics-core', version: '4.0.2'
+    compile group: 'com.jcraft', name: 'jsch', version: '0.1.54'
+    compile group: 'org.jooq', name: 'joor-java-8', version: '0.9.7'
+    compile group: 'io.vertx', name: 'vertx-web', version: '3.4.1'
+    compile group: 'io.vertx', name: 'vertx-web-templ-handlebars', version: '3.4.1'
+    compile 'io.vertx:vertx-dropwizard-metrics:3.4.1'
+    compile files("./lib/vertx-eventbus-client-1.0.0-SNAPSHOT.jar") //todo: not include jar locally
+
+    compile group: 'ai.grakn', name: 'grakn-core', version: '1.2.0'
+    compile group: 'ai.grakn', name: 'grakn-graql', version: '1.2.0'
+    compile group: 'ai.grakn', name: 'grakn', version: '1.2.0', ext: 'pom'
+    compile group: 'ai.grakn', name: 'grakn-factory', version: '1.2.0'
+    compile group: 'ai.grakn', name: 'grakn-kb', version: '1.2.0'
+    compile group: 'ai.grakn', name: 'grakn-client', version: '1.2.0'
+}

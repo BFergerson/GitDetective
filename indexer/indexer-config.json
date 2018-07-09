@@ -1,0 +1,17 @@
+{
+  "grakn.host": "localhost",
+  "grakn.port": 4567,
+  "grakn.keyspace": "grakn",
+  "gitdetective_service.host": "localhost",
+  "gitdetective_service.port": 80,
+  "gitdetective_service.ssl_enabled": false,
+  "temp_directory": "/tmp/gitdetective",
+  "github_archive_sync_enabled": false,
+  "local_maven_repository_max_size_gb": 50,
+  "cache_cluster": [
+    {
+      "redis.host": "localhost",
+      "redis.port": 6379
+    }
+  ]
+}

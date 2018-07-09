@@ -1,0 +1,11 @@
+#how many methods are a copy of this method
+match $fu id "<id>";
+$fi isa file; (has_defines_function: $fi, is_defines_function: $fu) isa defines_function;
+$fu_def isa function-definitions;
+    (has_function_definition: $fu_def, is_function_definition: $fu) isa function_definition;
+$fu_copy isa function-instance;
+    (has_function_definition: $fu_def, is_function_definition: $fu_copy) isa function_definition;
+$fu_copy != $fu;
+$dupe_fi isa file; (has_defines_function: $dupe_fi, is_defines_function: $fu_copy) isa defines_function;
+$dupe_fi != $fi;
+aggregate count;

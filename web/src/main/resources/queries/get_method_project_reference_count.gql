@@ -1,0 +1,8 @@
+#how many projects reference this method
+match $fu id "<id>";
+$fi isa file; (has_defines: $fi, is_defines: $fu) isa defines;
+$p isa project; (has_defines: $p, is_defines: $fi) isa defines;
+$fi_ref isa file; (has_ref: $fi_ref, is_ref: $fu) isa ref;
+$p_ref isa project; (has_defines: $p_ref, is_defines: $fi_ref) isa defines;
+$p_ref != $p;
+aggregate count;

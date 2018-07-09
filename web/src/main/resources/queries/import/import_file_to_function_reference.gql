@@ -1,0 +1,9 @@
+match
+    $x isa file id "<xFileId>";
+    $y isa function-instance id "<yFuncInstanceId>";
+
+insert
+(has_ref_call: $x, is_ref_call: $y) isa ref_call
+    has create_date "<createDate>"
+    has start_offset <startOffset>
+    has end_offset <endOffset>;

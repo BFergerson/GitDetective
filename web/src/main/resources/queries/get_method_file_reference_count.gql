@@ -1,0 +1,4 @@
+#how many files reference this method
+match $fu id "<id>";
+$fi_ref isa file; (has_ref: $fi_ref, is_ref: $fu) isa ref;
+aggregate count;

@@ -1,0 +1,3 @@
+match $x isa file;
+$p isa project id "<projectId>"; (has_defines_file: $p, is_defines_file: $x) isa defines_file;
+$y isa function-instance; (has_defines_function: $x, is_defines_function: $y) isa defines_function;

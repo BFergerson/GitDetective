@@ -1,0 +1,3 @@
+insert $p isa project
+    has project_name "<githubRepo>"
+    has create_date "<createDate>";

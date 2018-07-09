@@ -1,0 +1,47 @@
+subprojects {
+    apply plugin: 'groovy'
+
+    version = '1.0.0'
+    sourceCompatibility = 1.8
+    targetCompatibility = 1.8
+
+    repositories {
+        mavenCentral()
+        maven { url = 'https://jitpack.io' }
+    }
+
+    dependencies {
+        compile 'org.codehaus.groovy:groovy-all:2.3.11'
+        compile group: 'io.vertx', name: 'vertx-core', version: '3.4.1'
+        compile 'com.github.bfergerson:vertx-kue:98c74df353' //0cc45f6f15
+        //compile 'com.github.bfergerson:vertx-redis-cluster:157dfa1a9d'
+
+        compile group: 'io.netty', name: 'netty-all', version: '4.1.18.Final'
+        compile group: 'io.netty', name: 'netty-common', version: '4.1.18.Final'
+        compile group: 'io.netty', name: 'netty-codec', version: '4.1.18.Final'
+        compile group: 'io.netty', name: 'netty-codec-http', version: '4.1.18.Final'
+        compile group: 'io.netty', name: 'netty-codec-http2', version: '4.1.18.Final'
+        compile group: 'io.netty', name: 'netty-buffer', version: '4.1.18.Final'
+        compile group: 'io.netty', name: 'netty-codec-socks', version: '4.1.18.Final'
+        compile group: 'io.netty', name: 'netty-handler-proxy', version: '4.1.18.Final'
+    }
+
+    task generateSources {
+        def outputDir = file("$buildDir/generated-sources")
+        outputs.dir outputDir
+        doFirst {
+            def srcFile = new File(outputDir, "io/gitdetective/GitDetectiveVersion.groovy")
+            srcFile.parentFile.mkdirs()
+            srcFile.write("""package io.gitdetective
+                
+class GitDetectiveVersion {
+    static String getVersion() {
+        return "$project.version"
+    }
+}
+                """)
+        }
+    }
+    compileGroovy.dependsOn generateSources
+    sourceSets.main.groovy.srcDirs = ['build/generated-sources', 'src/main/groovy']
+}

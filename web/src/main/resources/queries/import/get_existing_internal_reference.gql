@@ -1,0 +1,4 @@
+match $x isa function-instance id "<xFunctionInstanceId>";
+$y isa function-instance id "<yFunctionInstanceId>";
+$ref (has_ref_call: $x, is_ref_call: $y) isa ref_call;
+get $ref;

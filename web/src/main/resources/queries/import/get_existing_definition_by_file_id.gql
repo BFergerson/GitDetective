@@ -1,0 +1,4 @@
+match $x isa file id "<fileId>";
+$y isa function-instance qualified_name "<functionName>";
+$def (has_defines_function: $x, is_defines_function: $y) isa defines_function;
+get $def;

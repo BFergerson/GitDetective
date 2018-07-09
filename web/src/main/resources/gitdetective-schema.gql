@@ -1,0 +1,122 @@
+define
+
+##########---------- Entities ----------##########
+node is-abstract sub entity
+    has create_date;
+project sub node
+    has project_name
+    plays has_defines_file;
+file sub node
+    has file_name
+    has subkind
+    has file_location
+    has qualified_name
+    plays is_defines_file
+    plays has_defines_function
+    plays has_ref
+    plays has_ref_call;
+function sub node
+    has function_name
+    plays has_function_references
+    plays has_function_definitions;
+function-instance sub function
+    has subkind
+    has qualified_name
+    has commit_sha1
+    has commit_date
+    plays is_function_definition
+    plays is_function_reference
+    plays is_defines_function
+    plays is_ref
+    plays is_ref_call
+    plays has_ref
+    plays has_ref_call;
+function-definitions sub node
+    has definition_count
+    plays is_function_definitions
+    plays has_function_definition;
+function-references sub node
+    has reference_count
+    plays is_function_references
+    plays has_function_reference;
+
+##########---------- Attributes ----------##########
+name is-abstract sub attribute datatype string;
+create_date sub attribute datatype string;
+commit_date sub attribute datatype string;
+subkind sub attribute datatype string;
+file_location sub attribute datatype string;
+qualified_name sub attribute datatype string;
+commit_sha1 sub attribute datatype string;
+definition_count sub attribute datatype long;
+reference_count sub attribute datatype long;
+is_jdk sub attribute datatype boolean;
+project_name sub name datatype string;
+function_name sub name datatype string;
+file_name sub name datatype string;
+start_offset sub attribute datatype long;
+end_offset sub attribute datatype long;
+
+##########---------- Relationships ----------##########
+#todo: can make parent relationship with create_date, start_offset, end_offset
+defines is-abstract sub relationship
+    relates has_defines, relates is_defines
+    has create_date
+    has start_offset
+    has end_offset;
+has_defines sub role;
+is_defines sub role;
+
+defines_file sub defines
+    relates has_defines_file, relates is_defines_file;
+has_defines_file sub has_defines;
+is_defines_file sub is_defines;
+
+defines_function sub defines
+    relates has_defines_function, relates is_defines_function;
+has_defines_function sub has_defines;
+is_defines_function sub is_defines;
+
+ref sub relationship
+    relates has_ref, relates is_ref
+    has is_jdk
+    has create_date
+    has start_offset
+    has end_offset;
+has_ref sub role;
+is_ref sub role;
+
+ref_call sub ref
+    relates has_ref_call, relates is_ref_call;
+has_ref_call sub has_ref;
+is_ref_call sub is_ref;
+
+contains_references_and_definitions sub relationship
+    relates has_contains_references_and_definitions, relates is_contains_references_and_definitions;
+has_contains_references_and_definitions sub role;
+is_contains_references_and_definitions sub role;
+
+function_references sub contains_references_and_definitions
+    relates has_function_references, relates is_function_references;
+has_function_references sub has_contains_references_and_definitions;
+is_function_references sub is_contains_references_and_definitions;
+
+function_definitions sub relationship
+    relates has_function_definitions, relates is_function_definitions;
+has_function_definitions sub has_contains_references_and_definitions;
+is_function_definitions sub is_contains_references_and_definitions;
+
+contains_function sub relationship
+    relates has_contains_function, relates is_contains_function;
+has_contains_function sub role;
+is_contains_function sub role;
+
+function_reference sub contains_function
+    relates has_function_reference, relates is_function_reference;
+has_function_reference sub has_contains_function;
+is_function_reference sub is_contains_function;
+
+function_definition sub contains_function
+    relates has_function_definition, relates is_function_definition;
+has_function_definition sub has_contains_function;
+is_function_definition sub is_contains_function;

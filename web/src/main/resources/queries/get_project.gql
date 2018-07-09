@@ -1,0 +1,2 @@
+match $p isa project has project_name "<githubRepo>";
+get $p;

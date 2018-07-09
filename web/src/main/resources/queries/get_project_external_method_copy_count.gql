@@ -1,0 +1,10 @@
+#how many external methods are copies of methods defined by this project
+match $p isa project has project_name "<githubRepo>";
+$fi isa file;
+    (has_defines_file: $p, is_defines_file: $fi) isa defines_file;
+$fu isa function-instance;
+    (has_defines_function: $fi, is_defines_function: $fu) isa defines_function;
+$fu_def isa function-definitions has definition_count > 0;
+$fu_def has definition_count $defCount;
+    (has_function_definition: $fu_def, is_function_definition: $fu) isa function_definition;
+aggregate sum $defCount;

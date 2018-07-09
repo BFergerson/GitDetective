@@ -1,0 +1,10 @@
+match
+$p isa project id "<projectId>";
+
+insert
+$f isa file
+    has create_date "<createDate>"
+    has file_location "<fileLocation>"
+    has file_name "<filename>"
+    has qualified_name "<qualifiedName>";
+(has_defines_file: $p, is_defines_file: $f) isa defines_file;

@@ -1,0 +1,53 @@
+import java.nio.file.FileSystems
+import java.nio.file.Files
+import java.nio.file.attribute.PosixFilePermission
+
+group = 'io.gitdetective.tools'
+
+apply plugin: 'application'
+mainClassName = "io.gitdetective.tools.GDTools"
+
+dependencies {
+    compile project(":web")
+    compile project(":indexer")
+    compile group: 'org.antlr', name: 'antlr4-runtime', version: '4.5.1-1'
+    compile group: 'org.slf4j', name: 'slf4j-api', version: '1.7.25'
+    compile group: 'ai.grakn', name: 'grakn-core', version: '1.2.0'
+    compile group: 'ai.grakn', name: 'grakn-graql', version: '1.2.0'
+    compile group: 'ai.grakn', name: 'grakn', version: '1.2.0', ext: 'pom'
+    compile group: 'ai.grakn', name: 'grakn-factory', version: '1.2.0'
+    compile group: 'ai.grakn', name: 'grakn-kb', version: '1.2.0'
+    compile group: 'ai.grakn', name: 'grakn-client', version: '1.2.0'
+}
+
+distZip {
+    doLast {
+        Map<String, String> props = new HashMap<>()
+        props.put("create", "false")
+        def zipFile = new File('gd-tools/build/distributions', 'gd-tools-' + version + '.zip')
+        def toolsZip = URI.create('jar:' + zipFile.toURI().toString())
+
+        def zipfs = FileSystems.newFileSystem(toolsZip, props)
+        try {
+            zipfs.getPath('gd-tools-' + version + '/lib').eachFileRecurse {
+                if (!it.fileName.toString().endsWith('gd-tools-' + version + '.jar')) {
+                    Files.delete(it)
+                }
+            }
+        } finally {
+            zipfs.close()
+        }
+
+        Set<PosixFilePermission> perms = new HashSet<>()
+        perms.add(PosixFilePermission.OWNER_READ)
+        perms.add(PosixFilePermission.OWNER_WRITE)
+        perms.add(PosixFilePermission.OWNER_EXECUTE)
+        perms.add(PosixFilePermission.OTHERS_READ)
+        perms.add(PosixFilePermission.OTHERS_WRITE)
+        perms.add(PosixFilePermission.OTHERS_EXECUTE)
+        perms.add(PosixFilePermission.GROUP_READ)
+        perms.add(PosixFilePermission.GROUP_WRITE)
+        perms.add(PosixFilePermission.GROUP_EXECUTE)
+        Files.setPosixFilePermissions(zipFile.toPath(), perms)
+    }
+}

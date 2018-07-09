@@ -1,0 +1,16 @@
+#which external methods reference this method
+match $fu id "<id>";
+$fu_defs isa function-definitions;
+    (has_function_definition: $fu_defs, is_function_definition: $fu) isa function_definition;
+$fu_refs isa function-references;
+$open_fu isa function;
+	(has_function_definitions: $open_fu, is_function_definitions: $fu_defs) isa function_definitions;
+	(has_function_references: $open_fu, is_function_references: $fu_refs) isa function_references;
+$fu_ref isa function-instance; (has_function_reference: $fu_refs, is_function_reference: $fu_ref) isa function_reference;
+$fu_ref_caller isa function-instance has qualified_name $fu_name has commit_sha1 $commit_sha1;
+    (has_ref_call: $fu_ref_caller, is_ref_call: $fu_ref) isa ref_call;
+$fi_ref isa file has file_location $file_location;
+    (has_defines: $fi_ref, is_defines: $fu_ref_caller) isa defines;
+$p_ref isa project has project_name $p_name; (has_defines: $p_ref, is_defines: $fi_ref) isa defines;
+offset 000; limit 10; #offset is auto-updated
+get $file_location, $fu_ref, $fu_name, $commit_sha1, $p_name;

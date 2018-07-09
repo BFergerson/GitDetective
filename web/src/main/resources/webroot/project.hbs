@@ -1,0 +1,505 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="utf-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <!-- Tell the browser to be responsive to screen width -->
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="description" content="">
+    <meta name="author" content="">
+    <title>{{github_repository}} - GitDetective</title>
+    <!-- Bootstrap Core CSS -->
+    <link href="{{gitdetective_url}}static/assets/plugins/bootstrap/css/bootstrap.min.css" rel="stylesheet">
+    <link href="{{gitdetective_url}}static/assets/plugins/bootstrap-switch/bootstrap-switch.min.css" rel="stylesheet">
+    <!-- Custom CSS -->
+    <link href="{{gitdetective_url}}static/css/style.css" rel="stylesheet">
+    <!-- You can change the theme colors from here -->
+    <link href="{{gitdetective_url}}static/css/colors/purple-dark.css" id="theme" rel="stylesheet">
+    <link href="{{gitdetective_url}}static/stylesheet.css" rel="stylesheet">
+    <script src="{{gitdetective_url}}static/moment.min.js"></script>
+    <!-- HTML5 Shim and Respond.js IE8 support of HTML5 elements and media queries -->
+    <!-- WARNING: Respond.js doesn't work if you view the page via file:// -->
+    <!--[if lt IE 9]>
+    <script src="https://oss.maxcdn.com/libs/html5shiv/3.7.0/html5shiv.js"></script>
+    <script src="https://oss.maxcdn.com/libs/respond.js/1.4.2/respond.min.js"></script>
+    <![endif]-->
+</head>
+
+<body class="fix-header card-no-border logo-center">
+<!-- ============================================================== -->
+<!-- Preloader - style you can find in spinners.css -->
+<!-- ============================================================== -->
+<div class="preloader">
+    <svg class="circular" viewBox="25 25 50 50">
+        <circle class="path" cx="50" cy="50" r="20" fill="none" stroke-width="2" stroke-miterlimit="10"/>
+    </svg>
+</div>
+<!-- ============================================================== -->
+<!-- Main wrapper - style you can find in pages.scss -->
+<!-- ============================================================== -->
+<div id="main-wrapper">
+    <!-- ============================================================== -->
+    <!-- Topbar header - style you can find in pages.scss -->
+    <!-- ============================================================== -->
+    <header class="topbar">
+        <nav class="navbar top-navbar navbar-expand-md navbar-light">
+            <!-- ============================================================== -->
+            <!-- Logo -->
+            <!-- ============================================================== -->
+            <div class="navbar-header">
+                <a class="navbar-brand" href="{{gitdetective_url}}">
+                    <!-- Logo icon -->
+                    <span style="font-family: 'Reza Zulmi Sans'; font-size: 36px; color: white;">GitDetective</span>
+                    <!--End Logo icon --></a>
+            </div>
+            <!-- ============================================================== -->
+            <!-- End Logo -->
+            <!-- ============================================================== -->
+            <div class="navbar-collapse">
+                <!-- ============================================================== -->
+                <!-- toggle and nav items -->
+                <!-- ============================================================== -->
+                <ul class="navbar-nav mr-auto mt-md-0">
+                    <!-- This is  -->
+                    <li class="nav-item"><a class="nav-link nav-toggler hidden-md-up text-muted waves-effect waves-dark"
+                                            href="javascript:void(0)"><i class="mdi mdi-menu"></i></a></li>
+                    <!-- ============================================================== -->
+                    <!-- Search -->
+                    <!-- ============================================================== -->
+                    <li onclick="$('#app-search-data').focus();" class="nav-item hidden-sm-down search-box">
+                        <a class="nav-link hidden-sm-down text-muted waves-effect waves-dark" href="javascript:void(0)"><i
+                                class="ti-search"></i></a>
+                        <form class="app-search" id="app-search">
+                            <input id="app-search-data" type="text" class="form-control" placeholder="username/project"
+                                   autofocus>
+                            <a class="srh-btn"><i class="ti-close"></i></a></form>
+                    </li>
+                </ul>
+            </div>
+        </nav>
+    </header>
+    <!-- ============================================================== -->
+    <!-- End Topbar header -->
+    <!-- ============================================================== -->
+    <!-- ============================================================== -->
+    <!-- Left Sidebar - style you can find in sidebar.scss  -->
+    <!-- ============================================================== -->
+    <aside class="left-sidebar">
+        <!-- Sidebar scroll-->
+        <div class="scroll-sidebar" align="center">
+            <!-- Sidebar navigation-->
+            <nav class="sidebar-nav">
+                <ul id="sidebarnav" style="color: white">
+                    Find references to your code on GitHub
+                </ul>
+            </nav>
+            <!-- End Sidebar navigation -->
+        </div>
+        <!-- End Sidebar scroll-->
+    </aside>
+    <!-- ============================================================== -->
+    <!-- End Left Sidebar - style you can find in sidebar.scss  -->
+    <!-- ============================================================== -->
+    <!-- ============================================================== -->
+    <!-- Page wrapper  -->
+    <!-- ============================================================== -->
+    <div class="page-wrapper" style="padding-top: 15px">
+        <!-- ============================================================== -->
+        <!-- Container fluid  -->
+        <!-- ============================================================== -->
+        <div class="container-fluid">
+            <!-- ============================================================== -->
+            <!-- Bread crumb and right sidebar toggle -->
+            <!-- ============================================================== -->
+            <div class="row page-titles">
+                <a href="https://github.com/{{github_repository}}" id="project_link"
+                   style="color: #272c33; padding-left:15px"><i style="font-size: 50px" class="fa fa-github"></i></a>
+                <div class="col-md-5 col-8 align-self-center">
+                    <h3 id="project_name" class="text-themecolor m-b-0 m-t-0"
+                        style="color: #455a64 !important">{{github_project}}</h3>
+                    <ol class="breadcrumb">
+                        <li class="breadcrumb-item active"><a
+                                href="https://github.com/{{github_repository}}"><span
+                                id="repo_name">{{github_repository}}</span></a></li>
+                    </ol>
+                </div>
+            </div>
+            <!-- ============================================================== -->
+            <!-- End Bread crumb and right sidebar toggle -->
+            <!-- ============================================================== -->
+            <!-- ============================================================== -->
+            <!-- Start Page Content -->
+            <!-- ============================================================== -->
+            <!-- Row -->
+            <div class="row">
+                <!-- Column -->
+                <div class="col-lg-4 col-xlg-4 col-md-5">
+                    <div class="card">
+                        <div class="card-body">
+                            <!-- Nav tabs -->
+                            <ul class="nav nav-tabs" role="tablist">
+                                <li class="nav-item"><a class="nav-link active show" data-toggle="tab" href="#home"
+                                                        role="tab" aria-selected="true"><span class="hidden-sm-up"><i
+                                        class="ti-home"></i></span> <span class="hidden-xs-down">Information</span></a>
+                                </li>
+                                <!--<li class="nav-item"><a class="nav-link" data-toggle="tab" href="#controls" role="tab"-->
+                                <!--aria-selected="false"><span class="hidden-sm-up"><i-->
+                                <!--class="ti-settings"></i></span> <span class="hidden-xs-down">Controls</span></a>-->
+                                <!--</li>-->
+                            </ul>
+                            <!-- Tab panes -->
+                            <div class="tab-content tabcontent-border">
+                                <div class="tab-pane active show" id="home" role="tabpanel">
+                                    <div class="p-20">
+                                        <div class="table-responsive">
+                                            <table class="table">
+                                                <tbody>
+                                                <tr>
+                                                    <td><h5>Indexed files</h5></td>
+                                                    <td><span id="project_file_count"
+                                                              class="label label-primary">{{project_file_count}}</span>
+                                                    </td>
+                                                </tr>
+                                                <tr>
+                                                    <td><h5>Indexed methods</h5></td>
+                                                    <td><span id="project_method_version_count"
+                                                              class="label label-primary">{{project_method_version_count}}</span>
+                                                    </td>
+                                                </tr>
+                                                </tbody>
+                                            </table>
+                                        </div>
+                                        <small class="text-muted">First indexed</small>
+                                        <h6 id="project_first_indexed">
+                                            {{#if project_first_indexed}}
+                                                <script>
+                                                    document.write(moment("{{project_first_indexed}}").fromNow())
+                                                </script>
+                                            {{else}}
+                                                n/a
+                                            {{/if}}
+                                        </h6>
+                                        <small class="text-muted">Last indexed</small>
+                                        <h6 id="project_last_indexed">
+                                            {{#if project_last_indexed}}
+                                                <script>
+                                                    document.write(moment("{{project_last_indexed}}").fromNow())
+                                                </script>
+                                            {{else}}
+                                                n/a
+                                            {{/if}}
+                                        </h6>
+                                        <small class="text-muted">Last indexed commit</small>
+                                        <h6 id="project_last_indexed_commit_information">
+                                            {{#if project_last_calculated}}
+                                                <a href="https://github.com/{{github_repository}}/commit/{{project_last_indexed_commit_information.commit}}">
+                                                    {{project_last_indexed_commit_information.commit_short}} (
+                                                    <script>
+                                                        document.write(
+                                                                moment("{{project_last_indexed_commit_information.commit_date}}").
+                                                                        fromNow())
+                                                    </script>
+                                                    )</a>
+                                            {{else}}
+                                                n/a
+                                            {{/if}}
+                                        </h6>
+                                        <small class="text-muted">Last calculated</small>
+                                        <h6 id="project_last_calculated">
+                                            {{#if project_last_calculated}}
+                                                <script>
+                                                    document.write(moment("{{project_last_calculated}}").fromNow())
+                                                </script>
+                                            {{else}}
+                                                n/a
+                                            {{/if}}
+                                        </h6>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="card">
+                        <div class="card-body">
+                            <small class="text-muted">Latest build log</small>
+                            <blockquote id="latest_job_log"
+                                        style="margin-top: 4px; background: #272c33; color: #99abb4; font-size: 12px">
+                                {{#each latest_job_log}}
+                                    {{this}} <br>
+                                {{/each}}
+                            </blockquote>
+                        </div>
+                    </div>
+                </div>
+                <!-- Column -->
+                <!-- Column -->
+                <div class="col-lg-8 col-xlg-8 col-md-7">
+                    <div class="card">
+                        <div class="card-body">
+                            <ol style="background-color: #272c33 !important;" id="referenced_methods_breadcrumbs"
+                                class="breadcrumb bc-colored m-b-10 bg-primary">
+                                <li id="most_referenced_methods_breadcrumb" class="breadcrumb-item active">
+                                    <a id="most_referenced_methods_breadcrumb_link"
+                                       onclick="displayMostReferencedMethods()"><b>Most referenced methods</b></a>
+                                </li>
+                            </ol>
+                            <div class="d-flex no-block">
+                                <h4 id="references_main_title" class="card-title"></h4>
+                            </div>
+                            <div class="table-responsive">
+                                <table id="most_referenced_methods_table" class="table stylish-table">
+                                    <thead>
+                                    <tr>
+                                        <th>Class/Method</th>
+                                        <th>External references</th>
+                                    </tr>
+                                    </thead>
+                                    <tbody id="most_referenced_methods">
+                                    {{#each project_most_referenced_methods}}
+                                        {{#if has_method_link}}
+                                            <tr onclick="displayMethodReference({{this}});">
+                                        {{else}}
+                                            <tr>
+                                        {{/if}}
+                                            <td><h6>{{this.short_class_name}}</h6>
+                                                <small class="text-muted">{{this.short_method_signature}}</small>
+                                            </td>
+                                            <td>
+                                                <span class="label label-primary">
+                                                    {{this.external_reference_count}}
+                                                </span>
+                                            </td>
+                                        </tr>
+                                    {{/each}}
+                                    </tbody>
+                                </table>
+                                <table id="method_references_table" class="table stylish-table">
+                                    <thead>
+                                    <tr>
+                                        <th>Class/Method</th>
+                                        <th>Project</th>
+                                        <th>Reference</th>
+                                    </tr>
+                                    </thead>
+                                    <tbody id="method_references">
+                                    </tbody>
+                                </table>
+                            </div>
+                            <span id="display_reference_amount_information" class="float-right"></span>
+                            <!--<nav aria-label="Page navigation example">-->
+                            <!--<ul class="pagination justify-content-center">-->
+                            <!--<li class="page-item disabled">-->
+                            <!--<a class="page-link" href="#" tabindex="-1">Previous</a>-->
+                            <!--</li>-->
+                            <!--<li class="page-item"><a class="page-link" href="#">1</a></li>-->
+                            <!--<li class="page-item"><a class="page-link" href="#">2</a></li>-->
+                            <!--<li class="page-item"><a class="page-link" href="#">3</a></li>-->
+                            <!--<li class="page-item">-->
+                            <!--<a class="page-link" href="#">Next</a>-->
+                            <!--</li>-->
+                            <!--</ul>-->
+                            <!--</nav>-->
+                        </div>
+                    </div>
+                    <!--<div class="card">-->
+                        <!--<div class="card-body">-->
+                            <!--<ol style="background-color: #272c33 !important;" id="copied_methods_breadcrumbs"-->
+                                <!--class="breadcrumb bc-colored m-b-10 bg-primary">-->
+                                <!--<li id="most_copied_methods_breadcrumb" class="breadcrumb-item active">-->
+                                    <!--<a id="most_copied_methods_breadcrumb_link"-->
+                                       <!--onclick="displayMostCopiedMethods()"><b>Most copied methods</b></a>-->
+                                <!--</li>-->
+                            <!--</ol>-->
+                            <!--<div class="d-flex no-block">-->
+                                <!--<h4 id="copies_main_title" class="card-title"></h4>-->
+                            <!--</div>-->
+                            <!--<div class="table-responsive">-->
+                                <!--<table id="most_copied_methods_table" class="table stylish-table">-->
+                                    <!--<thead>-->
+                                    <!--<tr>-->
+                                        <!--<th>Class/Method</th>-->
+                                        <!--<th>External copies</th>-->
+                                    <!--</tr>-->
+                                    <!--</thead>-->
+                                    <!--<tbody id="most_copied_methods">-->
+                                    <!--{{#each project_most_copied_methods}}-->
+                                        <!--{{#if has_method_link}}-->
+                                            <!--<tr onclick="displayMethodCopy({{this}});">-->
+                                        <!--{{else}}-->
+                                            <!--<tr>-->
+                                        <!--{{/if}}-->
+                                            <!--<td><h6>{{this.short_class_name}}</h6>-->
+                                                <!--<small class="text-muted">{{this.short_method_signature}}</small>-->
+                                            <!--</td>-->
+                                            <!--<td>-->
+                                                <!--<span class="label label-primary">-->
+                                                    <!--{{this.external_copy_count}}-->
+                                                <!--</span>-->
+                                            <!--</td>-->
+                                        <!--</tr>-->
+                                    <!--{{/each}}-->
+                                    <!--</tbody>-->
+                                <!--</table>-->
+                                <!--<table id="method_copies_table" class="table stylish-table">-->
+                                    <!--<thead>-->
+                                    <!--<tr>-->
+                                        <!--<th>Class/Method</th>-->
+                                        <!--<th>Project</th>-->
+                                        <!--<th>Location</th>-->
+                                    <!--</tr>-->
+                                    <!--</thead>-->
+                                    <!--<tbody id="method_copies">-->
+                                    <!--</tbody>-->
+                                <!--</table>-->
+                            <!--</div>-->
+                            <!--<span id="display_copy_amount_information" class="float-right"></span>-->
+                            <!--&lt;!&ndash;<nav aria-label="Page navigation example">&ndash;&gt;-->
+                            <!--&lt;!&ndash;<ul class="pagination justify-content-center">&ndash;&gt;-->
+                            <!--&lt;!&ndash;<li class="page-item disabled">&ndash;&gt;-->
+                            <!--&lt;!&ndash;<a class="page-link" href="#" tabindex="-1">Previous</a>&ndash;&gt;-->
+                            <!--&lt;!&ndash;</li>&ndash;&gt;-->
+                            <!--&lt;!&ndash;<li class="page-item"><a class="page-link" href="#">1</a></li>&ndash;&gt;-->
+                            <!--&lt;!&ndash;<li class="page-item"><a class="page-link" href="#">2</a></li>&ndash;&gt;-->
+                            <!--&lt;!&ndash;<li class="page-item"><a class="page-link" href="#">3</a></li>&ndash;&gt;-->
+                            <!--&lt;!&ndash;<li class="page-item">&ndash;&gt;-->
+                            <!--&lt;!&ndash;<a class="page-link" href="#">Next</a>&ndash;&gt;-->
+                            <!--&lt;!&ndash;</li>&ndash;&gt;-->
+                            <!--&lt;!&ndash;</ul>&ndash;&gt;-->
+                            <!--&lt;!&ndash;</nav>&ndash;&gt;-->
+                        <!--</div>-->
+                    <!--</div>-->
+                </div>
+                <!-- Column -->
+            </div>
+            <!-- Row -->
+            <!-- ============================================================== -->
+            <!-- End Page Content -->
+            <!-- ============================================================== -->
+        </div>
+        <!-- ============================================================== -->
+        <!-- End Container fluid  -->
+        <!-- ============================================================== -->
+        <!-- ============================================================== -->
+        <!-- Footer -->
+        <!-- ============================================================== -->
+        <footer class="footer" style="background-color: #272c33">
+            <b>
+                <div style="float: left">
+                    <a href="https://github.com/codebrig/gitdetective"><i
+                            style="margin-top: -5px; font-size: 30px; color: #99abb4" class="fa fa-github"></i></a>
+                </div>
+                © 2018 <a href="https://codebrig.com">CodeBrig, LLC</a> /
+                Powered by: <a href="https://grakn.ai">Grakn</a> & <a href="https://kythe.io">Kythe</a> /
+                <a href="https://github.com/CodeBrig/GitDetective/issues/new">Report issue</a>
+                <div style="float: right">
+                    ver. {{gitdetective_version}}
+                </div>
+            </b>
+        </footer>
+        <!-- ============================================================== -->
+        <!-- End footer -->
+        <!-- ============================================================== -->
+    </div>
+    <!-- ============================================================== -->
+    <!-- End Page wrapper  -->
+    <!-- ============================================================== -->
+</div>
+<!-- ============================================================== -->
+<!-- End Wrapper -->
+<!-- ============================================================== -->
+<!-- ============================================================== -->
+<!-- All Jquery -->
+<!-- ============================================================== -->
+<script src="{{gitdetective_url}}static/assets/plugins/jquery/jquery.min.js"></script>
+<!-- Bootstrap tether Core JavaScript -->
+<script src="{{gitdetective_url}}static/assets/plugins/popper/popper.min.js"></script>
+<script src="{{gitdetective_url}}static/assets/plugins/bootstrap/js/bootstrap.min.js"></script>
+<!-- slimscrollbar scrollbar JavaScript -->
+<script src="{{gitdetective_url}}static/js/jquery.slimscroll.js"></script>
+<!--Wave Effects -->
+<script src="{{gitdetective_url}}static/js/waves.js"></script>
+<!--Menu sidebar -->
+<script src="{{gitdetective_url}}static/js/sidebarmenu.js"></script>
+<!--stickey kit -->
+<script src="{{gitdetective_url}}static/assets/plugins/sticky-kit-master/dist/sticky-kit.min.js"></script>
+<script src="{{gitdetective_url}}static/assets/plugins/sparkline/jquery.sparkline.min.js"></script>
+<!--Custom JavaScript -->
+<script src="{{gitdetective_url}}static/js/custom.min.js"></script>
+<!-- This is data table -->
+<script src="{{gitdetective_url}}static/assets/plugins/datatables/jquery.dataTables.min.js"></script>
+<script>
+    String.prototype.toHtmlEntities = function () {
+        return this.replace(/./gm, function (s) {
+            return '&#' + s.charCodeAt(0) + ';'
+        })
+    }
+</script>
+<!-- ============================================================== -->
+<!-- Style switcher -->
+<!-- ============================================================== -->
+<script src="{{gitdetective_url}}static/assets/plugins/styleswitcher/jQuery.style.switcher.js"></script>
+<script>
+    $('#app-search').submit(function (event) {
+        window.location = '{{gitdetective_url}}' + document.getElementById('app-search-data').value
+        event.preventDefault()
+    })
+</script>
+<!-- Global site tag (gtag.js) - Google Analytics -->
+<script async src="https://www.googletagmanager.com/gtag/js?id=UA-117514928-1"></script>
+<script>
+    window.dataLayer = window.dataLayer || []
+
+    function gtag () {
+        dataLayer.push(arguments)
+    }
+
+    gtag('js', new Date())
+    gtag('config', 'UA-117514928-1')
+</script>
+<!-- bt-switch -->
+<script src="{{gitdetective_url}}static/assets/plugins/bootstrap-switch/bootstrap-switch.min.js"></script>
+<script type="text/javascript">
+    $('.bt-switch input[type=\'checkbox\'], .bt-switch input[type=\'radio\']').bootstrapSwitch()
+    var radioswitch = function () {
+        var bt = function () {
+            $('.radio-switch').on('switch-change', function () {
+                $('.radio-switch').bootstrapSwitch('toggleRadioState')
+            }), $('.radio-switch').on('switch-change', function () {
+                $('.radio-switch').bootstrapSwitch('toggleRadioStateAllowUncheck')
+            }), $('.radio-switch').on('switch-change', function () {
+                $('.radio-switch').bootstrapSwitch('toggleRadioStateAllowUncheck', !1)
+            })
+        }
+        return {
+            init: function () {
+                bt()
+            },
+        }
+    }()
+    $(document).ready(function () {
+        radioswitch.init()
+    })
+</script>
+<script>
+    $(document).ready(function () {
+        $('#method_references_table').hide()
+        $('#method_copies_table').hide()
+        $('#display_reference_amount_information').hide()
+        $('#display_copy_amount_information').hide()
+    })
+</script>
+<script src="{{gitdetective_url}}static/sockjs.min.js"></script>
+<script src='{{gitdetective_url}}static/vertx-eventbus.min.js'></script>
+<script>
+    console.log('Connecting to event bus...')
+    var eb = new EventBus('{{gitdetective_eventbus_url}}')
+    eb.enableReconnect(true)
+    var gitdetectiveUrl = '{{gitdetective_url}}'
+    var githubRepository = '{{github_repository}}'
+    var logPositionIndex = {{latest_job_log_position}}
+    var latestJobLogId = {{latest_job_log_id}}
+</script>
+<script src="{{gitdetective_url}}static/project_helper.js"></script>
+</body>
+</html>

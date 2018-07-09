@@ -1,0 +1,327 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="utf-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <!-- Tell the browser to be responsive to screen width -->
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="description" content="">
+    <meta name="author" content="">
+    <title>GitDetective - Find references to your code on GitHub</title>
+    <!-- Bootstrap Core CSS -->
+    <link href="static/assets/plugins/bootstrap/css/bootstrap.min.css" rel="stylesheet">
+    <!-- chartist CSS -->
+    <link href="static/assets/plugins/chartist-js/dist/chartist.min.css" rel="stylesheet">
+    <link href="static/assets/plugins/chartist-js/dist/chartist-init.css" rel="stylesheet">
+    <link href="static/assets/plugins/chartist-plugin-tooltip-master/dist/chartist-plugin-tooltip.css" rel="stylesheet">
+    <!--This page css - Morris CSS -->
+    <link href="static/assets/plugins/c3-master/c3.min.css" rel="stylesheet">
+    <!-- Custom CSS -->
+    <link href="static/css/style.css" rel="stylesheet">
+    <!-- You can change the theme colors from here -->
+    <link href="static/css/colors/purple-dark.css" id="theme" rel="stylesheet">
+    <link href="static/stylesheet.css" rel="stylesheet">
+    <script src="static/moment.min.js"></script>
+    <!-- HTML5 Shim and Respond.js IE8 support of HTML5 elements and media queries -->
+    <!-- WARNING: Respond.js doesn't work if you view the page via file:// -->
+    <!--[if lt IE 9]>
+    <script src="https://oss.maxcdn.com/libs/html5shiv/3.7.0/html5shiv.js"></script>
+    <script src="https://oss.maxcdn.com/libs/respond.js/1.4.2/respond.min.js"></script>
+    <![endif]-->
+</head>
+
+<body class="fix-header fix-sidebar card-no-border logo-center">
+<!-- ============================================================== -->
+<!-- Preloader - style you can find in spinners.css -->
+<!-- ============================================================== -->
+<div class="preloader">
+    <svg class="circular" viewBox="25 25 50 50">
+        <circle class="path" cx="50" cy="50" r="20" fill="none" stroke-width="2" stroke-miterlimit="10"/>
+    </svg>
+</div>
+<!-- ============================================================== -->
+<!-- Main wrapper - style you can find in pages.scss -->
+<!-- ============================================================== -->
+<div id="main-wrapper">
+    <!-- ============================================================== -->
+    <!-- Topbar header - style you can find in pages.scss -->
+    <!-- ============================================================== -->
+    <header class="topbar">
+        <nav class="navbar top-navbar navbar-expand-md navbar-light">
+            <!-- ============================================================== -->
+            <!-- Logo -->
+            <!-- ============================================================== -->
+            <div class="navbar-header">
+                <a class="navbar-brand" href="{{gitdetective_url}}">
+                    <!-- Logo icon -->
+                    <span style="font-family: 'Reza Zulmi Sans'; font-size: 36px; color: white;">GitDetective</span>
+                    <!--End Logo icon --></a>
+            </div>
+            <!-- ============================================================== -->
+            <!-- End Logo -->
+            <!-- ============================================================== -->
+            <div class="navbar-collapse">
+                <!-- ============================================================== -->
+                <!-- toggle and nav items -->
+                <!-- ============================================================== -->
+                <ul class="navbar-nav mr-auto mt-md-0">
+                    <!-- This is  -->
+                    <li class="nav-item"><a class="nav-link nav-toggler hidden-md-up text-muted waves-effect waves-dark"
+                                            href="javascript:void(0)"><i class="mdi mdi-menu"></i></a></li>
+                    <!-- ============================================================== -->
+                    <!-- Search -->
+                    <!-- ============================================================== -->
+                    <li onclick="$('#app-search-data').focus();" class="nav-item hidden-sm-down search-box">
+                        <a class="nav-link hidden-sm-down text-muted waves-effect waves-dark" href="javascript:void(0)"><i
+                                class="ti-search"></i></a>
+                        <form class="app-search" id="app-search">
+                            <input id="app-search-data" type="text" class="form-control" placeholder="username/project"
+                                   autofocus>
+                            <a class="srh-btn"><i class="ti-close"></i></a></form>
+                    </li>
+                </ul>
+            </div>
+        </nav>
+    </header>
+    <!-- ============================================================== -->
+    <!-- End Topbar header -->
+    <!-- ============================================================== -->
+    <!-- ============================================================== -->
+    <!-- Left Sidebar - style you can find in sidebar.scss  -->
+    <!-- ============================================================== -->
+    <aside class="left-sidebar">
+        <!-- Sidebar scroll-->
+        <div class="scroll-sidebar" align="center">
+            <!-- Sidebar navigation-->
+            <nav class="sidebar-nav">
+                <ul id="sidebarnav" style="color: white; opacity: 0.8">
+                    Find references to your code on GitHub
+                </ul>
+            </nav>
+            <!-- End Sidebar navigation -->
+        </div>
+        <!-- End Sidebar scroll-->
+    </aside>
+    <!-- ============================================================== -->
+    <!-- End Left Sidebar - style you can find in sidebar.scss  -->
+    <!-- ============================================================== -->
+    <!-- ============================================================== -->
+    <!-- Page wrapper  -->
+    <!-- ============================================================== -->
+    <div class="page-wrapper">
+        <!-- ============================================================== -->
+        <!-- Container fluid  -->
+        <!-- ============================================================== -->
+        <div class="container-fluid">
+            <!-- ============================================================== -->
+            <!-- Start Page Content -->
+            <!-- ============================================================== -->
+            <!-- Row -->
+            <div class="row">
+                <div class="col-md-5 col-xlg-5">
+                    <!-- Column -->
+                    <div style="background-color: #272c33" class="card">
+                        <div class="card-header">
+                            <h4 style="color: #7AA054" class="card-title m-b-0">Database statistics</h4>
+                        </div>
+                        <div style="padding-top: 0; padding-bottom: 0" class="card-body b-t collapse show">
+                            <table style="margin-bottom: 0.5rem" class="table v-middle no-border">
+                                <tbody id="database_statistics">
+                                {{#each database_statistics}}
+                                    <tr>
+                                        <td style="padding: 0.25rem">{{this.stat1}}</td>
+                                        <td align="left" style="padding: 0.25rem">
+                                            <span class="label">{{this.value1}}</span>
+                                        </td>
+                                        <td style="padding: 0.25rem">{{this.stat2}}</td>
+                                        <td align="left" style="padding: 0.25rem">
+                                            <span class="label">{{this.value2}}</span>
+                                        </td>
+                                    </tr>
+                                {{/each}}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                    <!-- Column -->
+                    <div class="card earning-widget">
+                        <div class="card-header">
+                            <h4 class="card-title m-b-0">Most referenced projects</h4>
+                        </div>
+                        <div style="padding-top: 0; padding-bottom: 0" class="card-body b-t collapse show">
+                            <table class="table v-middle no-border">
+                                <tbody id="project_reference_leaderboard">
+                                {{#each project_reference_leaderboard}}
+                                    <tr>
+                                        <td style="max-width: 250px">
+                                            <a href="{{gitdetective_url}}{{this.github_repo}}">{{this.github_repo}}</a>
+                                        </td>
+                                        <td align="right"><span class="label label-primary">{{this.value}}</span>
+                                        </td>
+                                    </tr>
+                                {{/each}}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                    <!-- Column -->
+                    <!--<div class="card earning-widget">-->
+                        <!--<div class="card-header">-->
+                            <!--<h4 class="card-title m-b-0">Most copied projects</h4>-->
+                        <!--</div>-->
+                        <!--<div style="padding-top: 0; padding-bottom: 0" class="card-body b-t collapse show">-->
+                            <!--<table class="table v-middle no-border">-->
+                                <!--<tbody id="project_reference_leaderboard">-->
+                                <!--{{#each project_copy_leaderboard}}-->
+                                    <!--<tr>-->
+                                        <!--<td style="max-width: 250px">-->
+                                            <!--<a href="{{gitdetective_url}}{{this.github_repo}}">{{this.github_repo}}</a>-->
+                                        <!--</td>-->
+                                        <!--<td align="right"><span class="label label-primary">{{this.value}}</span>-->
+                                        <!--</td>-->
+                                    <!--</tr>-->
+                                <!--{{/each}}-->
+                                <!--</tbody>-->
+                            <!--</table>-->
+                        <!--</div>-->
+                    <!--</div>-->
+                    <!-- Column -->
+                </div>
+                <div class="col-md-7 col-xlg-7">
+                    <!-- Row -->
+                    <div class="row">
+                        <!-- Column -->
+                        <div class="col-md-12">
+                            <div class="card">
+                                <div class="card-header">
+                                    <h4 class="card-title m-b-0">Indexing projects</h4>
+                                </div>
+                                <div class="card-body collapse show">
+                                    <div class="table-responsive">
+                                        <table class="table product-overview">
+                                            <thead>
+                                            <tr>
+                                                <th>Project</th>
+                                                <th>Updated</th>
+                                                <th>Status</th>
+                                            </tr>
+                                            </thead>
+                                            <tbody id="active_jobs">
+                                            {{#each active_jobs}}
+                                                <tr>
+                                                    <td><a href="{{gitdetective_url}}{{this.data.github_repository}}">
+                                                        {{this.data.github_repository}}
+                                                    </a></td>
+                                                    <td class="collapsing">
+                                                        <script>
+                                                            document.write(moment({{this.updated_at}}).fromNow())
+                                                        </script>
+                                                    </td>
+                                                    <td><span class="label label-primary font-weight-100">
+                                                        {{this.state}}
+                                                    </span></td>
+                                                </tr>
+                                            {{/each}}
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <!-- Column -->
+                    </div>
+                </div>
+            </div>
+            <!-- Row -->
+            <!-- ============================================================== -->
+            <!-- End Page Content -->
+            <!-- ============================================================== -->
+            <!-- ============================================================== -->
+        </div>
+        <!-- ============================================================== -->
+        <!-- End Container fluid  -->
+        <!-- ============================================================== -->
+        <!-- ============================================================== -->
+        <!-- footer -->
+        <!-- ============================================================== -->
+        <footer class="footer" style="background-color: #272c33">
+            <b>
+                <div style="float: left">
+                    <a href="https://github.com/codebrig/gitdetective"><i
+                            style="margin-top: -5px; font-size: 30px; color: #99abb4" class="fa fa-github"></i></a>
+                </div>
+                © 2018 <a href="https://codebrig.com">CodeBrig, LLC</a> /
+                Powered by: <a href="https://grakn.ai">Grakn</a> & <a href="https://kythe.io">Kythe</a> /
+                <a href="https://github.com/CodeBrig/GitDetective/issues/new">Report issue</a>
+                <div style="float: right">
+                    ver. {{gitdetective_version}}
+                </div>
+            </b>
+        </footer>
+        <!-- ============================================================== -->
+        <!-- End footer -->
+        <!-- ============================================================== -->
+    </div>
+    <!-- ============================================================== -->
+    <!-- End Page wrapper  -->
+    <!-- ============================================================== -->
+</div>
+<!-- ============================================================== -->
+<!-- End Wrapper -->
+<!-- ============================================================== -->
+<!-- ============================================================== -->
+<!-- All Jquery -->
+<!-- ============================================================== -->
+<script src="static/assets/plugins/jquery/jquery.min.js"></script>
+<!-- Bootstrap tether Core JavaScript -->
+<script src="static/assets/plugins/popper/popper.min.js"></script>
+<script src="static/assets/plugins/bootstrap/js/bootstrap.min.js"></script>
+<!-- slimscrollbar scrollbar JavaScript -->
+<script src="static/js/jquery.slimscroll.js"></script>
+<!--Wave Effects -->
+<script src="static/js/waves.js"></script>
+<!--Menu sidebar -->
+<script src="static/js/sidebarmenu.js"></script>
+<!--stickey kit -->
+<script src="static/assets/plugins/sticky-kit-master/dist/sticky-kit.min.js"></script>
+<script src="static/assets/plugins/sparkline/jquery.sparkline.min.js"></script>
+<script src="static/assets/plugins/sparkline/jquery.sparkline.min.js"></script>
+<!--Custom JavaScript -->
+<script src="static/js/custom.min.js"></script>
+<!-- ============================================================== -->
+<!-- This page plugins -->
+<!-- ============================================================== -->
+<!-- chartist chart -->
+<script src="static/assets/plugins/chartist-js/dist/chartist.min.js"></script>
+<script src="static/assets/plugins/chartist-plugin-tooltip-master/dist/chartist-plugin-tooltip.min.js"></script>
+<!--c3 JavaScript -->
+<script src="static/assets/plugins/d3/d3.min.js"></script>
+<script src="static/assets/plugins/c3-master/c3.min.js"></script>
+<!-- Chart JS -->
+<script src="static/js/dashboard6.js"></script>
+<!-- ============================================================== -->
+<!-- Style switcher -->
+<!-- ============================================================== -->
+<script src="static/assets/plugins/styleswitcher/jQuery.style.switcher.js"></script>
+<script>
+    //buttons
+    $('#app-search').submit(function (event) {
+        window.location = '{{gitdetective_url}}' + document.getElementById('app-search-data').value
+        event.preventDefault()
+    })
+</script>
+<!-- Global site tag (gtag.js) - Google Analytics -->
+<script async src="https://www.googletagmanager.com/gtag/js?id=UA-117514928-1"></script>
+<script>
+    window.dataLayer = window.dataLayer || []
+
+    function gtag () {
+        dataLayer.push(arguments)
+    }
+
+    gtag('js', new Date())
+    gtag('config', 'UA-117514928-1')
+</script>
+</body>
+</html>

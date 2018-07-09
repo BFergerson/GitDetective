@@ -1,0 +1,3 @@
+match $x isa file has file_name "<filename>";
+$p isa project id "<projectId>"; (has_defines_file: $p, is_defines_file: $x) isa defines_file;
+get $x;
