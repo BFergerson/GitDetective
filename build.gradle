@@ -13,7 +13,7 @@ subprojects {
     dependencies {
         compile 'org.codehaus.groovy:groovy-all:2.3.11'
         compile group: 'io.vertx', name: 'vertx-core', version: '3.4.1'
-        compile 'com.github.bfergerson:vertx-kue:98c74df353'
+        compile 'com.github.bfergerson:vertx-kue:gd-branch-SNAPSHOT'
 
         compile group: 'io.netty', name: 'netty-all', version: '4.1.18.Final'
         compile group: 'io.netty', name: 'netty-common', version: '4.1.18.Final'

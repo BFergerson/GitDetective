@@ -77,16 +77,21 @@ class GithubRepositoryCloner extends AbstractVerticle {
                             skipBuild(job)
                         } else {
                             vertx.executeBlocking({
-                                downloadAndExtractProject(job, githubRepo)
+                                try {
+                                    downloadAndExtractProject(job, githubRepo)
+                                    it.complete()
+                                } catch (GHFileNotFoundException ex) {
+                                    logPrintln(job, "Could not locate project on GitHub")
+                                    it.fail(ex)
+                                } catch (all) {
+                                    it.fail(all)
+                                }
                             }, false, {
                                 if (it.failed()) {
                                     job.done(it.cause())
                                 }
                             })
                         }
-                    } catch (GHFileNotFoundException ex) {
-                        logPrintln(job, "Could not locate project on GitHub")
-                        job.done(ex)
                     } catch (Exception ex) {
                         ex.printStackTrace()
                         logPrintln(job, ex.getMessage())
