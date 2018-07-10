@@ -110,8 +110,7 @@ class KytheMavenBuilder extends AbstractVerticle {
                     if (!buildTimeoutFuture.done) {
                         buildTimeoutFuture.cancel(true)
                         logPrintln(job, "Project build timed out")
-                        job.failed()
-                        vertx.eventBus().send(GithubRepositoryCloner.PROCESS_NEXT_JOB, new JsonObject())
+                        job.done()
                     }
                 }
             }, 1, TimeUnit.HOURS)
@@ -124,8 +123,7 @@ class KytheMavenBuilder extends AbstractVerticle {
                 }
 
                 logPrintln(job, "Project build failed")
-                job.failed()
-                vertx.eventBus().send(GithubRepositoryCloner.PROCESS_NEXT_JOB, new JsonObject())
+                job.done()
             } else {
                 logPrintln(job, "Project build took: " + asPrettyTime(buildContext.stop()))
                 vertx.eventBus().send(KytheIndexOutput.KYTHE_INDEX_OUTPUT, job)

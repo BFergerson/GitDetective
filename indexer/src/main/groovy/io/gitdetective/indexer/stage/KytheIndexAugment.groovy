@@ -190,18 +190,16 @@ class KytheIndexAugment extends AbstractVerticle {
                                 it.cause().printStackTrace()
                                 logPrintln(job, "Failed to send index results to importer")
                                 job.done(it.cause())
-                                vertx.eventBus().send(GithubRepositoryCloner.PROCESS_NEXT_JOB, new JsonObject())
                                 client.close()
                             } else {
                                 job = it.result()
                                 client.post(gitdetectivePort, gitdetectiveHost, "/jobs/transfer").ssl(ssl).sendJson(job, {
                                     if (it.succeeded()) {
-                                        vertx.eventBus().send(GithubRepositoryCloner.PROCESS_NEXT_JOB, new JsonObject())
+                                        job.done()
                                     } else {
                                         it.cause().printStackTrace()
                                         logPrintln(job, "Failed to send project to importer")
                                         job.done(it.cause())
-                                        vertx.eventBus().send(GithubRepositoryCloner.PROCESS_NEXT_JOB, new JsonObject())
                                     }
                                     client.close()
                                 })
@@ -211,7 +209,6 @@ class KytheIndexAugment extends AbstractVerticle {
                         ar.cause().printStackTrace()
                         logPrintln(job, "Failed to send project to importer")
                         job.done(ar.cause())
-                        vertx.eventBus().send(GithubRepositoryCloner.PROCESS_NEXT_JOB, new JsonObject())
                         client.close()
                     }
                 })

@@ -57,9 +57,6 @@ class GitDetectiveIndexer extends AbstractVerticle {
                     it.cause().printStackTrace()
                     System.exit(-1)
                 }
-
-                //start processing
-                vertx.eventBus().send(GithubRepositoryCloner.PROCESS_NEXT_JOB, new JsonObject())
             })
         })
     }

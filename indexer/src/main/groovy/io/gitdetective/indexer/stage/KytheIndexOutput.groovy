@@ -45,8 +45,7 @@ class KytheIndexOutput extends AbstractVerticle {
                     })
                 } else {
                     logPrintln(job, "Failed to produce Kythe index file")
-                    job.failed()
-                    vertx.eventBus().send(GithubRepositoryCloner.PROCESS_NEXT_JOB, new JsonObject())
+                    job.done()
                 }
             })
         })
