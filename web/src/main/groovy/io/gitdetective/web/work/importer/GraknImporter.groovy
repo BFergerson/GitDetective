@@ -437,6 +437,12 @@ class GraknImporter extends AbstractVerticle {
                                     importReference = existingRef.isEmpty()
                                 } else {
                                     def funcId = definedFunctions.get(lineData[1])
+                                    if (funcId == null || definedFunctionInstances.get(refFunctionId) == null
+                                            || definedFunctionInstances.get(funcId) == null) {
+                                        //println "todo: me5" //todo: me
+                                        return
+                                    }
+
                                     def existingRef = graql.parse(GET_EXISTING_INTERNAL_REFERENCE
                                             .replace("<xFunctionInstanceId>", definedFunctionInstances.get(refFunctionId))
                                             .replace("<yFunctionInstanceId>", definedFunctionInstances.get(funcId))).execute() as List<QueryAnswer>
@@ -481,7 +487,7 @@ class GraknImporter extends AbstractVerticle {
                                     redis.cacheProjectImportedReference(githubRepo, fileId, osFunc.functionId, fut2.completer())
                                 } else {
                                     def funcId = definedFunctions.get(lineData[1])
-                                    if (funcId == null) {
+                                    if (funcId == null || fileId == null || definedFunctionInstances.get(funcId) == null) {
                                         //println "todo: me4" //todo: me
                                         return
                                     }
