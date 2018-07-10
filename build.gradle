@@ -1,7 +1,7 @@
 subprojects {
     apply plugin: 'groovy'
 
-    version = '1.0.1'
+    version = '1.0.2'
     sourceCompatibility = 1.8
     targetCompatibility = 1.8
 
@@ -13,8 +13,7 @@ subprojects {
     dependencies {
         compile 'org.codehaus.groovy:groovy-all:2.3.11'
         compile group: 'io.vertx', name: 'vertx-core', version: '3.4.1'
-        compile 'com.github.bfergerson:vertx-kue:98c74df353' //0cc45f6f15
-        //compile 'com.github.bfergerson:vertx-redis-cluster:157dfa1a9d'
+        compile 'com.github.bfergerson:vertx-kue:98c74df353'
 
         compile group: 'io.netty', name: 'netty-all', version: '4.1.18.Final'
         compile group: 'io.netty', name: 'netty-common', version: '4.1.18.Final'

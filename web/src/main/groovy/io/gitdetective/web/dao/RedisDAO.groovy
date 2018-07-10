@@ -23,8 +23,7 @@ class RedisDAO {
         this.redis = redis
 
         //verify redis connection
-        //todo: go back to real ping. impl in cluster
-        redis.get("ping", {
+        redis.ping({
             if (it.failed()) {
                 throw new RuntimeException(it.cause())
             }

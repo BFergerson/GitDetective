@@ -1,4 +1,6 @@
 {
+  "redis.host": "localhost",
+  "redis.port": 6379,
   "grakn.host": "localhost",
   "grakn.port": 4567,
   "grakn.keyspace": "grakn",
@@ -27,11 +29,5 @@
     "project_recalculate_wait_time": 2,
     "project_external_method_reference_count": true,
     "project_most_referenced_methods": true
-  },
-  "cache_cluster": [
-    {
-      "redis.host": "localhost",
-      "redis.port": 6379
-    }
-  ]
+  }
 }
