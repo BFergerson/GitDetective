@@ -15,7 +15,7 @@ import static io.gitdetective.web.Utils.asPrettyTime
 import static io.gitdetective.web.Utils.logPrintln
 
 /**
- * Runs queries on Grakn to calculate project reference/copy data which
+ * Runs queries on Grakn to calculate project reference data which
  * is immediately cached for displaying on website.
  *
  * @author <a href="mailto:brandon.fergerson@codebrig.com">Brandon Fergerson</a>
