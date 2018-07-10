@@ -22,7 +22,7 @@
     "max_worker_time_minutes": 99999999
   },
   "calculator": {
-    "thread_count": 15,
+    "thread_count": 25,
     "max_worker_time_minutes": 99999999,
     "project_recalculate_wait_time": 2,
     "project_external_method_reference_count": true,
