@@ -109,6 +109,7 @@ class GraknCalculator extends AbstractVerticle {
 
                 if (skipCalculation) {
                     logPrintln(job, "Skipped calculating references")
+                    handler.handle(Future.succeededFuture())
                 } else {
                     performCalculations(job, githubRepo, !buildSkipped, handler)
                 }
