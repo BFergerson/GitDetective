@@ -23,12 +23,12 @@ import java.util.zip.GZIPInputStream
  *
  * @author <a href="mailto:brandon.fergerson@codebrig.com">Brandon Fergerson</a>
  */
-class GithubArchiveSync extends AbstractVerticle {
+class GHArchiveSync extends AbstractVerticle {
 
     private final JobsDAO jobs
     private final RedisDAO redis
 
-    GithubArchiveSync(JobsDAO jobs, RedisDAO redis) {
+    GHArchiveSync(JobsDAO jobs, RedisDAO redis) {
         this.jobs = jobs
         this.redis = redis
     }
