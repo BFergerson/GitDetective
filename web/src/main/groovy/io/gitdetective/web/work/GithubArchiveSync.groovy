@@ -1,6 +1,5 @@
 package io.gitdetective.web.work
 
-import io.gitdetective.indexer.stage.GithubRepositoryCloner
 import io.gitdetective.web.dao.JobsDAO
 import io.gitdetective.web.dao.RedisDAO
 import io.reactivex.Observable
@@ -183,7 +182,7 @@ class GithubArchiveSync extends AbstractVerticle {
                     }
 
                     //add to build queue
-                    jobs.createJob(GithubRepositoryCloner.INDEX_GITHUB_PROJECT_JOB_TYPE,
+                    jobs.createJob("IndexGithubProject",
                             "System build job queued", repo, {
                         if (it.failed()) {
                             it.cause().printStackTrace()

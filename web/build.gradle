@@ -4,7 +4,6 @@ apply plugin: 'application'
 mainClassName = 'io.gitdetective.web.WebLauncher'
 
 dependencies {
-    compile project(":indexer")
     compile group: 'io.dropwizard.metrics', name: 'metrics-core', version: '4.0.2'
     compile group: 'com.jcraft', name: 'jsch', version: '0.1.54'
     compile group: 'org.jooq', name: 'joor-java-8', version: '0.9.7'
