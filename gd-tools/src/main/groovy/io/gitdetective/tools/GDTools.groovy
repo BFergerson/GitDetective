@@ -17,7 +17,9 @@ class GDTools {
             CreateJob.main(args.drop(1))
         } else if (args[0].toLowerCase() == "createjobs") {
             CreateJobs.main(args.drop(1))
-        }  else {
+        } else if (args[0].toLowerCase() == "removejobs") {
+            CreateJobs.main(args.drop(1))
+        } else {
             System.err.println("Unknown command: " + args.toArrayString())
             System.exit(-2)
         }
