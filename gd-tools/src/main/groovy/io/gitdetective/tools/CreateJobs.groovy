@@ -78,7 +78,7 @@ class CreateJobs extends AbstractVerticle {
 
             def initialMessage = "Admin build job queued"
             if (jobType == "CalculateGithubProject") {
-                initialMessage = "Admin reference/copy recalculation queued"
+                initialMessage = "Admin reference recalculation queued"
             }
             jobs.createJob(jobType, initialMessage,
                     new JsonObject().put("github_repository", it)
