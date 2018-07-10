@@ -157,7 +157,6 @@ class GitDetectiveWebsite extends AbstractVerticle {
         CompositeFuture.all(Lists.asList(
                 getActiveJobs(ctx),
                 getProjectReferenceLeaderboard(ctx),
-                //getProjectCopyLeaderboard(ctx),
                 getDatabaseStatistics(ctx)
         )).setHandler({
             HandlebarsTemplateEngine engine = HandlebarsTemplateEngine.create()
@@ -207,28 +206,6 @@ class GitDetectiveWebsite extends AbstractVerticle {
         return future
     }
 
-    private Future getProjectCopyLeaderboard(RoutingContext ctx) {
-        def future = Future.future()
-        def handler = future.completer()
-        vertx.eventBus().send("GetProjectCopyLeaderboard", new JsonObject(), {
-            if (it.failed()) {
-                it.cause().printStackTrace()
-            } else {
-                def copyLeaderboard = it.result().body() as JsonArray
-
-                //make counts pretty
-                for (int i = 0; i < copyLeaderboard.size(); i++) {
-                    def project = copyLeaderboard.getJsonObject(i)
-                    def count = project.getString("value") as int
-                    project.put("value", asPrettyNumber(count))
-                }
-                ctx.put("project_copy_leaderboard", copyLeaderboard)
-            }
-            handler.handle(Future.succeededFuture())
-        })
-        return future
-    }
-
     private void handleProject(RoutingContext ctx) {
         def username = ctx.pathParam("githubUsername")
         def project = ctx.pathParam("githubProject")
@@ -257,7 +234,6 @@ class GitDetectiveWebsite extends AbstractVerticle {
                 getProjectLastIndexedCommitInformation(ctx, githubRepo),
                 getProjectLastCalculated(ctx, githubRepo),
                 getProjectMostReferencedMethods(ctx, githubRepo)
-                //getProjectMostCopiedMethods(ctx, githubRepo)
         )).setHandler({
             HandlebarsTemplateEngine engine = HandlebarsTemplateEngine.create()
             engine.render(ctx, "webroot/project.hbs", { res ->
@@ -341,20 +317,6 @@ class GitDetectiveWebsite extends AbstractVerticle {
         return future
     }
 
-    private Future getProjectMostCopiedMethods(RoutingContext ctx, JsonObject githubRepo) {
-        def future = Future.future()
-        def handler = future.completer()
-        vertx.eventBus().send("GetProjectMostCopiedMethods", githubRepo, {
-            if (it.failed()) {
-                it.cause().printStackTrace()
-            } else {
-                ctx.put("project_most_copied_methods", it.result().body())
-            }
-            handler.handle(Future.succeededFuture())
-        })
-        return future
-    }
-
     private Future getProjectFirstIndexed(RoutingContext ctx, JsonObject githubRepo) {
         def future = Future.future()
         def handler = future.completer()
@@ -417,7 +379,7 @@ class GitDetectiveWebsite extends AbstractVerticle {
 
     private static Future getDatabaseStatistics(RoutingContext ctx) {
         def stats = new JsonArray()
-        stats.add(new JsonObject().put("stat1", "Actively indexing").put("value1", asPrettyNumber(CURRENTLY_INDEXING_COUNT))
+        stats.add(new JsonObject().put("stat1", "Active backlog").put("value1", asPrettyNumber(CURRENTLY_INDEXING_COUNT))
                 .put("stat2", "Projects").put("value2", asPrettyNumber(TOTAL_PROJECT_COUNT)))
         stats.add(new JsonObject().put("stat1", "Definitions").put("value1", asPrettyNumber(TOTAL_DEFINITION_COUNT))
                 .put("stat2", "Files").put("value2", asPrettyNumber(TOTAL_FILE_COUNT)))

@@ -125,11 +125,6 @@ class GraknCalculator extends AbstractVerticle {
             futures.add(calculateProjectExternalMethodReferenceCount(job))
         if (calcConfig.getBoolean("project_most_referenced_methods"))
             futures.add(getProjectMostExternalReferencedMethods(job))
-//        //method copies
-//        if (calcConfig.getBoolean("project_external_method_copy_count"))
-//            futures.add(calculateProjectExternalMethodCopyCount(job))
-//        if (calcConfig.getBoolean("project_most_copied_methods"))
-//            futures.add(getProjectMostExternalCopiedMethods(job))
 
         def timer = new Timer()
         def context = timer.time()
@@ -220,44 +215,6 @@ class GraknCalculator extends AbstractVerticle {
                 future.complete(it.cause())
             } else {
                 logPrintln(job, "External method reference count took: " + asPrettyTime(context.stop()))
-                future.complete()
-            }
-        })
-        return future
-    }
-
-    private Future getProjectMostExternalCopiedMethods(Job job) {
-        def timer = WebLauncher.metrics.timer("CalculateProjectMostExternalCopiedMethods")
-        def context = timer.time()
-        logPrintln(job, "Calculating project most copied methods")
-        def githubRepo = job.data.getString("github_repository").toLowerCase()
-
-        def future = Future.future()
-        grakn.getProjectMostExternalCopiedMethods(githubRepo, {
-            if (it.failed()) {
-                it.cause().printStackTrace()
-                future.complete(it.cause())
-            } else {
-                logPrintln(job, "Most copied methods count took: " + asPrettyTime(context.stop()))
-                future.complete()
-            }
-        })
-        return future
-    }
-
-    private Future calculateProjectExternalMethodCopyCount(Job job) {
-        def timer = WebLauncher.metrics.timer("CalculateProjectExternalMethodCopyCount")
-        def context = timer.time()
-        logPrintln(job, "Calculating project external method copy count")
-        def githubRepo = job.data.getString("github_repository").toLowerCase()
-
-        def future = Future.future()
-        grakn.getProjectExternalMethodCopyCount(githubRepo, {
-            if (it.failed()) {
-                it.cause().printStackTrace()
-                future.complete(it.cause())
-            } else {
-                logPrintln(job, "External method copy count took: " + asPrettyTime(context.stop()))
                 future.complete()
             }
         })
