@@ -1,5 +1,6 @@
 package io.gitdetective.web.work
 
+import io.gitdetective.indexer.stage.GithubRepositoryCloner
 import io.gitdetective.web.dao.JobsDAO
 import io.gitdetective.web.dao.RedisDAO
 import io.reactivex.Observable

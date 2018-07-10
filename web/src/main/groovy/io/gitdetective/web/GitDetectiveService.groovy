@@ -7,6 +7,7 @@ import ai.grakn.Keyspace
 import ai.grakn.engine.GraknConfig
 import com.google.common.base.Charsets
 import com.google.common.io.Resources
+import io.gitdetective.indexer.stage.GithubRepositoryCloner
 import io.gitdetective.web.dao.GraknDAO
 import io.gitdetective.web.dao.JobsDAO
 import io.gitdetective.web.dao.RedisDAO
@@ -263,7 +264,7 @@ class GitDetectiveService extends AbstractVerticle {
             def githubRepo = body.getString("github_repo").toLowerCase()
 
             // user requested = highest priority
-            jobs.createJob("IndexGithubProject", "User build job queued",
+            jobs.createJob(GithubRepositoryCloner.INDEX_GITHUB_PROJECT_JOB_TYPE, "User build job queued",
                     githubRepo, Priority.CRITICAL, {
                 if (it.failed()) {
                     it.cause().printStackTrace()

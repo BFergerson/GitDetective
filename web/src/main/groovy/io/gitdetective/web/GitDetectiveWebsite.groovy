@@ -2,9 +2,9 @@ package io.gitdetective.web
 
 import com.google.common.collect.Lists
 import io.gitdetective.GitDetectiveVersion
+import io.gitdetective.indexer.stage.GithubRepositoryCloner
 import io.gitdetective.web.dao.JobsDAO
 import io.gitdetective.web.dao.RedisDAO
-import io.gitdetective.web.work.GithubArchiveSync
 import io.gitdetective.web.work.calculator.GraknCalculator
 import io.gitdetective.web.work.importer.GraknImporter
 import io.vertx.core.AbstractVerticle
@@ -90,7 +90,7 @@ class GitDetectiveWebsite extends AbstractVerticle {
     }
 
     private void updateDatabaseStatistics(boolean initial) {
-        jobs.getActiveCount("IndexGithubProject", {
+        jobs.getActiveCount(GithubRepositoryCloner.INDEX_GITHUB_PROJECT_JOB_TYPE, {
             if (it.succeeded()) {
                 CURRENTLY_INDEXING_COUNT = it.result()
             } else {
