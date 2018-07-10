@@ -9,6 +9,8 @@
   "keystore_password": "password",
   "job_processing_enabled": true,
   "launch_website": true,
+  "github_archive_sync_enabled": false,
+  "temp_directory": "/opt/gitdetective-web/tmp",
   "gitdetective_url": "http://localhost/",
   "service": {
     "worker_pool_size": 75,
@@ -24,9 +26,7 @@
     "max_worker_time_minutes": 99999999,
     "project_recalculate_wait_time": 2,
     "project_external_method_reference_count": true,
-    "project_most_referenced_methods": true,
-    "project_external_method_copy_count": true,
-    "project_most_copied_methods": true
+    "project_most_referenced_methods": true
   },
   "cache_cluster": [
     {

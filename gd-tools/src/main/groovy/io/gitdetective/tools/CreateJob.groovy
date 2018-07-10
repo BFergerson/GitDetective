@@ -87,7 +87,7 @@ class CreateJob extends AbstractVerticle {
         def jobs = new JobsDAO(kue, redis)
         def initialMessage = "Admin build job queued"
         if (jobType == "CalculateGithubProject") {
-            initialMessage = "Admin reference/copy recalculation queued"
+            initialMessage = "Admin reference recalculation queued"
         }
 
         jobs.createJob(jobType, initialMessage,

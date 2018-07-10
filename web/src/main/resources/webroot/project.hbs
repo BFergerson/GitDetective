@@ -302,73 +302,6 @@
                             <!--</nav>-->
                         </div>
                     </div>
-                    <!--<div class="card">-->
-                        <!--<div class="card-body">-->
-                            <!--<ol style="background-color: #272c33 !important;" id="copied_methods_breadcrumbs"-->
-                                <!--class="breadcrumb bc-colored m-b-10 bg-primary">-->
-                                <!--<li id="most_copied_methods_breadcrumb" class="breadcrumb-item active">-->
-                                    <!--<a id="most_copied_methods_breadcrumb_link"-->
-                                       <!--onclick="displayMostCopiedMethods()"><b>Most copied methods</b></a>-->
-                                <!--</li>-->
-                            <!--</ol>-->
-                            <!--<div class="d-flex no-block">-->
-                                <!--<h4 id="copies_main_title" class="card-title"></h4>-->
-                            <!--</div>-->
-                            <!--<div class="table-responsive">-->
-                                <!--<table id="most_copied_methods_table" class="table stylish-table">-->
-                                    <!--<thead>-->
-                                    <!--<tr>-->
-                                        <!--<th>Class/Method</th>-->
-                                        <!--<th>External copies</th>-->
-                                    <!--</tr>-->
-                                    <!--</thead>-->
-                                    <!--<tbody id="most_copied_methods">-->
-                                    <!--{{#each project_most_copied_methods}}-->
-                                        <!--{{#if has_method_link}}-->
-                                            <!--<tr onclick="displayMethodCopy({{this}});">-->
-                                        <!--{{else}}-->
-                                            <!--<tr>-->
-                                        <!--{{/if}}-->
-                                            <!--<td><h6>{{this.short_class_name}}</h6>-->
-                                                <!--<small class="text-muted">{{this.short_method_signature}}</small>-->
-                                            <!--</td>-->
-                                            <!--<td>-->
-                                                <!--<span class="label label-primary">-->
-                                                    <!--{{this.external_copy_count}}-->
-                                                <!--</span>-->
-                                            <!--</td>-->
-                                        <!--</tr>-->
-                                    <!--{{/each}}-->
-                                    <!--</tbody>-->
-                                <!--</table>-->
-                                <!--<table id="method_copies_table" class="table stylish-table">-->
-                                    <!--<thead>-->
-                                    <!--<tr>-->
-                                        <!--<th>Class/Method</th>-->
-                                        <!--<th>Project</th>-->
-                                        <!--<th>Location</th>-->
-                                    <!--</tr>-->
-                                    <!--</thead>-->
-                                    <!--<tbody id="method_copies">-->
-                                    <!--</tbody>-->
-                                <!--</table>-->
-                            <!--</div>-->
-                            <!--<span id="display_copy_amount_information" class="float-right"></span>-->
-                            <!--&lt;!&ndash;<nav aria-label="Page navigation example">&ndash;&gt;-->
-                            <!--&lt;!&ndash;<ul class="pagination justify-content-center">&ndash;&gt;-->
-                            <!--&lt;!&ndash;<li class="page-item disabled">&ndash;&gt;-->
-                            <!--&lt;!&ndash;<a class="page-link" href="#" tabindex="-1">Previous</a>&ndash;&gt;-->
-                            <!--&lt;!&ndash;</li>&ndash;&gt;-->
-                            <!--&lt;!&ndash;<li class="page-item"><a class="page-link" href="#">1</a></li>&ndash;&gt;-->
-                            <!--&lt;!&ndash;<li class="page-item"><a class="page-link" href="#">2</a></li>&ndash;&gt;-->
-                            <!--&lt;!&ndash;<li class="page-item"><a class="page-link" href="#">3</a></li>&ndash;&gt;-->
-                            <!--&lt;!&ndash;<li class="page-item">&ndash;&gt;-->
-                            <!--&lt;!&ndash;<a class="page-link" href="#">Next</a>&ndash;&gt;-->
-                            <!--&lt;!&ndash;</li>&ndash;&gt;-->
-                            <!--&lt;!&ndash;</ul>&ndash;&gt;-->
-                            <!--&lt;!&ndash;</nav>&ndash;&gt;-->
-                        <!--</div>-->
-                    <!--</div>-->
                 </div>
                 <!-- Column -->
             </div>
@@ -484,9 +417,7 @@
 <script>
     $(document).ready(function () {
         $('#method_references_table').hide()
-        $('#method_copies_table').hide()
         $('#display_reference_amount_information').hide()
-        $('#display_copy_amount_information').hide()
     })
 </script>
 <script src="{{gitdetective_url}}static/sockjs.min.js"></script>

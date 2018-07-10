@@ -97,7 +97,6 @@ class WebLauncher {
             })
         }
 
-//        RedisClusterOptions clusterOptions = new RedisClusterOptions()
         def cacheCluster = options.config.getJsonArray("cache_cluster")
         def kueOptions = new DeploymentOptions()
         RedisClient redisClient
@@ -108,12 +107,9 @@ class WebLauncher {
             kueOptions.setConfig(serverConfig)
         } else {
             throw new IllegalStateException("Not yet implemented")
-//            println "Using cache in cluster mode"
-//            for (int i = 0; i < cacheCluster.size(); i++) {
-//                clusterOptions.addNode(new HostAndPort(cacheCluster.getJsonObject(i).getString("redis.host"),
-//                        cacheCluster.getJsonObject(i).getInteger("redis.port")))
-//            }
-//            redisClient = RedisCluster.create(vertx, clusterOptions)
+        }
+        if (options.config.getJsonObject("jobs_server") != null) {
+            kueOptions.config = options.config.getJsonObject("jobs_server")
         }
 
         println "Launching GitDetective service"

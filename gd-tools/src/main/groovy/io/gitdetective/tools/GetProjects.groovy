@@ -6,8 +6,6 @@ import ai.grakn.GraknTxType
 import ai.grakn.graql.internal.query.QueryAnswer
 
 /**
- * todo: description
- *
  * @author <a href="mailto:brandon.fergerson@codebrig.com">Brandon Fergerson</a>
  */
 class GetProjects {
