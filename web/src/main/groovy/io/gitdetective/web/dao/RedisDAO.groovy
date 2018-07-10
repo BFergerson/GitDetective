@@ -92,34 +92,6 @@ class RedisDAO {
         })
     }
 
-    void getProjectExternalMethodReferenceCount(String githubRepo, Handler<AsyncResult<Long>> handler) {
-        redis.get("gitdetective:project:$githubRepo:project_external_method_reference_count", {
-            if (it.failed()) {
-                handler.handle(Future.failedFuture(it.cause()))
-            } else {
-                def result = it.result()
-                if (result == null) {
-                    result = 0
-                }
-                handler.handle(Future.succeededFuture(result as long))
-            }
-        })
-    }
-
-    void getProjectExternalMethodCopyCount(String githubRepo, Handler<AsyncResult<Long>> handler) {
-        redis.get("gitdetective:project:$githubRepo:project_external_method_copy_count", {
-            if (it.failed()) {
-                handler.handle(Future.failedFuture(it.cause()))
-            } else {
-                def result = it.result()
-                if (result == null) {
-                    result = 0
-                }
-                handler.handle(Future.succeededFuture(result as long))
-            }
-        })
-    }
-
     void appendJobToBuildHistory(String githubRepo, long jobId, Handler<AsyncResult<Void>> handler) {
         redis.lpush("gitdetective:project:$githubRepo:build_history", jobId as String, {
             if (it.failed()) {
@@ -162,23 +134,6 @@ class RedisDAO {
         })
     }
 
-    void getProjectMostExternalCopiedMethods(String githubRepo, int topCount, Handler<AsyncResult<JsonArray>> handler) {
-        redis.zrevrange("gitdetective:project:$githubRepo:method_method_copy_leaderboard", 0, topCount - 1, RangeOptions.WITHSCORES, {
-            if (it.failed()) {
-                handler.handle(Future.failedFuture(it.cause()))
-            } else {
-                def list = it.result() as JsonArray
-                def rtnArray = new JsonArray()
-                for (int i = 0; i < list.size(); i += 2) {
-                    rtnArray.add(new JsonObject(list.getString(i))
-                            .put("external_copy_count", list.getString(i + 1) as int))
-                }
-                handler.handle(Future.succeededFuture(rtnArray))
-            }
-        })
-    }
-
-
     void getMethodExternalMethodReferences(String githubRepo, String methodId, int offset,
                                            Handler<AsyncResult<JsonArray>> handler) {
         redis.get("gitdetective:project:$githubRepo:method_method_references:" + methodId + ":" + offset, {
@@ -194,35 +149,9 @@ class RedisDAO {
         })
     }
 
-    void getMethodExternalMethodCopies(String githubRepo, String methodId, int offset,
-                                       Handler<AsyncResult<JsonArray>> handler) {
-        redis.get("gitdetective:project:$githubRepo:method_method_copies:" + methodId + ":" + offset, {
-            if (it.failed()) {
-                handler.handle(Future.failedFuture(it.cause()))
-            } else {
-                if (it.result() == null) {
-                    handler.handle(Future.succeededFuture(new JsonArray()))
-                } else {
-                    handler.handle(Future.succeededFuture(new JsonArray(it.result())))
-                }
-            }
-        })
-    }
-
     void cacheMethodMethodReferences(String githubRepo, String methodId, int offset,
                                      JsonArray methodReferences, Handler<AsyncResult> handler) {
         redis.set("gitdetective:project:$githubRepo:method_method_references:" + methodId + ":" + offset, methodReferences.encode(), {
-            if (it.failed()) {
-                handler.handle(Future.failedFuture(it.cause()))
-            } else {
-                handler.handle(Future.succeededFuture())
-            }
-        })
-    }
-
-    void cacheMethodMethodCopies(String githubRepo, String methodId, int offset,
-                                 JsonArray methodCopies, Handler<AsyncResult> handler) {
-        redis.set("gitdetective:project:$githubRepo:method_method_copies:" + methodId + ":" + offset, methodCopies.encode(), {
             if (it.failed()) {
                 handler.handle(Future.failedFuture(it.cause()))
             } else {
@@ -249,24 +178,6 @@ class RedisDAO {
         })
     }
 
-    void cacheMethodMethodCopyCount(String githubRepo, JsonObject method, long copyCount,
-                                    Handler<AsyncResult<Void>> handler) {
-        redis.set("gitdetective:project:$githubRepo:method_method_copy_count:" + method.getString("id"), copyCount as String, {
-            if (it.failed()) {
-                handler.handle(Future.failedFuture(it.cause()))
-            } else {
-                def methodDupe = method.copy()
-                methodDupe.remove("commit_sha1") //don't care about which commit method came from
-                redis.zadd("gitdetective:project:$githubRepo:method_method_copy_leaderboard", copyCount, methodDupe.encode(), {
-                    if (it.failed()) {
-                        handler.handle(Future.failedFuture(it.cause()))
-                    }
-                    handler.handle(Future.succeededFuture())
-                })
-            }
-        })
-    }
-
     void updateProjectReferenceLeaderboard(String githubRepo, long projectMethodReferenceCount,
                                            Handler<AsyncResult> handler) {
         redis.set("gitdetective:project:$githubRepo:project_external_method_reference_count", projectMethodReferenceCount as String, {
@@ -283,42 +194,8 @@ class RedisDAO {
         })
     }
 
-    void updateProjectCopyLeaderboard(String githubRepo, long projectMethodCopyCount,
-                                      Handler<AsyncResult> handler) {
-        redis.set("gitdetective:project:$githubRepo:project_external_method_copy_count", projectMethodCopyCount as String, {
-            if (it.failed()) {
-                handler.handle(Future.failedFuture(it.cause()))
-            } else {
-                redis.zadd("gitdetective:project_copy_leaderboard", projectMethodCopyCount, githubRepo, {
-                    if (it.failed()) {
-                        handler.handle(Future.failedFuture(it.cause()))
-                    }
-                    handler.handle(Future.succeededFuture())
-                })
-            }
-        })
-    }
-
     void getProjectReferenceLeaderboard(int topCount, Handler<AsyncResult<JsonArray>> handler) {
         redis.zrevrange("gitdetective:project_reference_leaderboard", 0, topCount - 1, RangeOptions.WITHSCORES, {
-            if (it.failed()) {
-                handler.handle(Future.failedFuture(it.cause()))
-            } else {
-                def list = it.result() as JsonArray
-                def rtnArray = new JsonArray()
-                for (int i = 0; i < list.size(); i += 2) {
-                    rtnArray.add(new JsonObject()
-                            .put("github_repo", list.getString(i).toLowerCase())
-                            .put("value", list.getString(i + 1)))
-                }
-
-                handler.handle(Future.succeededFuture(rtnArray))
-            }
-        })
-    }
-
-    void getProjectCopyLeaderboard(int topCount, Handler<AsyncResult<JsonArray>> handler) {
-        redis.zrevrange("gitdetective:project_copy_leaderboard", 0, topCount - 1, RangeOptions.WITHSCORES, {
             if (it.failed()) {
                 handler.handle(Future.failedFuture(it.cause()))
             } else {
@@ -612,12 +489,8 @@ class RedisDAO {
         return methodCount
     }
 
-    void cacheOpenSourceFunction(String functionName, OpenSourceFunction osFunc) {
-        redis.set("gitdetective:osf:" + functionName, Json.encode(osFunc), {
-            if (it.failed()) {
-                it.cause().printStackTrace()
-            }
-        })
+    void cacheOpenSourceFunction(String functionName, OpenSourceFunction osFunc, Handler<AsyncResult> handler) {
+        redis.set("gitdetective:osf:" + functionName, Json.encode(osFunc), handler)
     }
 
     void getOpenSourceFunction(String functionName, Handler<AsyncResult<Optional<OpenSourceFunction>>> handler) {

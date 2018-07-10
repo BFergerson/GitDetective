@@ -178,24 +178,6 @@ class GitDetectiveService extends AbstractVerticle {
                 context.stop()
             })
         })
-//        vertx.eventBus().consumer("GetProjectCopyLeaderboard", { request ->
-//            def timer = WebLauncher.metrics.timer("GetProjectCopyLeaderboard")
-//            def context = timer.time()
-//            println "Getting project copy leaderboard"
-//
-//            redis.getProjectCopyLeaderboard(5, {
-//                if (it.failed()) {
-//                    it.cause().printStackTrace()
-//                    request.reply(it.cause())
-//                    context.stop()
-//                    return
-//                }
-//
-//                println "Got project copy leaderboard - Size: " + it.result().size()
-//                request.reply(it.result())
-//                context.stop()
-//            })
-//        })
         vertx.eventBus().consumer("GetActiveJobs", { request ->
             def timer = WebLauncher.metrics.timer("GetActiveJobs")
             def context = timer.time()
@@ -234,15 +216,6 @@ class GitDetectiveService extends AbstractVerticle {
                 println "Got active jobs - Size: " + activeJobs.size()
                 request.reply(activeJobs)
                 context.stop()
-
-                //kill any jobs that haven't been updated in 2 hours
-                allJobs.each {
-                    if (!Instant.ofEpochMilli(it.updated_at).isAfter(Instant.now().minus(2, ChronoUnit.HOURS))) {
-                        logPrintln(it, "Failed to progress in 2 hours")
-                        it.failed()
-                        //todo: actually stop job (move this and that logic to JobsDAO)
-                    }
-                }
             })
         })
         vertx.eventBus().consumer("GetLatestJobLog", { request ->
@@ -424,52 +397,6 @@ class GitDetectiveService extends AbstractVerticle {
                 context.stop()
             })
         })
-//        vertx.eventBus().consumer("GetProjectMostCopiedMethods", { request ->
-//            def timer = WebLauncher.metrics.timer("GetProjectMostCopiedMethods")
-//            def context = timer.time()
-//            println "Getting project most copied methods"
-//
-//            def body = (JsonObject) request.body()
-//            def githubRepo = body.getString("github_repo").toLowerCase()
-//            redis.getProjectMostExternalCopiedMethods(githubRepo, 10, {
-//                if (it.failed()) {
-//                    it.cause().printStackTrace()
-//                    request.reply(it.cause())
-//                } else {
-//                    def methodMap = new HashMap<String, JsonObject>()
-//                    for (int i = 0; i < it.result().size(); i++) {
-//                        def array = it.result()
-//                        for (int z = 0; z < array.size(); z++) {
-//                            def method = array.getJsonObject(z)
-//                            if (methodMap.containsKey(method.getString("id"))) {
-//                                methodMap.get(method.getString("id")).mergeIn(method)
-//                            } else {
-//                                methodMap.put(method.getString("id"), method)
-//                            }
-//                        }
-//                    }
-//
-//                    //sort methods by external copy count
-//                    def result = new JsonArray(methodMap.values().asList().sort {
-//                        return it.getInteger("external_copy_count")
-//                    }.reverse())
-//
-//                    //method link
-//                    for (int i = 0; i < result.size(); i++) {
-//                        def ob = result.getJsonObject(i)
-//                        if (ob.getInteger("external_copy_count") > 0) {
-//                            ob.put("has_method_link", true)
-//                        } else {
-//                            break
-//                        }
-//                    }
-//
-//                    println "Got project most copied methods - Size: " + result.size()
-//                    request.reply(result)
-//                }
-//                context.stop()
-//            })
-//        })
         vertx.eventBus().consumer("GetMethodMethodReferences", { request ->
             def timer = WebLauncher.metrics.timer("GetMethodMethodReferences")
             def context = timer.time()
@@ -491,27 +418,6 @@ class GitDetectiveService extends AbstractVerticle {
                 context.stop()
             })
         })
-//        vertx.eventBus().consumer("GetMethodMethodCopies", { request ->
-//            def timer = WebLauncher.metrics.timer("GetMethodMethodCopies")
-//            def context = timer.time()
-//            println "Getting method method copies"
-//
-//            def body = (JsonObject) request.body()
-//            def githubRepo = body.getString("github_repo").toLowerCase()
-//            def methodId = body.getString("method_id")
-//            def offset = body.getInteger("offset")
-//
-//            redis.getMethodExternalMethodCopies(githubRepo, methodId, offset, {
-//                if (it.failed()) {
-//                    it.cause().printStackTrace()
-//                    request.reply(it.cause())
-//                } else {
-//                    println "Got method method copies: " + it.result()
-//                    request.reply(it.result())
-//                }
-//                context.stop()
-//            })
-//        })
         vertx.eventBus().consumer("GetProjectFirstIndexed", { request ->
             def timer = WebLauncher.metrics.timer("GetProjectFirstIndexed")
             def context = timer.time()

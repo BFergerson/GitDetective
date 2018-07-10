@@ -55,7 +55,6 @@ class KytheIndexAugment extends AbstractVerticle {
                 .make()
 
         def definedFunctions = db.hashSet("definedFunctions", Serializer.STRING).create()
-        def osfUsageCounts = db.hashMap("osfUsageCounts", Serializer.STRING, Serializer.LONG_ARRAY).create()
         def outputDirectory = job.data.getString("output_directory")
         def osFunctionsOutput = new File(outputDirectory, "functions_open-source.txt")
         osFunctionsOutput.append("name|definitionCount|referenceCount\n")
@@ -73,9 +72,6 @@ class KytheIndexAugment extends AbstractVerticle {
             if (lineNumber > 1) {
                 def lineData = it.split("\\|")
                 def functionName = lineData[1]
-                osfUsageCounts.putIfAbsent(functionName, [-1, 0] as long[])
-                osfUsageCounts.put(functionName, [++osfUsageCounts.get(functionName)[0],
-                                                  osfUsageCounts.get(functionName)[1]] as long[])
                 definedFunctions.add(functionName)
 
                 def fut = Future.future()
@@ -102,13 +98,10 @@ class KytheIndexAugment extends AbstractVerticle {
                 def xFunctionName = lineData[0]
                 def yFunctionName = lineData[1]
 
-                osfUsageCounts.putIfAbsent(yFunctionName, [-1, 0] as long[])
                 if (definedFunctions.contains(yFunctionName)) {
                     functionReferences.append("|false")
                 } else {
                     functionReferences.append("|true")
-                    osfUsageCounts.put(yFunctionName, [osfUsageCounts.get(yFunctionName)[0],
-                                                       ++osfUsageCounts.get(yFunctionName)[1]] as long[])
                 }
                 functionReferences.append("|" + yFunctionName.startsWith("kythe://jdk"))
 
@@ -143,10 +136,8 @@ class KytheIndexAugment extends AbstractVerticle {
                 job.done(it.cause())
             } else {
                 logPrintln(job, "Defining open source functions")
-                osfUsageCounts.each {
-                    if (it.value[0] > -1 || it.value[1] > 0 || neededFunctions.contains(it.key)) {
-                        osFunctionsOutput.append(it.key + "|" + it.value[0] + "|" + it.value[1] + "\n")
-                    }
+                neededFunctions.each {
+                    osFunctionsOutput.append("$it\n")
                 }
 
                 db.close()

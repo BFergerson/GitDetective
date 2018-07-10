@@ -43,7 +43,6 @@ class GitDetectiveIndexer extends AbstractVerticle {
         vertxOptions.maxWorkerExecuteTime = Long.MAX_VALUE
         def vertx = Vertx.vertx(vertxOptions)
 
-//        RedisClusterOptions clusterOptions = new RedisClusterOptions()
         def cacheCluster = options.config.getJsonArray("cache_cluster")
         def kueOptions = new DeploymentOptions()
         RedisClient redisClient
@@ -54,12 +53,9 @@ class GitDetectiveIndexer extends AbstractVerticle {
             kueOptions.setConfig(serverConfig)
         } else {
             throw new IllegalStateException("Not yet implemented")
-//            println "Using cache in cluster mode"
-//            for (int i = 0; i < cacheCluster.size(); i++) {
-//                clusterOptions.addNode(new HostAndPort(cacheCluster.getJsonObject(i).getString("redis.host"),
-//                        cacheCluster.getJsonObject(i).getInteger("redis.port")))
-//            }
-//            redisClient = RedisCluster.create(vertx, clusterOptions)
+        }
+        if (options.config.getJsonObject("jobs_server") != null) {
+            kueOptions.config = options.config.getJsonObject("jobs_server")
         }
 
         def kue = new Kue(vertx, kueOptions.config)

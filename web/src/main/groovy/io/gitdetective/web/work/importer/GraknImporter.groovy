@@ -5,9 +5,9 @@ import ai.grakn.engine.GraknConfig
 import ai.grakn.graql.internal.query.QueryAnswer
 import com.google.common.base.Charsets
 import com.google.common.io.Resources
-import com.jcraft.jsch.Channel
 import com.jcraft.jsch.ChannelSftp
 import com.jcraft.jsch.JSch
+import com.jcraft.jsch.JSchException
 import com.jcraft.jsch.Session
 import io.gitdetective.web.WebLauncher
 import io.gitdetective.web.dao.GraknDAO
@@ -47,7 +47,8 @@ class GraknImporter extends AbstractVerticle {
             "queries/import/get_existing_definition_by_file_name.gql"), Charsets.UTF_8)
     private final static String GET_EXISTING_INTERNAL_REFERENCE = Resources.toString(Resources.getResource(
             "queries/import/get_existing_internal_reference.gql"), Charsets.UTF_8)
-    private final static String GET_EXISTING_INTERNAL_REFERENCE_BY_FUNCTION_NAME = Resources.toString(Resources.getResource(
+    private final
+    static String GET_EXISTING_INTERNAL_REFERENCE_BY_FUNCTION_NAME = Resources.toString(Resources.getResource(
             "queries/import/get_existing_internal_reference_by_function_name.gql"), Charsets.UTF_8)
     private final static String GET_EXISTING_INTERNAL_REFERENCE_BY_FILE_NAME = Resources.toString(Resources.getResource(
             "queries/import/get_existing_internal_reference_by_file_name.gql"), Charsets.UTF_8)
@@ -70,6 +71,7 @@ class GraknImporter extends AbstractVerticle {
     private final GraknDAO grakn
     private final String uploadsDirectory
     private GraknSession graknSession
+    private Session remoteSFTPSession
 
     GraknImporter(Kue kue, RedisDAO redis, GraknDAO grakn, String uploadsDirectory) {
         this.kue = kue
@@ -80,6 +82,18 @@ class GraknImporter extends AbstractVerticle {
 
     @Override
     void start() throws Exception {
+        String uploadsHost = config().getString("uploads.host")
+        if (uploadsHost != null) {
+            println "Connecting to remote SFTP server"
+            String uploadsUsername = config().getString("uploads.username")
+            String uploadsPassword = config().getString("uploads.password")
+            remoteSFTPSession = new JSch().getSession(uploadsUsername, uploadsHost, 22)
+            remoteSFTPSession.setConfig("StrictHostKeyChecking", "no")
+            remoteSFTPSession.setPassword(uploadsPassword)
+            remoteSFTPSession.connect()
+            println "Connected to remote SFTP server"
+        }
+
         String graknHost = config().getString("grakn.host")
         int graknPort = config().getInteger("grakn.port")
         String graknKeyspace = config().getString("grakn.keyspace")
@@ -131,6 +145,11 @@ class GraknImporter extends AbstractVerticle {
             })
         })
         println "GraknImporter started"
+    }
+
+    @Override
+    void stop() throws Exception {
+        if (remoteSFTPSession != null) remoteSFTPSession.disconnect()
     }
 
     private void processImportJob(Job job, Job indexJob, Handler<AsyncResult> handler) {
@@ -217,8 +236,10 @@ class GraknImporter extends AbstractVerticle {
                 lineNumber++
                 if (lineNumber > 1) {
                     def lineData = it.split("\\|")
-                    def osFunc = grakn.updateOpenSourceFunction(lineData[0], graql,
-                            lineData[1] as long, lineData[2] as long)
+
+                    def fut = Future.future()
+                    cacheFutures.add(fut)
+                    def osFunc = grakn.getOrCreateOpenSourceFunction(lineData[0], graql, fut.completer())
                     openSourceFunctions.put(lineData[0], osFunc)
                 }
             }
@@ -290,8 +311,8 @@ class GraknImporter extends AbstractVerticle {
                 lineNumber++
                 if (lineNumber > 1) {
                     def lineData = it.split("\\|")
-                    def fileId = importedFiles.get(lineData[0])
                     def importDefinition = newProject
+                    def fileId = importedFiles.get(lineData[0])
 
                     if (!newProject) {
                         //find existing defined function
@@ -305,9 +326,14 @@ class GraknImporter extends AbstractVerticle {
                         def startOffset = lineData[3]
                         def endOffset = lineData[4]
                         def osFunc = openSourceFunctions.get(lineData[1])
-
-                        if (fileId == null || osFunc == null) {
-                            println "todo: me2" //todo: me
+                        if (osFunc == null) {
+                            def fut = Future.future()
+                            cacheFutures.add(fut)
+                            osFunc = grakn.getOrCreateOpenSourceFunction(lineData[1], graql, fut.completer())
+                            openSourceFunctions.put(lineData[1], osFunc)
+                        }
+                        if (fileId == null) {
+                            //println "todo: me3" //todo: me
                             return
                         }
 
@@ -353,13 +379,15 @@ class GraknImporter extends AbstractVerticle {
                 lineNumber++
                 if (lineNumber > 1) {
                     def lineData = it.split("\\|")
+                    def importReference = newProject
                     def isFileReferencing = !lineData[0].contains("#")
                     def isExternal = Boolean.valueOf(lineData[5])
                     def osFunc = openSourceFunctions.get(lineData[1])
-                    def importReference = newProject
                     if (osFunc == null) {
-                        println "todo: me3" //todo: me
-                        return
+                        def fut = Future.future()
+                        cacheFutures.add(fut)
+                        osFunc = grakn.getOrCreateOpenSourceFunction(lineData[1], graql, fut.completer())
+                        openSourceFunctions.put(lineData[1], osFunc)
                     }
 
                     if (!newProject) {
@@ -384,6 +412,13 @@ class GraknImporter extends AbstractVerticle {
                         } else {
                             if (isExternal) {
                                 def defOsFunc = openSourceFunctions.get(lineData[0])
+                                if (defOsFunc == null) {
+                                    def fut = Future.future()
+                                    cacheFutures.add(fut)
+                                    defOsFunc = grakn.getOrCreateOpenSourceFunction(lineData[0], graql, fut.completer())
+                                    openSourceFunctions.put(lineData[0], defOsFunc)
+                                }
+
                                 def existingRef = graql.parse(GET_EXISTING_EXTERNAL_REFERENCE
                                         .replace("<projectId>", projectId)
                                         .replace("<funcDefsId>", defOsFunc.functionDefinitionsId)
@@ -422,6 +457,10 @@ class GraknImporter extends AbstractVerticle {
                                 def fileId = importedFiles.get(lineData[0])
                                 if (isExternal) {
                                     //from file to undefined function
+                                    if (fileId == null) {
+                                        //println "todo: me2" //todo: me
+                                        return
+                                    }
                                     graql.parse(IMPORT_EXTERNAL_REFERENCED_FUNCTION_BY_FILE
                                             .replace("<xFileId>", fileId)
                                             .replace("<projectId>", projectId)
@@ -442,6 +481,10 @@ class GraknImporter extends AbstractVerticle {
                                     redis.cacheProjectImportedReference(githubRepo, fileId, osFunc.functionId, fut2.completer())
                                 } else {
                                     def funcId = definedFunctions.get(lineData[1])
+                                    if (funcId == null) {
+                                        //println "todo: me4" //todo: me
+                                        return
+                                    }
                                     graql.parse(IMPORT_FILE_TO_FUNCTION_REFERENCE
                                             .replace("<xFileId>", fileId)
                                             .replace("<yFuncInstanceId>", definedFunctionInstances.get(funcId))
@@ -457,7 +500,7 @@ class GraknImporter extends AbstractVerticle {
                                 }
                             } else {
                                 //reference to function not defined this import
-                                println "todo: me" //todo: me
+                                //println "todo: me" //todo: me
                             }
                         } else {
                             if (isExternal) {
@@ -504,8 +547,6 @@ class GraknImporter extends AbstractVerticle {
         }
         logPrintln(job, "Importing function references took: " + asPrettyTime(importReferencesContext.stop()))
 
-        //todo: finalize. confirm counts; update if off
-
         //cache new project/file counts; then finished
         logPrintln(job, "Caching import data")
         def cacheInfoTimer = WebLauncher.metrics.timer("CachingProjectInformation")
@@ -539,21 +580,28 @@ class GraknImporter extends AbstractVerticle {
         String uploadsHost = config().getString("uploads.host")
         if (uploadsHost != null) {
             println "Downloading index results from SFTP"
-            String uploadsUsername = config().getString("uploads.username")
-            String uploadsPassword = config().getString("uploads.password")
-            JSch jsch = new JSch()
-            Session session = jsch.getSession(uploadsUsername, uploadsHost, 22)
-            session.setConfig("StrictHostKeyChecking", "no")
-            session.setPassword(uploadsPassword)
-            session.connect()
 
-            Channel channel = session.openChannel("sftp")
-            channel.connect()
-            ChannelSftp sftpChannel = (ChannelSftp) channel
-            sftpChannel.get(remoteIndexResultsZip.absolutePath, indexResultsZip.absolutePath)
-            //todo: delete remote zip
-            sftpChannel.exit()
-            session.disconnect()
+            //try to connect 3 times (todo: use retryer?)
+            boolean connected = false
+            def sftpChannel = null
+            for (int i = 0; i < 3; i++) {
+                try {
+                    def channel = remoteSFTPSession.openChannel("sftp")
+                    channel.connect()
+                    sftpChannel = (ChannelSftp) channel
+                    connected = true
+                } catch (JSchException ex) {
+                    Thread.sleep(1000)
+                }
+                if (connected) break
+            }
+            if (connected) {
+                sftpChannel.get(remoteIndexResultsZip.absolutePath, indexResultsZip.absolutePath)
+                //todo: delete remote zip
+                sftpChannel.exit()
+            } else {
+                throw new IOException("Unable to download index result from remote SFTP server")
+            }
         }
 
         def outputDirectory = new File(job.data.getString("output_directory"))

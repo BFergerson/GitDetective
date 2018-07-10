@@ -5,7 +5,7 @@ $fi has file_location $file_location;
 $real_fu isa function-instance; (has_defines_function: $fi, is_defines_function: $real_fu) isa defines_function;
 $fu_defs isa function-definitions;
     (has_function_definition: $fu_defs, is_function_definition: $real_fu) isa function_definition;
-$fu_refs isa function-references has reference_count > 0;
+$fu_refs isa function-references;
 $open_fu isa function;
 	(has_function_definitions: $open_fu, is_function_definitions: $fu_defs) isa function_definitions;
 	(has_function_references: $open_fu, is_function_references: $fu_refs) isa function_references;

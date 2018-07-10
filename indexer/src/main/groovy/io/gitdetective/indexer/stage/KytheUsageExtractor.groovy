@@ -206,6 +206,8 @@ class KytheUsageExtractor extends AbstractVerticle {
             def qualifiedName = qualifiedNameMap.get(object)
             if (qualifiedName == null || !qualifiedName.endsWith(")")) {
                 return //todo: understand why these exists and how to process
+            } else if (subject.startsWith("kythe://jdk") || object.startsWith("kythe://jdk")) {
+                return //no jdk
             }
             functionReferences.append("$subject|$object|$qualifiedName|" + location[0] + "|" + location[1] + "\n")
         } else if (predicate == "/kythe/edge/defines") {
@@ -221,6 +223,8 @@ class KytheUsageExtractor extends AbstractVerticle {
             def qualifiedName = qualifiedNameMap.get(object)
             if (qualifiedName == null || !qualifiedName.endsWith(")")) {
                 return //todo: understand why these exists and how to process
+            } else if (subject.startsWith("kythe://jdk") || object.startsWith("kythe://jdk")) {
+                return //no jdk
             }
             functionDefinitions.append("$subject|$object|$qualifiedName|" + location[0] + "|" + location[1] + "\n")
         }

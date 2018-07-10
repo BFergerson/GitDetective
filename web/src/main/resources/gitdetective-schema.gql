@@ -32,11 +32,9 @@ function-instance sub function
     plays has_ref
     plays has_ref_call;
 function-definitions sub node
-    has definition_count
     plays is_function_definitions
     plays has_function_definition;
 function-references sub node
-    has reference_count
     plays is_function_references
     plays has_function_reference;
 
@@ -48,8 +46,6 @@ subkind sub attribute datatype string;
 file_location sub attribute datatype string;
 qualified_name sub attribute datatype string;
 commit_sha1 sub attribute datatype string;
-definition_count sub attribute datatype long;
-reference_count sub attribute datatype long;
 is_jdk sub attribute datatype boolean;
 project_name sub name datatype string;
 function_name sub name datatype string;
