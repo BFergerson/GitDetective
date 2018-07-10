@@ -305,6 +305,12 @@ class GraknImporter extends AbstractVerticle {
                         def startOffset = lineData[3]
                         def endOffset = lineData[4]
                         def osFunc = openSourceFunctions.get(lineData[1])
+
+                        if (fileId == null || osFunc == null) {
+                            println "todo: me2" //todo: me
+                            return
+                        }
+
                         def result = graql.parse(IMPORT_DEFINED_FUNCTIONS
                                 .replace("<xFileId>", fileId)
                                 .replace("<projectId>", projectId)
@@ -351,6 +357,10 @@ class GraknImporter extends AbstractVerticle {
                     def isExternal = Boolean.valueOf(lineData[5])
                     def osFunc = openSourceFunctions.get(lineData[1])
                     def importReference = newProject
+                    if (osFunc == null) {
+                        println "todo: me3" //todo: me
+                        return
+                    }
 
                     if (!newProject) {
                         //find existing reference
@@ -448,7 +458,6 @@ class GraknImporter extends AbstractVerticle {
                             } else {
                                 //reference to function not defined this import
                                 println "todo: me" //todo: me
-                                System.exit(-332)
                             }
                         } else {
                             if (isExternal) {
