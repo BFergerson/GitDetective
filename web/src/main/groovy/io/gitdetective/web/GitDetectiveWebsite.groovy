@@ -4,10 +4,12 @@ import com.google.common.collect.Lists
 import io.gitdetective.GitDetectiveVersion
 import io.gitdetective.web.dao.JobsDAO
 import io.gitdetective.web.dao.RedisDAO
+import io.gitdetective.web.work.GithubArchiveSync
 import io.gitdetective.web.work.calculator.GraknCalculator
 import io.gitdetective.web.work.importer.GraknImporter
 import io.vertx.core.AbstractVerticle
 import io.vertx.core.CompositeFuture
+import io.vertx.core.DeploymentOptions
 import io.vertx.core.Future
 import io.vertx.core.json.JsonArray
 import io.vertx.core.json.JsonObject

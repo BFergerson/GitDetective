@@ -11,6 +11,7 @@ dependencies {
     compile group: 'io.vertx', name: 'vertx-web-templ-handlebars', version: '3.4.1'
     compile 'io.vertx:vertx-dropwizard-metrics:3.4.1'
     compile files("./lib/vertx-eventbus-client-1.0.0-SNAPSHOT.jar") //todo: not include jar locally
+    compile 'io.reactivex.rxjava2:rxjava:2.1.12'
 
     compile group: 'ai.grakn', name: 'grakn-core', version: '1.2.0'
     compile group: 'ai.grakn', name: 'grakn-graql', version: '1.2.0'

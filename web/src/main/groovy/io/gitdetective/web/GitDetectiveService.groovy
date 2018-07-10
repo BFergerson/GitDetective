@@ -10,6 +10,7 @@ import com.google.common.io.Resources
 import io.gitdetective.web.dao.GraknDAO
 import io.gitdetective.web.dao.JobsDAO
 import io.gitdetective.web.dao.RedisDAO
+import io.gitdetective.web.work.GithubArchiveSync
 import io.gitdetective.web.work.calculator.GraknCalculator
 import io.gitdetective.web.work.importer.GraknImporter
 import io.vertx.blueprint.kue.Kue
@@ -139,6 +140,7 @@ class GitDetectiveService extends AbstractVerticle {
                 println "Launching GitDetective website"
                 def options = new DeploymentOptions().setConfig(config())
                 vertx.deployVerticle(new GitDetectiveWebsite(jobs, redis, router), options)
+                vertx.deployVerticle(new GithubArchiveSync(jobs, redis), options)
             }
         }, {
             if (it.failed()) {

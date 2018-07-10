@@ -93,7 +93,6 @@ class GitDetectiveIndexer extends AbstractVerticle {
         deployOptions.config = config()
 
         //core
-        vertx.deployVerticle(new GithubArchiveSync(jobs, redis), deployOptions)
         vertx.deployVerticle(new GithubRepositoryCloner(kue, jobs, redis), deployOptions)
         vertx.deployVerticle(new KytheIndexOutput(), deployOptions)
         vertx.deployVerticle(new KytheUsageExtractor(), deployOptions)

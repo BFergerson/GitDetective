@@ -1,4 +1,4 @@
-package io.gitdetective.indexer.stage
+package io.gitdetective.web.work
 
 import io.gitdetective.web.dao.JobsDAO
 import io.gitdetective.web.dao.RedisDAO

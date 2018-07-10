@@ -9,6 +9,8 @@
   "keystore_password": "password",
   "job_processing_enabled": true,
   "launch_website": true,
+  "github_archive_sync_enabled": false,
+  "temp_directory": "/opt/gitdetective-web/tmp",
   "gitdetective_url": "http://localhost/",
   "service": {
     "worker_pool_size": 75,
