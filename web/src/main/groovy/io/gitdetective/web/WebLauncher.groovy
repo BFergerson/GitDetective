@@ -5,6 +5,8 @@ import com.codahale.metrics.CsvReporter
 import com.codahale.metrics.MetricRegistry
 import com.codahale.metrics.SharedMetricRegistries
 import io.gitdetective.GitDetectiveVersion
+import io.gitdetective.web.dao.JobsDAO
+import io.gitdetective.web.dao.RedisDAO
 import io.vertx.blueprint.kue.Kue
 import io.vertx.blueprint.kue.queue.Job
 import io.vertx.blueprint.kue.queue.KueVerticle
@@ -18,7 +20,6 @@ import io.vertx.core.net.JksOptions
 import io.vertx.ext.dropwizard.DropwizardMetricsOptions
 import io.vertx.ext.web.Router
 import io.vertx.ext.web.handler.BodyHandler
-import io.vertx.redis.RedisClient
 import org.apache.commons.io.IOUtils
 
 import java.nio.charset.StandardCharsets
@@ -37,38 +38,27 @@ class WebLauncher {
 
     static void main(String[] args) {
         println "GitDetective Web - Version: " + GitDetectiveVersion.version
-        File configInputStream = new File("web-config.json")
-        String configData = IOUtils.toString(new FileInputStream(configInputStream), StandardCharsets.UTF_8)
-        DeploymentOptions options = new DeploymentOptions().setConfig(new JsonObject(configData))
-        def serviceConfig = options.config.getJsonObject("service")
-
+        def configInputStream = new File("web-config.json").newInputStream()
+        def config = new JsonObject(IOUtils.toString(configInputStream, StandardCharsets.UTF_8))
+        def deployOptions = new DeploymentOptions().setConfig(config)
+        def serviceConfig = deployOptions.config.getJsonObject("service")
         def vertxOptions = new VertxOptions()
         vertxOptions.maxWorkerExecuteTime = TimeUnit.MINUTES.toNanos(serviceConfig.getInteger("max_worker_time_minutes"))
         vertxOptions.workerPoolSize = serviceConfig.getInteger("worker_pool_size")
         vertxOptions.internalBlockingPoolSize = serviceConfig.getInteger("blocking_pool_size")
 
-        File file = new File("vertx-metrics")
-        file.mkdirs()
-        vertxOptions.metricsOptions = new DropwizardMetricsOptions().setEnabled(true).setRegistryName("vertx-metrics")
-        MetricRegistry registry = SharedMetricRegistries.getOrCreate("vertx-metrics")
-        def reporter = CsvReporter.forRegistry(registry)
-                .convertRatesTo(TimeUnit.SECONDS)
-                .convertDurationsTo(TimeUnit.SECONDS)
-                .build(file)
-        reporter.start(1, TimeUnit.MINUTES)
-
         def vertx = Vertx.vertx(vertxOptions)
         vertx.eventBus().registerDefaultCodec(Job.class, messageCodec(Job.class))
         Router router = Router.router(vertx)
         router.route().handler(BodyHandler.create())
-        if (options.config.getBoolean("ssl_enabled")) {
+        if (deployOptions.config.getBoolean("ssl_enabled")) {
             if (!new File("server-keystore.jks").exists()) {
                 System.err.println("Keystore file required to run with SSL enabled")
                 System.exit(-1)
             }
-            vertx.createHttpServer(new HttpServerOptions().setSsl(options.config.getBoolean("ssl_enabled"))
+            vertx.createHttpServer(new HttpServerOptions().setSsl(deployOptions.config.getBoolean("ssl_enabled"))
                     .setKeyStoreOptions(new JksOptions().setPath("server-keystore.jks")
-                    .setPassword(options.config.getString("keystore_password"))
+                    .setPassword(deployOptions.config.getString("keystore_password"))
             )).requestHandler(router.&accept).listen(443, {
                 if (it.failed()) {
                     if (it.cause() instanceof BindException) {
@@ -81,7 +71,7 @@ class WebLauncher {
                     println "GitDetective active on port: 443"
                 }
             })
-            addHttpRedirection(vertx, options.config)
+            addHttpRedirection(vertx, deployOptions.config)
         } else {
             vertx.createHttpServer().requestHandler(router.&accept).listen(80, {
                 if (it.failed()) {
@@ -97,30 +87,41 @@ class WebLauncher {
             })
         }
 
-        def cacheCluster = options.config.getJsonArray("cache_cluster")
-        def kueOptions = new DeploymentOptions()
-        RedisClient redisClient
-        if (cacheCluster.size() == 1) {
-            println "Using cache in standalone mode"
-            def serverConfig = cacheCluster.getJsonObject(0)
-            redisClient = RedisHelper.client(vertx, serverConfig)
-            kueOptions.setConfig(serverConfig)
-        } else {
-            throw new IllegalStateException("Not yet implemented")
-        }
-        if (options.config.getJsonObject("jobs_server") != null) {
-            kueOptions.config = options.config.getJsonObject("jobs_server")
+        def kueOptions = new DeploymentOptions().setConfig(config)
+        if (deployOptions.config.getJsonObject("jobs_server") != null) {
+            kueOptions.config = deployOptions.config.getJsonObject("jobs_server")
         }
 
         println "Launching GitDetective service"
-        vertx.deployVerticle(new KueVerticle(), kueOptions)
-        Kue kue = new Kue(vertx, kueOptions.config)
-        vertx.deployVerticle(new GitDetectiveService(router, kue, redisClient), options, {
+        vertx.deployVerticle(new KueVerticle(), kueOptions, {
             if (it.failed()) {
                 it.cause().printStackTrace()
                 System.exit(-1)
             }
+
+            def kue = new Kue(vertx, kueOptions.config)
+            def jobs = new JobsDAO(kue, new RedisDAO(RedisHelper.client(vertx, kueOptions.config)))
+            vertx.deployVerticle(new GitDetectiveService(router, kue, jobs), deployOptions, {
+                if (it.failed()) {
+                    it.cause().printStackTrace()
+                    System.exit(-1)
+                }
+            })
         })
+
+        setupMetricReporters(vertxOptions)
+    }
+
+    private static void setupMetricReporters(VertxOptions vertxOptions) {
+        File file = new File("vertx-metrics")
+        file.mkdirs()
+        vertxOptions.metricsOptions = new DropwizardMetricsOptions().setEnabled(true).setRegistryName("vertx-metrics")
+        MetricRegistry registry = SharedMetricRegistries.getOrCreate("vertx-metrics")
+        def reporter = CsvReporter.forRegistry(registry)
+                .convertRatesTo(TimeUnit.SECONDS)
+                .convertDurationsTo(TimeUnit.SECONDS)
+                .build(file)
+        reporter.start(1, TimeUnit.MINUTES)
 
         reporter = ConsoleReporter.forRegistry(metrics)
                 .convertRatesTo(TimeUnit.SECONDS)

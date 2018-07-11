@@ -16,6 +16,7 @@ import io.gitdetective.web.work.importer.GraknImporter
 import io.vertx.blueprint.kue.Kue
 import io.vertx.blueprint.kue.queue.Job
 import io.vertx.blueprint.kue.queue.Priority
+import io.vertx.blueprint.kue.util.RedisHelper
 import io.vertx.core.*
 import io.vertx.core.json.Json
 import io.vertx.core.json.JsonArray
@@ -25,7 +26,6 @@ import io.vertx.ext.web.RoutingContext
 import io.vertx.ext.web.handler.sockjs.BridgeOptions
 import io.vertx.ext.web.handler.sockjs.PermittedOptions
 import io.vertx.ext.web.handler.sockjs.SockJSHandler
-import io.vertx.redis.RedisClient
 import javassist.ClassPool
 import javassist.CtClass
 import javassist.CtMethod
@@ -47,21 +47,20 @@ class GitDetectiveService extends AbstractVerticle {
 
     private final Router router
     private final Kue kue
-    private final RedisClient redisClient
+    private final JobsDAO jobs
     private String uploadsDirectory
 
-    GitDetectiveService(Router router, Kue kue, RedisClient redisClient) {
+    GitDetectiveService(Router router, Kue kue, JobsDAO jobs) {
         this.router = router
         this.kue = kue
-        this.redisClient = redisClient
+        this.jobs = jobs
     }
 
     @Override
     void start() {
         uploadsDirectory = config().getString("uploads.directory")
         boolean jobProcessingEnabled = config().getBoolean("job_processing_enabled")
-        def redis = new RedisDAO(redisClient)
-        def jobs = new JobsDAO(kue, redis)
+        def redis = new RedisDAO(RedisHelper.client(vertx, config()))
 
         vertx.executeBlocking({
             if (config().getBoolean("grakn.enabled")) {

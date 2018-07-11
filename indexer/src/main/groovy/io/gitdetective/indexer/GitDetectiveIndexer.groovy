@@ -15,7 +15,6 @@ import io.vertx.core.DeploymentOptions
 import io.vertx.core.Vertx
 import io.vertx.core.VertxOptions
 import io.vertx.core.json.JsonObject
-import io.vertx.redis.RedisClient
 import org.apache.commons.io.IOUtils
 
 import java.nio.charset.StandardCharsets
@@ -34,61 +33,46 @@ class GitDetectiveIndexer extends AbstractVerticle {
     static void main(String[] args) {
         println "GitDetective Indexer - Version: " + GitDetectiveVersion.version
         System.setProperty("vertx.disableFileCPResolving", "true")
-
         def configInputStream = new File("indexer-config.json").newInputStream()
-        def configData = IOUtils.toString(configInputStream, StandardCharsets.UTF_8)
-        def options = new DeploymentOptions().setConfig(new JsonObject(configData))
-
+        def config = new JsonObject(IOUtils.toString(configInputStream, StandardCharsets.UTF_8))
+        def deployOptions = new DeploymentOptions().setConfig(config)
         def vertxOptions = new VertxOptions()
         vertxOptions.maxWorkerExecuteTime = Long.MAX_VALUE
         def vertx = Vertx.vertx(vertxOptions)
 
-        def cacheCluster = options.config.getJsonArray("cache_cluster")
-        def kueOptions = new DeploymentOptions()
-        RedisClient redisClient
-        if (cacheCluster.size() == 1) {
-            println "Using cache in standalone mode"
-            def serverConfig = cacheCluster.getJsonObject(0)
-            redisClient = RedisHelper.client(vertx, serverConfig)
-            kueOptions.setConfig(serverConfig)
-        } else {
-            throw new IllegalStateException("Not yet implemented")
-        }
-        if (options.config.getJsonObject("jobs_server") != null) {
-            kueOptions.config = options.config.getJsonObject("jobs_server")
+        def kueOptions = new DeploymentOptions().setConfig(config)
+        if (config.getJsonObject("jobs_server") != null) {
+            kueOptions.config = config.getJsonObject("jobs_server")
         }
 
         def kue = new Kue(vertx, kueOptions.config)
+        def jobs = new JobsDAO(kue, new RedisDAO(RedisHelper.client(vertx, kueOptions.config)))
         vertx.deployVerticle(new KueVerticle(), kueOptions, {
             if (it.failed()) {
                 it.cause().printStackTrace()
                 System.exit(-1)
             }
-            vertx.deployVerticle(new GitDetectiveIndexer(kue, redisClient), options, {
+            vertx.deployVerticle(new GitDetectiveIndexer(kue, jobs), deployOptions, {
                 if (it.failed()) {
                     it.cause().printStackTrace()
                     System.exit(-1)
                 }
-
-                //start processing
-                vertx.eventBus().send(GithubRepositoryCloner.PROCESS_NEXT_JOB, new JsonObject())
             })
         })
     }
 
     private final Kue kue
-    private final RedisClient redisClient
+    private final JobsDAO jobs
 
-    GitDetectiveIndexer(Kue kue, RedisClient redisClient) {
+    GitDetectiveIndexer(Kue kue, JobsDAO jobs) {
         this.kue = kue
-        this.redisClient = redisClient
+        this.jobs = jobs
     }
 
     @Override
     void start() throws Exception {
         vertx.eventBus().registerDefaultCodec(Job.class, messageCodec(Job.class))
-        def redis = new RedisDAO(redisClient)
-        def jobs = new JobsDAO(kue, redis)
+        def redis = new RedisDAO(RedisHelper.client(vertx, config()))
         def deployOptions = new DeploymentOptions()
         deployOptions.config = config()
 

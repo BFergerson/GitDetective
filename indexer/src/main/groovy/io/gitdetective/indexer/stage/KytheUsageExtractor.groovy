@@ -3,7 +3,6 @@ package io.gitdetective.indexer.stage
 import com.google.common.collect.Sets
 import io.vertx.blueprint.kue.queue.Job
 import io.vertx.core.AbstractVerticle
-import io.vertx.core.json.JsonObject
 import org.mapdb.DBMaker
 import org.mapdb.Serializer
 
@@ -32,7 +31,6 @@ class KytheUsageExtractor extends AbstractVerticle {
                 ex.printStackTrace()
                 logPrintln(job, ex.getMessage())
                 job.done(ex)
-                vertx.eventBus().send(GithubRepositoryCloner.PROCESS_NEXT_JOB, new JsonObject())
             }
         })
     }
@@ -73,7 +71,6 @@ class KytheUsageExtractor extends AbstractVerticle {
                 res.cause().printStackTrace()
                 logPrintln(job, res.cause().getMessage())
                 job.done(res.cause())
-                vertx.eventBus().send(GithubRepositoryCloner.PROCESS_NEXT_JOB, new JsonObject())
             } else {
                 job.data.put("index_results_db", dbFile.absolutePath)
                 job.save().setHandler({

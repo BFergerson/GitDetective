@@ -6,7 +6,6 @@ import io.gitdetective.web.dao.RedisDAO
 import io.vertx.blueprint.kue.Kue
 import io.vertx.blueprint.kue.queue.Job
 import io.vertx.core.AbstractVerticle
-import io.vertx.core.Handler
 import io.vertx.core.json.JsonObject
 import io.vertx.ext.web.client.WebClient
 import io.vertx.ext.web.client.WebClientOptions
@@ -31,7 +30,6 @@ import static io.gitdetective.web.Utils.logPrintln
 class GithubRepositoryCloner extends AbstractVerticle {
 
     public static final String INDEX_GITHUB_PROJECT_JOB_TYPE = "IndexGithubProject"
-    public static final String PROCESS_NEXT_JOB = "ProcessNextJob"
     private static final int CLONE_TIMEOUT_LIMIT_MINUTES = 20
     private static final int NEEDED_GITHUB_HIT_COUNT = 6
     private static final int GITHUB_RATE_LIMIT_WAIT_MINUTES = 15
@@ -48,20 +46,13 @@ class GithubRepositoryCloner extends AbstractVerticle {
 
     @Override
     void start() throws Exception {
-        vertx.eventBus().consumer(PROCESS_NEXT_JOB, {
-            println "Processing next job"
-            downloadStuff()
-        })
-
         github = GitHub.connectUsingOAuth(config().getString("oauth_token"))
         println "Connected to GitHub: " + github.credentialValid
-    }
 
-    private void downloadStuff() {
         kue.on("error", {
             System.err.println("Indexer job error: " + it.body())
         })
-        kue.processBlocking(INDEX_GITHUB_PROJECT_JOB_TYPE, 1, { job ->
+        kue.processBlocking(INDEX_GITHUB_PROJECT_JOB_TYPE, config().getInteger("builder_thread_count"), { job ->
             def githubRepo = job.data.getString("github_repository").toLowerCase()
 
             //skip build if already done in last 24 hours
@@ -85,17 +76,26 @@ class GithubRepositoryCloner extends AbstractVerticle {
                         if (skippingDownload) {
                             skipBuild(job)
                         } else {
-                            downloadAndExtractProject(job, githubRepo)
+                            vertx.executeBlocking({
+                                try {
+                                    downloadAndExtractProject(job, githubRepo)
+                                    it.complete()
+                                } catch (GHFileNotFoundException ex) {
+                                    logPrintln(job, "Could not locate project on GitHub")
+                                    it.fail(ex)
+                                } catch (all) {
+                                    it.fail(all)
+                                }
+                            }, false, {
+                                if (it.failed()) {
+                                    job.done(it.cause())
+                                }
+                            })
                         }
-                    } catch (GHFileNotFoundException ex) {
-                        logPrintln(job, "Could not locate project on GitHub")
-                        job.failed()
-                        vertx.eventBus().send(PROCESS_NEXT_JOB, new JsonObject())
                     } catch (Exception ex) {
                         ex.printStackTrace()
                         logPrintln(job, ex.getMessage())
-                        job.failed()
-                        vertx.eventBus().send(PROCESS_NEXT_JOB, new JsonObject())
+                        job.done(ex)
                     }
                 }
             })
@@ -105,20 +105,9 @@ class GithubRepositoryCloner extends AbstractVerticle {
     private void downloadAndExtractProject(Job job, String githubRepository) throws IOException {
         def rateLimit = github.getRateLimit()
         if (rateLimit.remaining <= NEEDED_GITHUB_HIT_COUNT) {
-            println "Requeuing job for repo: " + githubRepository + "; Remaining limit: " + rateLimit.remaining
-            //requeue job; wait and try again
-            job.inactive().setHandler({
-                if (it.failed()) {
-                    it.cause().printStackTrace()
-                }
-                vertx.setTimer(TimeUnit.MINUTES.toMillis(GITHUB_RATE_LIMIT_WAIT_MINUTES), new Handler<Long>() {
-                    @Override
-                    void handle(Long aLong) {
-                        vertx.eventBus().send(PROCESS_NEXT_JOB, new JsonObject())
-                    }
-                })
-            })
-            return
+            println "Current limit: " + rateLimit.remaining + "; Waiting $GITHUB_RATE_LIMIT_WAIT_MINUTES minutes"
+            Thread.sleep(TimeUnit.MINUTES.toMillis(GITHUB_RATE_LIMIT_WAIT_MINUTES))
+            println "Finishing waiting"
         } else {
             println "Current rate limit remaining: " + rateLimit.remaining
         }
@@ -142,9 +131,7 @@ class GithubRepositoryCloner extends AbstractVerticle {
                     def lastQueue = it.result().get()
                     if (lastQueue.plus(24, ChronoUnit.HOURS).isAfter(Instant.now())) {
                         //parent project already queued in last 24 hours; ignore
-                        job.complete()
-                        vertx.eventBus().send(PROCESS_NEXT_JOB, new JsonObject())
-                        return
+                        job.done()
                     }
                 }
 
@@ -158,8 +145,7 @@ class GithubRepositoryCloner extends AbstractVerticle {
                         def parentProjectName = it.result().data.getString("github_repository")
                         println "Forked project created job: " + it.result().id + " - Parent: " + parentProjectName
                         logPrintln(job, "Queued build for parent project: " + parentProjectName)
-                        job.complete()
-                        vertx.eventBus().send(PROCESS_NEXT_JOB, new JsonObject())
+                        job.done()
                     }
                 })
             })
@@ -208,8 +194,7 @@ class GithubRepositoryCloner extends AbstractVerticle {
             })
         } else {
             logPrintln(job, "Skipping project build. Couldn't detect supported build system")
-            job.failed()
-            vertx.eventBus().send(PROCESS_NEXT_JOB, new JsonObject())
+            job.done()
         }
     }
 
@@ -230,12 +215,11 @@ class GithubRepositoryCloner extends AbstractVerticle {
 
                 client.post(gitdetectivePort, gitdetectiveHost, "/jobs/transfer").ssl(ssl).sendJson(job, {
                     if (it.succeeded()) {
-                        vertx.eventBus().send(PROCESS_NEXT_JOB, new JsonObject())
+                        job.done()
                     } else {
                         it.cause().printStackTrace()
                         logPrintln(job, "Failed to send project to importer")
-                        job.failed()
-                        vertx.eventBus().send(PROCESS_NEXT_JOB, new JsonObject())
+                        job.done(it.cause())
                     }
                     client.close()
                 })
@@ -274,8 +258,7 @@ class GithubRepositoryCloner extends AbstractVerticle {
             }
         }, { res ->
             if (res.failed()) {
-                job.failed()
-                vertx.eventBus().send(PROCESS_NEXT_JOB, new JsonObject())
+                job.done(res.cause())
             } else {
                 job.data.put("commit", latestCommit)
                 job.data.put("commit_date", latestCommitDate)

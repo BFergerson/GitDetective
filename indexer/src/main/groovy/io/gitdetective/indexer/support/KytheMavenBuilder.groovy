@@ -1,11 +1,9 @@
 package io.gitdetective.indexer.support
 
 import io.gitdetective.indexer.GitDetectiveIndexer
-import io.gitdetective.indexer.stage.GithubRepositoryCloner
 import io.gitdetective.indexer.stage.KytheIndexOutput
 import io.vertx.blueprint.kue.queue.Job
 import io.vertx.core.AbstractVerticle
-import io.vertx.core.json.JsonObject
 import org.apache.maven.shared.invoker.*
 
 import java.util.concurrent.ExecutorService
@@ -24,7 +22,6 @@ import static io.gitdetective.web.Utils.logPrintln
 class KytheMavenBuilder extends AbstractVerticle {
 
     public static final String BUILDER_ADDRESS = "KytheMavenBuilder"
-    private static final long GB_BYTES = 1_073_741_824L
     private static final File repoDir = new File("/tmp/.m2")
     private static final File javacWrapper = new File("opt/kythe-v0.0.26/extractors/javac-wrapper.sh")
     private static final File javacExtractor = new File("opt/kythe-v0.0.26/extractors/javac_extractor.jar")
@@ -35,19 +32,9 @@ class KytheMavenBuilder extends AbstractVerticle {
         repoDir.mkdirs()
 
         vertx.eventBus().consumer(BUILDER_ADDRESS, { msg ->
-            vertx.executeBlocking({
-                //check m2 size; empty if too big
-                if (repoDir.directorySize() / GB_BYTES >= config().getInteger("local_maven_repository_max_size_gb")) {
-                    println "Cleaning local Maven repo: " + repoDir.absolutePath
-                    repoDir.deleteDir()
-                    repoDir.mkdirs()
-                }
-                it.complete()
-            }, {
-                //process job
-                def job = (Job) msg.body()
-                buildProject(job, new File(job.data.getString("build_target")))
-            })
+            //process job
+            def job = (Job) msg.body()
+            buildProject(job, new File(job.data.getString("build_target")))
         })
     }
 
@@ -110,8 +97,7 @@ class KytheMavenBuilder extends AbstractVerticle {
                     if (!buildTimeoutFuture.done) {
                         buildTimeoutFuture.cancel(true)
                         logPrintln(job, "Project build timed out")
-                        job.failed()
-                        vertx.eventBus().send(GithubRepositoryCloner.PROCESS_NEXT_JOB, new JsonObject())
+                        job.done()
                     }
                 }
             }, 1, TimeUnit.HOURS)
@@ -124,8 +110,7 @@ class KytheMavenBuilder extends AbstractVerticle {
                 }
 
                 logPrintln(job, "Project build failed")
-                job.failed()
-                vertx.eventBus().send(GithubRepositoryCloner.PROCESS_NEXT_JOB, new JsonObject())
+                job.done()
             } else {
                 logPrintln(job, "Project build took: " + asPrettyTime(buildContext.stop()))
                 vertx.eventBus().send(KytheIndexOutput.KYTHE_INDEX_OUTPUT, job)
