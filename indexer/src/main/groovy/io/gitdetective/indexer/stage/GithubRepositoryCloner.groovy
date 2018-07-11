@@ -52,7 +52,7 @@ class GithubRepositoryCloner extends AbstractVerticle {
         kue.on("error", {
             System.err.println("Indexer job error: " + it.body())
         })
-        kue.processBlocking(INDEX_GITHUB_PROJECT_JOB_TYPE, 1, { job ->
+        kue.processBlocking(INDEX_GITHUB_PROJECT_JOB_TYPE, config().getInteger("builder_thread_count"), { job ->
             def githubRepo = job.data.getString("github_repository").toLowerCase()
 
             //skip build if already done in last 24 hours

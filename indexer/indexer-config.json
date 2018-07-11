@@ -7,5 +7,6 @@
   "gitdetective_service.host": "localhost",
   "gitdetective_service.port": 80,
   "gitdetective_service.ssl_enabled": false,
-  "temp_directory": "/tmp/gitdetective"
+  "temp_directory": "/tmp/gitdetective",
+  "builder_thread_count": 5
 }
