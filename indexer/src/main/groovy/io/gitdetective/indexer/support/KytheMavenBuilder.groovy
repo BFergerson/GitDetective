@@ -39,6 +39,7 @@ class KytheMavenBuilder extends AbstractVerticle {
     }
 
     private void buildProject(Job job, File pomFile) {
+        logPrintln(job, "Setting up Maven build")
         InvocationRequest request = new DefaultInvocationRequest()
         request.setLocalRepositoryDirectory(repoDir)
         request.setPomFile(pomFile)

@@ -4,6 +4,7 @@ import com.codahale.metrics.MetricRegistry
 import io.gitdetective.GitDetectiveVersion
 import io.gitdetective.indexer.stage.*
 import io.gitdetective.indexer.support.KytheMavenBuilder
+import io.gitdetective.indexer.sync.IndexCacheSync
 import io.gitdetective.web.dao.JobsDAO
 import io.gitdetective.web.dao.RedisDAO
 import io.vertx.blueprint.kue.Kue
@@ -76,11 +77,14 @@ class GitDetectiveIndexer extends AbstractVerticle {
         def deployOptions = new DeploymentOptions()
         deployOptions.config = config()
 
+        def cacheSync = new IndexCacheSync(redis)
+        vertx.deployVerticle(cacheSync, deployOptions)
+
         //core
         vertx.deployVerticle(new GithubRepositoryCloner(kue, jobs, redis), deployOptions)
         vertx.deployVerticle(new KytheIndexOutput(), deployOptions)
         vertx.deployVerticle(new KytheUsageExtractor(), deployOptions)
-        vertx.deployVerticle(new GitDetectiveImportFilter(redis), deployOptions)
+        vertx.deployVerticle(new GitDetectiveImportFilter(cacheSync, redis), deployOptions)
         vertx.deployVerticle(new KytheIndexAugment(redis), deployOptions)
 
         //project builders

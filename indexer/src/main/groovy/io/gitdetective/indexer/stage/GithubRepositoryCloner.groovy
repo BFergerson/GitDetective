@@ -270,7 +270,6 @@ class GithubRepositoryCloner extends AbstractVerticle {
                     } else {
                         job = it.result()
                         vertx.eventBus().send(KytheMavenBuilder.BUILDER_ADDRESS, job)
-                        logPrintln(job, "Sent project to builder")
                     }
                 })
             }

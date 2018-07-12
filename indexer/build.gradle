@@ -7,7 +7,6 @@ dependencies {
     compile project(":web")
     compile group: 'org.apache.maven.shared', name: 'maven-invoker', version: '3.0.0'
     compile group: 'org.kohsuke', name: 'github-api', version: '1.92'
-    compile 'org.mapdb:mapdb:3.0.5'
     compile group: 'com.fasterxml.jackson.core', name: 'jackson-annotations', version: '2.9.2'
     compile 'io.vertx:vertx-web-client:3.4.1'
     compile group: 'org.eclipse.jgit', name: 'org.eclipse.jgit', version: '5.0.1.201806211838-r'

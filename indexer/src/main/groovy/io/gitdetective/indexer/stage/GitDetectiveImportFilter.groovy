@@ -1,5 +1,6 @@
 package io.gitdetective.indexer.stage
 
+import io.gitdetective.indexer.sync.IndexCacheSync
 import io.gitdetective.web.dao.RedisDAO
 import io.vertx.blueprint.kue.queue.Job
 import io.vertx.core.AbstractVerticle
@@ -16,9 +17,11 @@ import static io.gitdetective.web.Utils.logPrintln
 class GitDetectiveImportFilter extends AbstractVerticle {
 
     public static final String GITDETECTIVE_IMPORT_FILTER = "GitDetectiveImportFilter"
+    private final IndexCacheSync cacheSync
     private final RedisDAO redis
 
-    GitDetectiveImportFilter(RedisDAO redis) {
+    GitDetectiveImportFilter(IndexCacheSync cacheSync, RedisDAO redis) {
+        this.cacheSync = cacheSync
         this.redis = redis
     }
 
@@ -90,20 +93,13 @@ class GitDetectiveImportFilter extends AbstractVerticle {
                         def ids = (it.result().list() as List<Optional<String>>)
                         if (ids.get(0).isPresent() && ids.get(1).isPresent()) {
                             //check if import needed
-                            redis.getProjectImportedDefinition(githubRepo, ids.get(0).get(), ids.get(1).get(), {
-                                if (it.failed()) {
-                                    fut.fail(it.cause())
-                                } else {
-                                    if (!it.result()) {
-                                        functionDefinitionsFinal.append("$line\n") //do import
-                                    }
-                                    fut.complete()
-                                }
-                            })
+                            if (!cacheSync.hasDefinition(ids.get(0).get(), ids.get(1).get())) {
+                                functionDefinitionsFinal.append("$line\n") //do import
+                            }
                         } else {
                             functionDefinitionsFinal.append("$line\n") //do import
-                            fut.complete()
                         }
+                        fut.complete()
                     }
                 })
             } else {
@@ -138,20 +134,13 @@ class GitDetectiveImportFilter extends AbstractVerticle {
                         def ids = (it.result().list() as List<Optional<String>>)
                         if (ids.get(0).isPresent() && ids.get(1).isPresent()) {
                             //check if import needed
-                            redis.getProjectImportedReference(githubRepo, ids.get(0).get(), ids.get(1).get(), {
-                                if (it.failed()) {
-                                    fut.fail(it.cause())
-                                } else {
-                                    if (!it.result()) {
-                                        functionReferencesFinal.append("$line\n") //do import
-                                    }
-                                    fut.complete()
-                                }
-                            })
+                            if (!cacheSync.hasReference(ids.get(0).get(), ids.get(1).get())) {
+                                functionReferencesFinal.append("$line\n") //do import
+                            }
                         } else {
                             functionReferencesFinal.append("$line\n") //do import
-                            fut.complete()
                         }
+                        fut.complete()
                     }
                 })
             } else {
@@ -161,8 +150,9 @@ class GitDetectiveImportFilter extends AbstractVerticle {
 
         CompositeFuture.all(funnelFutures).setHandler({
             if (it.failed()) {
-                //todo: this
                 it.cause().printStackTrace()
+                logPrintln(job, it.cause().getMessage())
+                job.done(it.cause())
             } else {
                 vertx.eventBus().send(KytheIndexAugment.KYTHE_INDEX_AUGMENT, job)
             }

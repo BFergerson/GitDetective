@@ -8,5 +8,6 @@
   "gitdetective_service.port": 80,
   "gitdetective_service.ssl_enabled": false,
   "temp_directory": "/tmp/gitdetective",
+  "working_directory": "/opt/gitdetective",
   "builder_thread_count": 5
 }

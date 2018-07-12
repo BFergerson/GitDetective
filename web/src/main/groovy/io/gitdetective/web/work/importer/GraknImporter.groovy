@@ -358,7 +358,7 @@ class GraknImporter extends AbstractVerticle {
                         def fut2 = Future.future()
                         cacheFutures.addAll(fut1, fut2)
                         redis.cacheProjectImportedFunction(githubRepo, lineData[1], osFunc.functionId, fut1.completer())
-                        redis.cacheProjectImportedDefinition(githubRepo, fileId, osFunc.functionId, fut2.completer())
+                        redis.cacheProjectImportedDefinition(fileId, osFunc.functionId, fut2.completer())
                     }
                 }
             }
@@ -484,7 +484,7 @@ class GraknImporter extends AbstractVerticle {
                                     def fut2 = Future.future()
                                     cacheFutures.addAll(fut1, fut2)
                                     redis.cacheProjectImportedFunction(githubRepo, lineData[1], osFunc.functionId, fut1.completer())
-                                    redis.cacheProjectImportedReference(githubRepo, fileId, osFunc.functionId, fut2.completer())
+                                    redis.cacheProjectImportedReference(fileId, osFunc.functionId, fut2.completer())
                                 } else {
                                     def funcId = definedFunctions.get(lineData[1])
                                     if (funcId == null || fileId == null || definedFunctionInstances.get(funcId) == null) {
@@ -502,7 +502,7 @@ class GraknImporter extends AbstractVerticle {
                                     //cache imported reference
                                     def fut = Future.future()
                                     cacheFutures.add(fut)
-                                    redis.cacheProjectImportedReference(githubRepo, fileId, funcId, fut.completer())
+                                    redis.cacheProjectImportedReference(fileId, funcId, fut.completer())
                                 }
                             } else {
                                 //reference to function not defined this import
@@ -527,7 +527,7 @@ class GraknImporter extends AbstractVerticle {
                                 def fut2 = Future.future()
                                 cacheFutures.addAll(fut1, fut2)
                                 redis.cacheProjectImportedFunction(githubRepo, lineData[1], osFunc.functionId, fut1.completer())
-                                redis.cacheProjectImportedReference(githubRepo, refFunctionId, osFunc.functionId, fut2.completer())
+                                redis.cacheProjectImportedReference(refFunctionId, osFunc.functionId, fut2.completer())
                             } else {
                                 def funcId = definedFunctions.get(lineData[1])
                                 graql.parse(IMPORT_INTERNAL_REFERENCED_FUNCTIONS
@@ -541,7 +541,7 @@ class GraknImporter extends AbstractVerticle {
                                 //cache imported reference
                                 def fut = Future.future()
                                 cacheFutures.add(fut)
-                                redis.cacheProjectImportedReference(githubRepo, refFunctionId, funcId, fut.completer())
+                                redis.cacheProjectImportedReference(refFunctionId, funcId, fut.completer())
                             }
                         }
                         WebLauncher.metrics.counter("ImportReferencedFunction").inc()
