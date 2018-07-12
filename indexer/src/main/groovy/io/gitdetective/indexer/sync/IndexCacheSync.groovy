@@ -12,18 +12,18 @@ import org.mapdb.Serializer
 class IndexCacheSync extends AbstractVerticle {
 
     private final RedisDAO redis
-    private DB db
+    private final DB db
     private Set<String> definitions
     private Set<String> references
 
     IndexCacheSync(RedisDAO redis) {
         this.redis = redis
+        db = DBMaker.fileDB(new File(config().getString("working_directory"), "def-ref.cache"))
+                .transactionEnable().make()
     }
 
     @Override
     void start(Future<Void> startFuture) throws Exception {
-        db = DBMaker.fileDB(new File(config().getString("working_directory"), "def-ref.cache"))
-                .transactionEnable().make()
         definitions = db.hashSet("definitions", Serializer.STRING).createOrOpen()
         references = db.hashSet("references", Serializer.STRING).createOrOpen()
 
@@ -46,7 +46,7 @@ class IndexCacheSync extends AbstractVerticle {
 
     @Override
     void stop() throws Exception {
-        db?.close()
+        db.close()
     }
 
     boolean hasDefinition(String fileId, String functionId) {
