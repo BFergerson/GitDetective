@@ -1,11 +1,8 @@
 package io.gitdetective.indexer.stage
 
 import io.gitdetective.indexer.sync.IndexCacheSync
-import io.gitdetective.web.dao.RedisDAO
 import io.vertx.blueprint.kue.queue.Job
 import io.vertx.core.AbstractVerticle
-import io.vertx.core.CompositeFuture
-import io.vertx.core.Future
 
 import static io.gitdetective.web.Utils.logPrintln
 
@@ -18,11 +15,9 @@ class GitDetectiveImportFilter extends AbstractVerticle {
 
     public static final String GITDETECTIVE_IMPORT_FILTER = "GitDetectiveImportFilter"
     private final IndexCacheSync cacheSync
-    private final RedisDAO redis
 
-    GitDetectiveImportFilter(IndexCacheSync cacheSync, RedisDAO redis) {
+    GitDetectiveImportFilter(IndexCacheSync cacheSync) {
         this.cacheSync = cacheSync
-        this.redis = redis
     }
 
     @Override
@@ -32,7 +27,15 @@ class GitDetectiveImportFilter extends AbstractVerticle {
             vertx.executeBlocking({
                 doFilter(job)
                 it.complete()
-            }, false, {})
+            }, false, {
+                if (it.failed()) {
+                    it.cause().printStackTrace()
+                    logPrintln(job, it.cause().getMessage())
+                    job.done(it.cause())
+                } else {
+                    vertx.eventBus().send(KytheIndexAugment.KYTHE_INDEX_AUGMENT, job)
+                }
+            })
         })
     }
 
@@ -43,7 +46,6 @@ class GitDetectiveImportFilter extends AbstractVerticle {
         def outputDirectory = job.data.getString("output_directory")
         def readyFunctionDefinitions = new File(outputDirectory, "functions_definition_raw.txt")
         def readyFunctionReferences = new File(outputDirectory, "functions_reference_raw.txt")
-        def funnelFutures = new ArrayList<Future>()
 
         def filesOutput = new File(outputDirectory, "files_raw.txt")
         def lineNumber = 0
@@ -53,18 +55,10 @@ class GitDetectiveImportFilter extends AbstractVerticle {
             if (lineNumber > 1) {
                 def lineData = line.split("\\|")
 
-                def fut = Future.future()
-                funnelFutures.add(fut)
-                redis.getProjectImportedFileId(githubRepo, lineData[1], {
-                    if (it.failed()) {
-                        fut.fail(it.cause())
-                    } else {
-                        if (!it.result().isPresent()) {
-                            filesOutputFinal.append("$line\n") //do import
-                        }
-                        fut.complete()
-                    }
-                })
+                def existingFile = cacheSync.getProjectFileId(githubRepo, lineData[1])
+                if (!existingFile.isPresent()) {
+                    filesOutputFinal.append("$line\n") //do import
+                }
             } else {
                 filesOutputFinal.append("$line\n") //header
             }
@@ -78,30 +72,17 @@ class GitDetectiveImportFilter extends AbstractVerticle {
                 def lineData = line.split("\\|")
 
                 //replace everything with ids (if possible)
-                def fut = Future.future()
-                funnelFutures.add(fut)
-                def fut1 = Future.future()
-                redis.getProjectImportedFileId(githubRepo, lineData[0], fut1.completer())
-                def fut2 = Future.future()
-                redis.getProjectImportedFunctionId(githubRepo, lineData[1], fut2.completer())
+                def existingFile = cacheSync.getProjectFileId(githubRepo, lineData[0])
+                def existingFunction = cacheSync.getProjectFunctionId(githubRepo, lineData[1])
 
-                //output final file
-                CompositeFuture.all(fut1, fut2).setHandler({
-                    if (it.failed()) {
-                        fut.fail(it.cause())
-                    } else {
-                        def ids = (it.result().list() as List<Optional<String>>)
-                        if (ids.get(0).isPresent() && ids.get(1).isPresent()) {
-                            //check if import needed
-                            if (!cacheSync.hasDefinition(ids.get(0).get(), ids.get(1).get())) {
-                                functionDefinitionsFinal.append("$line\n") //do import
-                            }
-                        } else {
-                            functionDefinitionsFinal.append("$line\n") //do import
-                        }
-                        fut.complete()
+                if (existingFile.isPresent() && existingFunction.isPresent()) {
+                    //check if import needed
+                    if (!cacheSync.hasDefinition(existingFile.get(), existingFunction.get())) {
+                        functionDefinitionsFinal.append("$line\n") //do import
                     }
-                })
+                } else {
+                    functionDefinitionsFinal.append("$line\n") //do import
+                }
             } else {
                 functionDefinitionsFinal.append("$line\n") //header
             }
@@ -115,48 +96,26 @@ class GitDetectiveImportFilter extends AbstractVerticle {
                 def lineData = line.split("\\|")
 
                 //replace everything with ids (if possible)
-                def fut = Future.future()
-                funnelFutures.add(fut)
-                def fut1 = Future.future()
+                def existingFileOrFunction
                 if (lineData[0].contains("#")) {
-                    redis.getProjectImportedFunctionId(githubRepo, lineData[0], fut1.completer())
+                    existingFileOrFunction = cacheSync.getProjectFunctionId(githubRepo, lineData[0])
                 } else {
-                    redis.getProjectImportedFileId(githubRepo, lineData[0], fut1.completer())
+                    existingFileOrFunction = cacheSync.getProjectFileId(githubRepo, lineData[0])
                 }
-                def fut2 = Future.future()
-                redis.getProjectImportedFunctionId(githubRepo, lineData[1], fut2.completer())
+                def existingFunction = cacheSync.getProjectFunctionId(githubRepo, lineData[1])
 
-                //output final file
-                CompositeFuture.all(fut1, fut2).setHandler({
-                    if (it.failed()) {
-                        fut.fail(it.cause())
-                    } else {
-                        def ids = (it.result().list() as List<Optional<String>>)
-                        if (ids.get(0).isPresent() && ids.get(1).isPresent()) {
-                            //check if import needed
-                            if (!cacheSync.hasReference(ids.get(0).get(), ids.get(1).get())) {
-                                functionReferencesFinal.append("$line\n") //do import
-                            }
-                        } else {
-                            functionReferencesFinal.append("$line\n") //do import
-                        }
-                        fut.complete()
+                if (existingFileOrFunction.isPresent() && existingFunction.isPresent()) {
+                    //check if import needed
+                    if (!cacheSync.hasReference(existingFileOrFunction.get(), existingFunction.get())) {
+                        functionReferencesFinal.append("$line\n") //do import
                     }
-                })
+                } else {
+                    functionReferencesFinal.append("$line\n") //do import
+                }
             } else {
                 functionReferencesFinal.append("$line\n") //header
             }
         }
-
-        CompositeFuture.all(funnelFutures).setHandler({
-            if (it.failed()) {
-                it.cause().printStackTrace()
-                logPrintln(job, it.cause().getMessage())
-                job.done(it.cause())
-            } else {
-                vertx.eventBus().send(KytheIndexAugment.KYTHE_INDEX_AUGMENT, job)
-            }
-        })
     }
 
 }

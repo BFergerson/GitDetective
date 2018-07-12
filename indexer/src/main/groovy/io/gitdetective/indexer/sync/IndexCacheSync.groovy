@@ -12,21 +12,41 @@ import org.mapdb.Serializer
 class IndexCacheSync extends AbstractVerticle {
 
     private final RedisDAO redis
-    private final DB db
+    private DB db
     private Set<String> definitions
     private Set<String> references
+    private Map<String, String> files
+    private Map<String, String> functions
 
     IndexCacheSync(RedisDAO redis) {
         this.redis = redis
-        db = DBMaker.fileDB(new File(config().getString("working_directory"), "def-ref.cache"))
-                .transactionEnable().make()
     }
 
     @Override
     void start(Future<Void> startFuture) throws Exception {
+        db = DBMaker.fileDB(new File(config().getString("working_directory"), "gd-project.cache"))
+                .transactionEnable().make()
         definitions = db.hashSet("definitions", Serializer.STRING).createOrOpen()
         references = db.hashSet("references", Serializer.STRING).createOrOpen()
+        files = db.hashMap("files", Serializer.STRING, Serializer.STRING).createOrOpen()
+        functions = db.hashMap("functions", Serializer.STRING, Serializer.STRING).createOrOpen()
 
+        vertx.eventBus().consumer("io.vertx.redis." + RedisDAO.NEW_PROJECT_FILE, {
+            def msg = (it.body() as JsonObject).getJsonObject("value").getString("message")
+            def msgParts = msg.split("\\|")
+            def project = msgParts[0]
+            def filename = msgParts[1]
+            def fileId = msgParts[2]
+            files.put(project + ":" + filename, fileId)
+        })
+        vertx.eventBus().consumer("io.vertx.redis." + RedisDAO.NEW_PROJECT_FUNCTION, {
+            def msg = (it.body() as JsonObject).getJsonObject("value").getString("message")
+            def msgParts = msg.split("\\|")
+            def project = msgParts[0]
+            def functionName = msgParts[1]
+            def functionId = msgParts[2]
+            functions.put(project + ":" + functionName, functionId)
+        })
         vertx.eventBus().consumer("io.vertx.redis." + RedisDAO.NEW_DEFINITION, {
             def msg = (it.body() as JsonObject).getJsonObject("value").getString("message")
             definitions.add(msg)
@@ -36,17 +56,37 @@ class IndexCacheSync extends AbstractVerticle {
             references.add(msg)
         })
 
+        def fileFut = Future.future()
+        def funcFut = Future.future()
         def defFut = Future.future()
         def refFut = Future.future()
+        redis.client.subscribe(RedisDAO.NEW_PROJECT_FILE, fileFut.completer())
+        redis.client.subscribe(RedisDAO.NEW_PROJECT_FUNCTION, funcFut.completer())
         redis.client.subscribe(RedisDAO.NEW_DEFINITION, defFut.completer())
         redis.client.subscribe(RedisDAO.NEW_REFERENCE, refFut.completer())
-        CompositeFuture.all(defFut, refFut).setHandler(startFuture.completer())
+        CompositeFuture.all(fileFut, funcFut, defFut, refFut).setHandler(startFuture.completer())
         println "IndexCacheSync started"
     }
 
     @Override
     void stop() throws Exception {
         db.close()
+    }
+
+    Optional<String> getProjectFileId(String project, String fileName) {
+        def result = files.get(project + ":" + fileName)
+        if (result == null) {
+            return Optional.empty()
+        }
+        return Optional.of(result)
+    }
+
+    Optional<String> getProjectFunctionId(String project, String functionName) {
+        def result = functions.get(project + ":" + functionName)
+        if (result == null) {
+            return Optional.empty()
+        }
+        return Optional.of(result)
     }
 
     boolean hasDefinition(String fileId, String functionId) {

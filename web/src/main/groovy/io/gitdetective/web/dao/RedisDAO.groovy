@@ -17,6 +17,8 @@ import java.time.Instant
  */
 class RedisDAO {
 
+    public static final String NEW_PROJECT_FILE = "NewProjectFile"
+    public static final String NEW_PROJECT_FUNCTION = "NewProjectFunction"
     public static final String NEW_REFERENCE = "NewReference"
     public static final String NEW_DEFINITION = "NewDefinition"
     private final RedisClient redis
@@ -443,14 +445,13 @@ class RedisDAO {
         })
     }
 
-    void cacheProjectImportedFile(String githubRepository, String filename, String fileId,
-                                  Handler<AsyncResult> handler) {
-        redis.set("gitdetective:project:$githubRepository:file:$filename", fileId, handler)
+    void cacheProjectImportedFile(String githubRepository, String filename, String fileId, Handler<AsyncResult> handler) {
+        redis.publish(NEW_PROJECT_FILE, "$githubRepository|$filename|$fileId", handler)
     }
 
     void cacheProjectImportedFunction(String githubRepository, String functionName, String functionId,
                                       Handler<AsyncResult> handler) {
-        redis.set("gitdetective:project:$githubRepository:function:$functionName", functionId, handler)
+        redis.publish(NEW_PROJECT_FUNCTION, "$githubRepository|$functionName|$functionId", handler)
     }
 
     void cacheProjectImportedDefinition(String fileId, String functionId, Handler<AsyncResult> handler) {
@@ -459,32 +460,6 @@ class RedisDAO {
 
     void cacheProjectImportedReference(String fileOrFunctionId, String functionId, Handler<AsyncResult> handler) {
         redis.publish(NEW_REFERENCE, "$fileOrFunctionId-$functionId", handler)
-    }
-
-    void getProjectImportedFileId(String githubRepository, String filename,
-                                  Handler<AsyncResult<Optional<String>>> handler) {
-        redis.get("gitdetective:project:$githubRepository:file:$filename", {
-            if (it.failed()) {
-                handler.handle(Future.failedFuture(it.cause()))
-            } else if (it.result() == null) {
-                handler.handle(Future.succeededFuture(Optional.empty()))
-            } else {
-                handler.handle(Future.succeededFuture(Optional.of(it.result())))
-            }
-        })
-    }
-
-    void getProjectImportedFunctionId(String githubRepository, String functionName,
-                                      Handler<AsyncResult<Optional<String>>> handler) {
-        redis.get("gitdetective:project:$githubRepository:function:$functionName", {
-            if (it.failed()) {
-                handler.handle(Future.failedFuture(it.cause()))
-            } else if (it.result() == null) {
-                handler.handle(Future.succeededFuture(Optional.empty()))
-            } else {
-                handler.handle(Future.succeededFuture(Optional.of(it.result())))
-            }
-        })
     }
 
     RedisClient getClient() {

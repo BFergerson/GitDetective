@@ -78,17 +78,22 @@ class GitDetectiveIndexer extends AbstractVerticle {
         deployOptions.config = config()
 
         def cacheSync = new IndexCacheSync(redis)
-        vertx.deployVerticle(cacheSync, deployOptions)
+        vertx.deployVerticle(cacheSync, deployOptions, {
+            if (it.failed()) {
+                it.cause().printStackTrace()
+                System.exit(-1)
+            }
 
-        //core
-        vertx.deployVerticle(new GithubRepositoryCloner(kue, jobs, redis), deployOptions)
-        vertx.deployVerticle(new KytheIndexOutput(), deployOptions)
-        vertx.deployVerticle(new KytheUsageExtractor(), deployOptions)
-        vertx.deployVerticle(new GitDetectiveImportFilter(cacheSync, redis), deployOptions)
-        vertx.deployVerticle(new KytheIndexAugment(redis), deployOptions)
+            //core
+            vertx.deployVerticle(new GithubRepositoryCloner(kue, jobs, redis), deployOptions)
+            vertx.deployVerticle(new KytheIndexOutput(), deployOptions)
+            vertx.deployVerticle(new KytheUsageExtractor(), deployOptions)
+            vertx.deployVerticle(new GitDetectiveImportFilter(cacheSync), deployOptions)
+            vertx.deployVerticle(new KytheIndexAugment(redis), deployOptions)
 
-        //project builders
-        vertx.deployVerticle(new KytheMavenBuilder(), deployOptions)
+            //project builders
+            vertx.deployVerticle(new KytheMavenBuilder(), deployOptions)
+        })
     }
 
 }
