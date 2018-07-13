@@ -43,21 +43,21 @@ class GraknImporter extends AbstractVerticle {
     public static final String GRAKN_INDEX_IMPORT_JOB_TYPE = "ImportGithubProject"
     private final static Logger log = LoggerFactory.getLogger(GraknImporter.class)
     private final static String GET_FILE = Resources.toString(Resources.getResource(
-            "queries/import/get_existing_file.gql"), Charsets.UTF_8)
+            "queries/import/get_file.gql"), Charsets.UTF_8)
     private final static String IMPORT_FILES = Resources.toString(Resources.getResource(
             "queries/import/import_files.gql"), Charsets.UTF_8)
     private final static String GET_DEFINITION_BY_FILE_NAME = Resources.toString(Resources.getResource(
-            "queries/import/get_existing_definition_by_file_name.gql"), Charsets.UTF_8)
+            "queries/import/get_definition_by_file_name.gql"), Charsets.UTF_8)
     private final static String GET_INTERNAL_REFERENCE = Resources.toString(Resources.getResource(
-            "queries/import/get_existing_internal_reference.gql"), Charsets.UTF_8)
+            "queries/import/get_internal_reference.gql"), Charsets.UTF_8)
     private final static String GET_INTERNAL_REFERENCE_BY_FUNCTION_NAME = Resources.toString(Resources.getResource(
-            "queries/import/get_existing_internal_reference_by_function_name.gql"), Charsets.UTF_8)
+            "queries/import/get_internal_reference_by_function_name.gql"), Charsets.UTF_8)
     private final static String GET_INTERNAL_REFERENCE_BY_FILE_NAME = Resources.toString(Resources.getResource(
-            "queries/import/get_existing_internal_reference_by_file_name.gql"), Charsets.UTF_8)
+            "queries/import/get_internal_reference_by_file_name.gql"), Charsets.UTF_8)
     private final static String GET_EXTERNAL_REFERENCE_BY_FILE_NAME = Resources.toString(Resources.getResource(
-            "queries/import/get_existing_external_reference_by_file_name.gql"), Charsets.UTF_8)
+            "queries/import/get_external_reference_by_file_name.gql"), Charsets.UTF_8)
     private final static String GET_EXTERNAL_REFERENCE = Resources.toString(Resources.getResource(
-            "queries/import/get_existing_external_reference.gql"), Charsets.UTF_8)
+            "queries/import/get_external_reference.gql"), Charsets.UTF_8)
     private final static String IMPORT_DEFINED_FUNCTIONS = Resources.toString(Resources.getResource(
             "queries/import/import_defined_functions.gql"), Charsets.UTF_8)
     private final static String IMPORT_INTERNAL_REFERENCED_FUNCTIONS = Resources.toString(Resources.getResource(
@@ -474,9 +474,7 @@ class GraknImporter extends AbstractVerticle {
                             if (isExternal) {
                                 def existingRef = graql.parse(GET_EXTERNAL_REFERENCE_BY_FILE_NAME
                                         .replace("<xFileName>", refFile)
-                                        .replace("<yFuncRefsId>", osFunc.functionReferencesId)
-                                        .replace("<startOffset>", lineData[3])
-                                        .replace("<endOffset>", lineData[4])).execute() as List<QueryAnswer>
+                                        .replace("<yFuncRefsId>", osFunc.functionReferencesId)).execute() as List<QueryAnswer>
                                 importReference = existingRef.isEmpty()
                                 if (!importReference) {
                                     def fileId = existingRef.get(0).get("file").asEntity().id.toString()
@@ -488,10 +486,15 @@ class GraknImporter extends AbstractVerticle {
                             } else {
                                 def existingRef = graql.parse(GET_INTERNAL_REFERENCE_BY_FILE_NAME
                                         .replace("<xFileName>", refFile)
-                                        .replace("<yFuncDefsId>", osFunc.functionDefinitionsId)
-                                        .replace("<startOffset>", lineData[3])
-                                        .replace("<endOffset>", lineData[4])).execute() as List<QueryAnswer>
+                                        .replace("<yFuncDefsId>", osFunc.functionDefinitionsId)).execute() as List<QueryAnswer>
                                 importReference = existingRef.isEmpty()
+                                if (!importReference) {
+                                    def fileId = existingRef.get(0).get("file").asEntity().id.toString()
+                                    def functionId = existingRef.get(0).get("func").asEntity().id.toString()
+                                    def fut = Future.future()
+                                    cacheFutures.addAll(fut)
+                                    redis.cacheProjectImportedReference(fileId, functionId, fut.completer())
+                                }
                             }
                         } else {
                             if (isExternal) {
@@ -506,27 +509,23 @@ class GraknImporter extends AbstractVerticle {
                                 def existingRef = graql.parse(GET_EXTERNAL_REFERENCE
                                         .replace("<projectId>", projectId)
                                         .replace("<funcDefsId>", defOsFunc.functionDefinitionsId)
-                                        .replace("<funcRefsId>", osFunc.functionReferencesId)
-                                        .replace("<startOffset>", lineData[3])
-                                        .replace("<endOffset>", lineData[4])).execute() as List<QueryAnswer>
+                                        .replace("<funcRefsId>", osFunc.functionReferencesId)).execute() as List<QueryAnswer>
                                 importReference = existingRef.isEmpty()
                                 if (!importReference) {
-                                    def functionInstance1Id = existingRef.get(0).get("yFunc").asEntity().id.toString()
-                                    def functionInstance2Id = existingRef.get(0).get("func").asEntity().id.toString()
+                                    def function1Id = existingRef.get(0).get("yFunc").asEntity().id.toString()
+                                    def function2Id = existingRef.get(0).get("func").asEntity().id.toString()
                                     def fut1 = Future.future()
                                     def fut2 = Future.future()
                                     cacheFutures.addAll(fut1, fut2)
                                     redis.cacheProjectImportedFunction(githubRepo, lineData[1], osFunc.functionId, fut1.completer())
-                                    redis.cacheProjectImportedReference(functionInstance1Id, functionInstance2Id, fut2.completer())
+                                    redis.cacheProjectImportedReference(function1Id, function2Id, fut2.completer())
                                 }
                             } else {
                                 def refFunctionId = importData.definedFunctions.get(lineData[0])
                                 if (refFunctionId == null) {
                                     def existingRef = graql.parse(GET_INTERNAL_REFERENCE_BY_FUNCTION_NAME
                                             .replace("<funcName1>", lineData[0])
-                                            .replace("<funcName2>", lineData[1])
-                                            .replace("<startOffset>", lineData[3])
-                                            .replace("<endOffset>", lineData[4])).execute() as List<QueryAnswer>
+                                            .replace("<funcName2>", lineData[1])).execute() as List<QueryAnswer>
                                     importReference = existingRef.isEmpty()
                                     if (!importReference) {
                                         def existingFunc1Id = existingRef.get(0).get("func1").asEntity().id.toString()
@@ -547,6 +546,11 @@ class GraknImporter extends AbstractVerticle {
                                             .replace("<xFunctionInstanceId>", importData.definedFunctionInstances.get(refFunctionId))
                                             .replace("<yFunctionInstanceId>", importData.definedFunctionInstances.get(funcId))).execute() as List<QueryAnswer>
                                     importReference = existingRef.isEmpty()
+                                    if (!importReference) {
+                                        def fut = Future.future()
+                                        cacheFutures.addAll(fut)
+                                        redis.cacheProjectImportedReference(refFunctionId, funcId, fut.completer())
+                                    }
                                 }
                             }
                         }

@@ -1,9 +1,8 @@
 match $p isa project; (has_defines_file: $p, is_defines_file: $file) isa defines_file;
 $file isa file has file_name "<xFileName>";
+$func isa function; (has_function_definitions: $func, is_function_definitions: $funcDefs) isa function_definitions;
 $funcDefs isa function-definitions id "<yFuncDefsId>";
 $refCalled isa function-instance;
     (has_function_definition: $funcDefs, is_function_definition: $refCalled) isa function_definition;
-$ref (has_ref_call: $file, is_ref_call: $refCalled) isa ref_call
-    has start_offset <startOffset>
-    has end_offset <endOffset>;
-get $ref;
+$ref (has_ref_call: $file, is_ref_call: $refCalled) isa ref_call;
+get $file, $func;

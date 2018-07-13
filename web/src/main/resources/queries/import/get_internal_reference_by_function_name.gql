@@ -8,7 +8,5 @@ $refCaller isa function-instance;
     (has_function_definition: $funcDefs1, is_function_definition: $refCaller) isa function_definition;
 $refCalled isa function-instance;
     (has_function_definition: $funcDefs2, is_function_definition: $refCalled) isa function_definition;
-$ref (has_ref_call: $refCaller, is_ref_call: $refCalled) isa ref_call
-    has start_offset <startOffset>
-    has end_offset <endOffset>;
+$ref (has_ref_call: $refCaller, is_ref_call: $refCalled) isa ref_call;
 get $ref, $func1, $func2;

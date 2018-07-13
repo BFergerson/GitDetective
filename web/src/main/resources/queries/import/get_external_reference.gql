@@ -6,9 +6,7 @@ $funcDefs isa function-definitions id "<funcDefsId>";
 $yFunc isa function; (has_function_definitions: $yFunc, is_function_definitions: $funcDefs) isa function_definitions;
 $func isa function; (has_function_references: $func, is_function_references: $funcRefs) isa function_references;
 $funcRef isa function-instance;
-    $ref (has_ref_call: $y, is_ref_call: $funcRef) isa ref_call
-        has start_offset <startOffset>
-        has end_offset <endOffset>;
+    $ref (has_ref_call: $y, is_ref_call: $funcRef) isa ref_call;
 $funcRefs isa function-references id "<funcRefsId>";
     (has_function_reference: $funcRefs, is_function_reference: $funcRef) isa function_reference;
 get $ref, $yFunc, $func;
