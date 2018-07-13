@@ -4,6 +4,8 @@ import io.gitdetective.indexer.GitDetectiveIndexer
 import io.gitdetective.indexer.stage.KytheIndexOutput
 import io.vertx.blueprint.kue.queue.Job
 import io.vertx.core.AbstractVerticle
+import io.vertx.core.logging.Logger
+import io.vertx.core.logging.LoggerFactory
 import org.apache.maven.shared.invoker.*
 
 import java.util.concurrent.ExecutorService
@@ -22,6 +24,7 @@ import static io.gitdetective.web.Utils.logPrintln
 class KytheMavenBuilder extends AbstractVerticle {
 
     public static final String BUILDER_ADDRESS = "KytheMavenBuilder"
+    private final static Logger log = LoggerFactory.getLogger(KytheMavenBuilder.class)
     private static final File repoDir = new File("/tmp/.m2")
     private static final File javacWrapper = new File("opt/kythe-v0.0.26/extractors/javac-wrapper.sh")
     private static final File javacExtractor = new File("opt/kythe-v0.0.26/extractors/javac_extractor.jar")
@@ -36,6 +39,7 @@ class KytheMavenBuilder extends AbstractVerticle {
             def job = (Job) msg.body()
             buildProject(job, new File(job.data.getString("build_target")))
         })
+        log.info "KytheMavenBuilder started"
     }
 
     private void buildProject(Job job, File pomFile) {

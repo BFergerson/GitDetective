@@ -3,6 +3,8 @@ package io.gitdetective.indexer.stage
 import com.google.common.collect.Sets
 import io.vertx.blueprint.kue.queue.Job
 import io.vertx.core.AbstractVerticle
+import io.vertx.core.logging.Logger
+import io.vertx.core.logging.LoggerFactory
 import org.mapdb.DBMaker
 import org.mapdb.Serializer
 
@@ -16,6 +18,7 @@ import static io.gitdetective.web.Utils.logPrintln
 class KytheUsageExtractor extends AbstractVerticle {
 
     public static final String KYTHE_USAGE_EXTRACTOR = "KytheUsageExtractor"
+    private final static Logger log = LoggerFactory.getLogger(KytheUsageExtractor.class)
     private static final Set<String> KYTHE_PARSE_SET = Sets.newHashSet(
             "/kythe/node/kind", "/kythe/edge/childof",
             "/kythe/edge/ref/call", "/kythe/edge/defines",
@@ -33,6 +36,7 @@ class KytheUsageExtractor extends AbstractVerticle {
                 job.done(ex)
             }
         })
+        log.info "KytheUsageExtractor started"
     }
 
     private void processImportFile(Job job, File importFile) {

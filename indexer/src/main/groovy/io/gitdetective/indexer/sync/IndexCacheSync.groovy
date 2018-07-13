@@ -5,12 +5,15 @@ import io.vertx.core.AbstractVerticle
 import io.vertx.core.CompositeFuture
 import io.vertx.core.Future
 import io.vertx.core.json.JsonObject
+import io.vertx.core.logging.Logger
+import io.vertx.core.logging.LoggerFactory
 import org.mapdb.DB
 import org.mapdb.DBMaker
 import org.mapdb.Serializer
 
 class IndexCacheSync extends AbstractVerticle {
 
+    private final static Logger log = LoggerFactory.getLogger(IndexCacheSync.class)
     private final RedisDAO redis
     private DB db
     private Set<String> definitions
@@ -65,7 +68,7 @@ class IndexCacheSync extends AbstractVerticle {
         redis.client.subscribe(RedisDAO.NEW_DEFINITION, defFut.completer())
         redis.client.subscribe(RedisDAO.NEW_REFERENCE, refFut.completer())
         CompositeFuture.all(fileFut, funcFut, defFut, refFut).setHandler(startFuture.completer())
-        println "IndexCacheSync started"
+        log.info "IndexCacheSync started"
     }
 
     @Override

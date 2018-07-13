@@ -7,6 +7,8 @@ import io.vertx.core.Handler
 import io.vertx.core.json.Json
 import io.vertx.core.json.JsonArray
 import io.vertx.core.json.JsonObject
+import io.vertx.core.logging.Logger
+import io.vertx.core.logging.LoggerFactory
 import io.vertx.redis.RedisClient
 import io.vertx.redis.op.RangeOptions
 
@@ -21,6 +23,7 @@ class RedisDAO {
     public static final String NEW_PROJECT_FUNCTION = "NewProjectFunction"
     public static final String NEW_REFERENCE = "NewReference"
     public static final String NEW_DEFINITION = "NewDefinition"
+    private final static Logger log = LoggerFactory.getLogger(RedisDAO.class)
     private final RedisClient redis
 
     RedisDAO(RedisClient redis) {
@@ -35,6 +38,7 @@ class RedisDAO {
     }
 
     void getProjectFileCount(String githubRepo, Handler<AsyncResult<Long>> handler) {
+        log.trace "Getting project file count: $githubRepo"
         redis.get("gitdetective:project:$githubRepo:project_file_count", {
             if (it.failed()) {
                 handler.handle(Future.failedFuture(it.cause()))
@@ -43,6 +47,7 @@ class RedisDAO {
                 if (result == null) {
                     result = 0
                 }
+                log.trace "Getting project file count: $result"
                 handler.handle(Future.succeededFuture(result as long))
             }
         })
@@ -446,19 +451,22 @@ class RedisDAO {
     }
 
     void cacheProjectImportedFile(String githubRepository, String filename, String fileId, Handler<AsyncResult> handler) {
+        log.trace("Caching project file: $filename-$fileId")
         redis.publish(NEW_PROJECT_FILE, "$githubRepository|$filename|$fileId", handler)
     }
 
-    void cacheProjectImportedFunction(String githubRepository, String functionName, String functionId,
-                                      Handler<AsyncResult> handler) {
+    void cacheProjectImportedFunction(String githubRepository, String functionName, String functionId, Handler<AsyncResult> handler) {
+        log.trace("Caching project function: $functionName-$functionId")
         redis.publish(NEW_PROJECT_FUNCTION, "$githubRepository|$functionName|$functionId", handler)
     }
 
     void cacheProjectImportedDefinition(String fileId, String functionId, Handler<AsyncResult> handler) {
+        log.trace("Caching project imported definition: $fileId-$functionId")
         redis.publish(NEW_DEFINITION, "$fileId-$functionId", handler)
     }
 
     void cacheProjectImportedReference(String fileOrFunctionId, String functionId, Handler<AsyncResult> handler) {
+        log.trace("Caching project imported reference: $fileOrFunctionId-$functionId")
         redis.publish(NEW_REFERENCE, "$fileOrFunctionId-$functionId", handler)
     }
 

@@ -11,6 +11,8 @@ import io.gitdetective.web.work.importer.OpenSourceFunction
 import io.vertx.core.*
 import io.vertx.core.json.JsonArray
 import io.vertx.core.json.JsonObject
+import io.vertx.core.logging.Logger
+import io.vertx.core.logging.LoggerFactory
 
 import static io.gitdetective.web.Utils.*
 
@@ -35,6 +37,7 @@ class GraknDAO {
             "queries/get_method_external_method_references.gql"), Charsets.UTF_8)
     public final static String GET_PROJECT_EXTERNAL_METHOD_REFERENCES = Resources.toString(Resources.getResource(
             "queries/get_project_external_method_references.gql"), Charsets.UTF_8)
+    private final static Logger log = LoggerFactory.getLogger(GraknDAO.class)
     private final Vertx vertx
     private final RedisDAO redis
     private final GraknSession session
@@ -63,6 +66,7 @@ class GraknDAO {
         if (created) {
             redis.cacheOpenSourceFunction(functionName, osFunc, handler)
             WebLauncher.metrics.counter("ImportMethod").inc()
+            log.debug "Created open source function: $functionName"
         } else {
             handler.handle(Future.succeededFuture())
         }

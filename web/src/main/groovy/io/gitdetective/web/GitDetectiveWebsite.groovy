@@ -11,6 +11,8 @@ import io.vertx.core.CompositeFuture
 import io.vertx.core.Future
 import io.vertx.core.json.JsonArray
 import io.vertx.core.json.JsonObject
+import io.vertx.core.logging.Logger
+import io.vertx.core.logging.LoggerFactory
 import io.vertx.ext.web.Router
 import io.vertx.ext.web.RoutingContext
 import io.vertx.ext.web.handler.StaticHandler
@@ -28,6 +30,7 @@ import static io.gitdetective.web.Utils.isValidGithubString
  */
 class GitDetectiveWebsite extends AbstractVerticle {
 
+    private final static Logger log = LoggerFactory.getLogger(GitDetectiveWebsite.class)
     private static volatile long CURRENTLY_INDEXING_COUNT = 0
     private static volatile long CURRENTLY_IMPORTING_COUNT = 0
     private static volatile long CURRENTLY_CALCULATING_COUNT = 0
@@ -82,9 +85,9 @@ class GitDetectiveWebsite extends AbstractVerticle {
         //update every minute
         vertx.setPeriodic(TimeUnit.MINUTES.toMillis(1), {
             updateDatabaseStatistics(false)
-            println "Updated database statistics"
+            log.info "Updated database statistics"
         })
-        println "GitDetectiveWebsite started"
+        log.info "GitDetectiveWebsite started"
     }
 
     private void updateDatabaseStatistics(boolean initial) {

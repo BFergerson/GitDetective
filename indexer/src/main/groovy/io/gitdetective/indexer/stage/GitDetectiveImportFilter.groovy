@@ -3,6 +3,8 @@ package io.gitdetective.indexer.stage
 import io.gitdetective.indexer.sync.IndexCacheSync
 import io.vertx.blueprint.kue.queue.Job
 import io.vertx.core.AbstractVerticle
+import io.vertx.core.logging.Logger
+import io.vertx.core.logging.LoggerFactory
 
 import static io.gitdetective.web.Utils.logPrintln
 
@@ -14,6 +16,7 @@ import static io.gitdetective.web.Utils.logPrintln
 class GitDetectiveImportFilter extends AbstractVerticle {
 
     public static final String GITDETECTIVE_IMPORT_FILTER = "GitDetectiveImportFilter"
+    private final static Logger log = LoggerFactory.getLogger(GitDetectiveImportFilter.class)
     private final IndexCacheSync cacheSync
 
     GitDetectiveImportFilter(IndexCacheSync cacheSync) {
@@ -37,6 +40,7 @@ class GitDetectiveImportFilter extends AbstractVerticle {
                 }
             })
         })
+        log.info "GitDetectiveImportFilter started"
     }
 
     private void doFilter(Job job) {

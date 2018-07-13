@@ -3,6 +3,8 @@ package io.gitdetective.indexer.stage
 import io.vertx.blueprint.kue.queue.Job
 import io.vertx.core.AbstractVerticle
 import io.vertx.core.json.JsonObject
+import io.vertx.core.logging.Logger
+import io.vertx.core.logging.LoggerFactory
 
 import static io.gitdetective.web.Utils.logPrintln
 
@@ -14,6 +16,7 @@ import static io.gitdetective.web.Utils.logPrintln
 class KytheIndexOutput extends AbstractVerticle {
 
     public static final String KYTHE_INDEX_OUTPUT = "KytheIndexOutput"
+    private final static Logger log = LoggerFactory.getLogger(KytheIndexOutput.class)
     private static final File javaIndexer = new File("opt/kythe-v0.0.26/indexers/java_indexer.jar")
     private static final File dedupStreamTool = new File("opt/kythe-v0.0.26/tools/dedup_stream")
     private static final File triplesTool = new File("opt/kythe-v0.0.26/tools/triples")
@@ -49,6 +52,7 @@ class KytheIndexOutput extends AbstractVerticle {
                 }
             })
         })
+        log.info "KytheIndexOutput started"
     }
 
     private static void processKytheIndexFile(File importFile, File outputFile) {
