@@ -2,6 +2,7 @@ package io.gitdetective.web.work.importer
 
 import ai.grakn.*
 import ai.grakn.engine.GraknConfig
+import ai.grakn.graql.Query
 import ai.grakn.graql.internal.query.QueryAnswer
 import com.google.common.base.Charsets
 import com.google.common.io.Resources
@@ -190,8 +191,6 @@ class GraknImporter extends AbstractVerticle {
     }
 
     private void importProject(File outputDirectory, Job job, Handler<AsyncResult> handler) {
-        long fileCount = 0
-        long methodInstanceCount = 0
         def timeoutTime = Instant.now().plus(1, ChronoUnit.HOURS)
         def filesOutput = new File(outputDirectory, "files.txt")
         def osFunctionsOutput = new File(outputDirectory, "functions_open-source.txt")
@@ -200,9 +199,9 @@ class GraknImporter extends AbstractVerticle {
         def githubRepo = job.data.getString("github_repository").toLowerCase()
         def cacheFutures = new ArrayList<Future>()
         def importData = new ImportSessionData()
-
         boolean newProject = false
         String projectId = null
+
         def tx = graknSession.open(GraknTxType.WRITE)
         try {
             def graql = tx.graql()
@@ -228,29 +227,39 @@ class GraknImporter extends AbstractVerticle {
         //open source functions
         importOpenSourceFunctions(job, osFunctionsOutput, timeoutTime, importData, cacheFutures)
         //project files
-        fileCount += importFiles(projectId, job, filesOutput, timeoutTime, newProject, importData, cacheFutures)
+        long fileCount = importFiles(projectId, job, filesOutput, timeoutTime, newProject, importData, cacheFutures)
         //project definitions
-        methodInstanceCount += importDefinitions(projectId, job, functionDefinitions, timeoutTime,
-                newProject, importData, cacheFutures)
-        //project references
-        importReferences(projectId, job, functionReferences, timeoutTime, newProject, importData, cacheFutures)
-
-        //cache new project/file counts; then finished
-        logPrintln(job, "Caching import data")
-        def cacheInfoTimer = WebLauncher.metrics.timer("CachingProjectInformation")
-        def cacheInfoContext = cacheInfoTimer.time()
-        def fut1 = Future.future()
-        cacheFutures.add(fut1)
-        redis.incrementCachedProjectFileCount(githubRepo, fileCount, fut1.completer())
-        def fut2 = Future.future()
-        cacheFutures.add(fut2)
-        redis.incrementCachedProjectMethodInstanceCount(githubRepo, methodInstanceCount, fut2.completer())
-        CompositeFuture.all(cacheFutures).setHandler({
+        importDefinitions(projectId, job, functionDefinitions, timeoutTime, newProject, importData, cacheFutures, {
             if (it.failed()) {
                 handler.handle(Future.failedFuture(it.cause()))
             } else {
-                logPrintln(job, "Caching import data took: " + asPrettyTime(cacheInfoContext.stop()))
-                handler.handle(Future.succeededFuture())
+                long methodInstanceCount = it.result()
+
+                //project references
+                importReferences(projectId, job, functionReferences, timeoutTime, newProject, importData, cacheFutures, {
+                    if (it.failed()) {
+                        handler.handle(Future.failedFuture(it.cause()))
+                    } else {
+                        //cache new project/file counts; then finished
+                        logPrintln(job, "Caching import data")
+                        def cacheInfoTimer = WebLauncher.metrics.timer("CachingProjectInformation")
+                        def cacheInfoContext = cacheInfoTimer.time()
+                        def fut1 = Future.future()
+                        cacheFutures.add(fut1)
+                        redis.incrementCachedProjectFileCount(githubRepo, fileCount, fut1.completer())
+                        def fut2 = Future.future()
+                        cacheFutures.add(fut2)
+                        redis.incrementCachedProjectMethodInstanceCount(githubRepo, methodInstanceCount, fut2.completer())
+                        CompositeFuture.all(cacheFutures).setHandler({
+                            if (it.failed()) {
+                                handler.handle(Future.failedFuture(it.cause()))
+                            } else {
+                                logPrintln(job, "Caching import data took: " + asPrettyTime(cacheInfoContext.stop()))
+                                handler.handle(Future.succeededFuture())
+                            }
+                        })
+                    }
+                })
             }
         })
     }
@@ -277,8 +286,9 @@ class GraknImporter extends AbstractVerticle {
                     importData.openSourceFunctions.put(lineData[0], osFunc)
                 }
             }
-        } finally {
             tx.commit()
+        } finally {
+            tx.close()
         }
         logPrintln(job, "Importing open source functions took: " + asPrettyTime(importOSFContext.stop()))
     }
@@ -346,17 +356,20 @@ class GraknImporter extends AbstractVerticle {
         return fileCount
     }
 
-    private long importDefinitions(String projectId, Job job, File functionDefinitions, Instant timeoutTime,
-                                   boolean newProject, ImportSessionData importData, List<Future> cacheFutures) {
+    private void importDefinitions(String projectId, Job job, File functionDefinitions, Instant timeoutTime,
+                                   boolean newProject, ImportSessionData importData, List<Future> cacheFutures,
+                                   Handler<AsyncResult<Long>> handler) {
         long methodInstanceCount = 0
         def githubRepo = job.data.getString("github_repository").toLowerCase()
         def commitSha1 = job.data.getString("commit")
         def commitDate = job.data.getString("commit_date")
         def tx
 
+        log.debug("Preparing insert queries")
         logPrintln(job, "Importing defined functions")
         def importDefinitionsTimer = WebLauncher.metrics.timer("ImportingDefinedFunctions")
         def importDefinitionsContext = importDefinitionsTimer.time()
+        def importFutures = new ArrayList<Future>()
         tx = graknSession.open(GraknTxType.BATCH)
         try {
             def graql = tx.graql()
@@ -405,19 +418,51 @@ class GraknImporter extends AbstractVerticle {
                             return
                         }
 
-                        def result = graql.parse(IMPORT_DEFINED_FUNCTIONS
-                                .replace("<xFileId>", fileId)
-                                .replace("<projectId>", projectId)
-                                .replace("<funcDefsId>", osFunc.functionDefinitionsId)
-                                .replace("<createDate>", Instant.now().toString())
-                                .replace("<qualifiedName>", lineData[2])
-                                .replace("<commitSha1>", commitSha1)
-                                .replace("<commitDate>", commitDate)
-                                .replace("<startOffset>", startOffset)
-                                .replace("<endOffset>", endOffset)).execute() as List<QueryAnswer>
-                        def importedFunctionId = result.get(0).get("y").asEntity().id.toString()
-                        importData.definedFunctions.put(lineData[1], osFunc.functionId)
-                        importData.definedFunctionInstances.put(osFunc.functionId, importedFunctionId)
+                        def fut = Future.future()
+                        importFutures.add(fut)
+                        redis.incrementFunctionDefinitionCount(osFunc.functionId, {
+                            if (it.failed()) {
+                                fut.fail(it.cause())
+                            } else {
+                                def importCode = new ImportableSourceCode()
+                                importCode.fileId = fileId
+                                importCode.functionId = osFunc.functionId
+                                importCode.functionName = lineData[1]
+                                importCode.insertQuery = graql.parse(IMPORT_DEFINED_FUNCTIONS
+                                        .replace("<instanceOffset>", it.result().toString())
+                                        .replace("<xFileId>", fileId)
+                                        .replace("<projectId>", projectId)
+                                        .replace("<funcDefsId>", osFunc.functionDefinitionsId)
+                                        .replace("<createDate>", Instant.now().toString())
+                                        .replace("<qualifiedName>", lineData[2])
+                                        .replace("<commitSha1>", commitSha1)
+                                        .replace("<commitDate>", commitDate)
+                                        .replace("<startOffset>", startOffset)
+                                        .replace("<endOffset>", endOffset))
+                                fut.complete(importCode)
+                            }
+                        })
+                    }
+                }
+            }
+            tx.commit()
+        } finally {
+            tx.close()
+        }
+
+        CompositeFuture.all(importFutures).setHandler({
+            if (it.failed()) {
+                handler.handle(Future.failedFuture(it.cause()))
+            } else {
+                log.debug("Executing insert queries")
+                tx = graknSession.open(GraknTxType.BATCH)
+                try {
+                    def futures = it.result().list() as List<ImportableSourceCode>
+                    for (def importCode : futures) {
+                        def result = importCode.insertQuery.execute() as List<QueryAnswer>
+                        importCode.functionInstanceId = result.get(0).get("y").asEntity().id.toString()
+                        importData.definedFunctions.put(importCode.functionName, importCode.functionId)
+                        importData.definedFunctionInstances.put(importCode.functionId, importCode.functionInstanceId)
                         WebLauncher.metrics.counter("ImportDefinedFunction").inc()
                         methodInstanceCount++
 
@@ -425,20 +470,22 @@ class GraknImporter extends AbstractVerticle {
                         def fut1 = Future.future()
                         def fut2 = Future.future()
                         cacheFutures.addAll(fut1, fut2)
-                        redis.cacheProjectImportedFunction(githubRepo, lineData[1], osFunc.functionId, fut1.completer())
-                        redis.cacheProjectImportedDefinition(fileId, osFunc.functionId, fut2.completer())
+                        redis.cacheProjectImportedFunction(githubRepo, importCode.functionName, importCode.functionId, fut1.completer())
+                        redis.cacheProjectImportedDefinition(importCode.fileId, importCode.functionId, fut2.completer())
                     }
+                    tx.commit()
+                } finally {
+                    tx.close()
                 }
+                logPrintln(job, "Importing defined functions took: " + asPrettyTime(importDefinitionsContext.stop()))
+                handler.handle(Future.succeededFuture(methodInstanceCount))
             }
-        } finally {
-            tx.commit()
-        }
-        logPrintln(job, "Importing defined functions took: " + asPrettyTime(importDefinitionsContext.stop()))
-        return methodInstanceCount
+        })
     }
 
     private void importReferences(String projectId, Job job, File functionReferences, Instant timeoutTime,
-                                  boolean newProject, ImportSessionData importData, List<Future> cacheFutures) {
+                                  boolean newProject, ImportSessionData importData, List<Future> cacheFutures,
+                                  Handler<AsyncResult> handler) {
         def githubRepo = job.data.getString("github_repository").toLowerCase()
         def commitSha1 = job.data.getString("commit")
         def commitDate = job.data.getString("commit_date")
@@ -447,6 +494,7 @@ class GraknImporter extends AbstractVerticle {
         logPrintln(job, "Importing function references")
         def importReferencesTimer = WebLauncher.metrics.timer("ImportingReferences")
         def importReferencesContext = importReferencesTimer.time()
+        def importFutures = new ArrayList<Future<Query>>()
         tx = graknSession.open(GraknTxType.BATCH)
         try {
             def graql = tx.graql()
@@ -538,7 +586,7 @@ class GraknImporter extends AbstractVerticle {
                                     def funcId = importData.definedFunctions.get(lineData[1])
                                     if (funcId == null || importData.definedFunctionInstances.get(refFunctionId) == null
                                             || importData.definedFunctionInstances.get(funcId) == null) {
-                                        //println "todo: me5" //todo: me
+                                        //println "todo: me4" //todo: me
                                         return
                                     }
 
@@ -560,102 +608,187 @@ class GraknImporter extends AbstractVerticle {
                         def startOffset = lineData[3]
                         def endOffset = lineData[4]
                         def refFunctionId = importData.definedFunctions.get(lineData[0])
+                        def importCode = new ImportableSourceCode()
+                        importCode.isFileReferencing = isFileReferencing
+                        importCode.isExternalReference = isExternal
 
-                        if (refFunctionId == null) {
-                            if (isFileReferencing) {
-                                //reference from file to function
-                                def fileId = importData.importedFiles.get(lineData[0])
-                                if (isExternal) {
-                                    //from file to undefined function
-                                    if (fileId == null) {
-                                        //println "todo: me2" //todo: me
-                                        return
+                        if (isFileReferencing) {
+                            //reference from files
+                            def fileId = importData.importedFiles.get(lineData[0])
+                            if (fileId == null) {
+                                //println "todo: me2" //todo: me
+                                return
+                            }
+
+                            if (isExternal) {
+                                //internal file references external function
+                                def fut = Future.future()
+                                importFutures.add(fut)
+                                redis.incrementFunctionReferenceCount(osFunc.functionId, {
+                                    if (it.failed()) {
+                                        fut.fail(it.cause())
+                                    } else {
+                                        importCode.fileId = fileId
+                                        importCode.referenceFunctionId = osFunc.functionId
+                                        importCode.insertQuery = graql.parse(IMPORT_EXTERNAL_REFERENCED_FUNCTION_BY_FILE
+                                                .replace("<instanceOffset>", it.result().toString())
+                                                .replace("<xFileId>", importCode.fileId)
+                                                .replace("<projectId>", projectId)
+                                                .replace("<funcRefsId>", osFunc.functionReferencesId)
+                                                .replace("<createDate>", Instant.now().toString())
+                                                .replace("<qualifiedName>", lineData[2])
+                                                .replace("<commitSha1>", commitSha1)
+                                                .replace("<commitDate>", commitDate)
+                                                .replace("<startOffset>", startOffset)
+                                                .replace("<endOffset>", endOffset)
+                                                .replace("<isJdk>", lineData[6]))
+                                        fut.complete(importCode)
                                     }
-                                    graql.parse(IMPORT_EXTERNAL_REFERENCED_FUNCTION_BY_FILE
-                                            .replace("<xFileId>", fileId)
-                                            .replace("<projectId>", projectId)
-                                            .replace("<funcRefsId>", osFunc.functionReferencesId)
-                                            .replace("<createDate>", Instant.now().toString())
-                                            .replace("<qualifiedName>", lineData[2])
-                                            .replace("<commitSha1>", commitSha1)
-                                            .replace("<commitDate>", commitDate)
-                                            .replace("<startOffset>", startOffset)
-                                            .replace("<endOffset>", endOffset)
-                                            .replace("<isJdk>", lineData[6])).execute() as List<QueryAnswer>
-
-                                    //cache imported function/reference
-                                    def fut1 = Future.future()
-                                    def fut2 = Future.future()
-                                    cacheFutures.addAll(fut1, fut2)
-                                    redis.cacheProjectImportedFunction(githubRepo, lineData[1], osFunc.functionId, fut1.completer())
-                                    redis.cacheProjectImportedReference(fileId, osFunc.functionId, fut2.completer())
-                                } else {
-                                    def funcId = importData.definedFunctions.get(lineData[1])
-                                    if (funcId == null || fileId == null || importData.definedFunctionInstances.get(funcId) == null) {
-                                        //println "todo: me4" //todo: me
-                                        return
-                                    }
-                                    graql.parse(IMPORT_FILE_TO_FUNCTION_REFERENCE
-                                            .replace("<xFileId>", fileId)
-                                            .replace("<yFuncInstanceId>", importData.definedFunctionInstances.get(funcId))
-                                            .replace("<createDate>", Instant.now().toString())
-                                            .replace("<startOffset>", startOffset)
-                                            .replace("<endOffset>", endOffset)
-                                            .replace("<isJdk>", lineData[6])).execute() as List<QueryAnswer>
-
-                                    //cache imported reference
-                                    def fut = Future.future()
-                                    cacheFutures.add(fut)
-                                    redis.cacheProjectImportedReference(fileId, funcId, fut.completer())
-                                }
+                                })
                             } else {
-                                //internal reference to function not defined this import
-                                println "todo: me" //todo: me
+                                //internal file references internal function
+                                def funcId = importData.definedFunctions.get(lineData[1])
+                                if (funcId == null || importData.definedFunctionInstances.get(funcId) == null) {
+                                    //println "todo: me3" //todo: me
+                                    return
+                                }
+
+                                def fut = Future.future()
+                                importFutures.add(fut)
+                                redis.incrementFunctionReferenceCount(funcId, {
+                                    if (it.failed()) {
+                                        fut.fail(it.cause())
+                                    } else {
+                                        importCode.fileId = fileId
+                                        importCode.referenceFunctionId = funcId
+                                        importCode.referenceFunctionInstanceId = importData.definedFunctionInstances.get(funcId)
+                                        importCode.insertQuery = graql.parse(IMPORT_FILE_TO_FUNCTION_REFERENCE
+                                                .replace("<xFileId>", importCode.fileId)
+                                                .replace("<yFuncInstanceId>", importCode.referenceFunctionInstanceId)
+                                                .replace("<createDate>", Instant.now().toString())
+                                                .replace("<startOffset>", startOffset)
+                                                .replace("<endOffset>", endOffset)
+                                                .replace("<isJdk>", lineData[6]))
+                                        fut.complete(importCode)
+                                    }
+                                })
                             }
                         } else {
+                            //references from functions
                             if (isExternal) {
-                                graql.parse(IMPORT_EXTERNAL_REFERENCED_FUNCTIONS
-                                        .replace("<xFuncInstanceId>", importData.definedFunctionInstances.get(refFunctionId))
-                                        .replace("<projectId>", projectId)
-                                        .replace("<funcRefsId>", osFunc.functionReferencesId)
-                                        .replace("<createDate>", Instant.now().toString())
-                                        .replace("<qualifiedName>", lineData[2])
-                                        .replace("<commitSha1>", commitSha1)
-                                        .replace("<commitDate>", commitDate)
-                                        .replace("<startOffset>", startOffset)
-                                        .replace("<endOffset>", endOffset)
-                                        .replace("<isJdk>", lineData[6])).execute() as List<QueryAnswer>
-
-                                //cache imported function/reference
-                                def fut1 = Future.future()
-                                def fut2 = Future.future()
-                                cacheFutures.addAll(fut1, fut2)
-                                redis.cacheProjectImportedFunction(githubRepo, lineData[1], osFunc.functionId, fut1.completer())
-                                redis.cacheProjectImportedReference(refFunctionId, osFunc.functionId, fut2.completer())
-                            } else {
-                                def funcId = importData.definedFunctions.get(lineData[1])
-                                graql.parse(IMPORT_INTERNAL_REFERENCED_FUNCTIONS
-                                        .replace("<xFuncInstanceId>", importData.definedFunctionInstances.get(refFunctionId))
-                                        .replace("<yFuncInstanceId>", importData.definedFunctionInstances.get(funcId))
-                                        .replace("<createDate>", Instant.now().toString())
-                                        .replace("<startOffset>", startOffset)
-                                        .replace("<endOffset>", endOffset)
-                                        .replace("<isJdk>", lineData[6])).execute() as List<QueryAnswer>
-
-                                //cache imported reference
+                                //internal function references external function
                                 def fut = Future.future()
-                                cacheFutures.add(fut)
-                                redis.cacheProjectImportedReference(refFunctionId, funcId, fut.completer())
+                                importFutures.add(fut)
+                                redis.incrementFunctionReferenceCount(osFunc.functionId, {
+                                    if (it.failed()) {
+                                        fut.fail(it.cause())
+                                    } else {
+                                        importCode.functionId = refFunctionId
+                                        importCode.functionInstanceId = importData.definedFunctionInstances.get(refFunctionId)
+                                        importCode.referenceFunctionId = osFunc.functionId
+                                        importCode.insertQuery = graql.parse(IMPORT_EXTERNAL_REFERENCED_FUNCTIONS
+                                                .replace("<instanceOffset>", it.result().toString())
+                                                .replace("<xFuncInstanceId>", importCode.functionInstanceId)
+                                                .replace("<projectId>", projectId)
+                                                .replace("<funcRefsId>", osFunc.functionReferencesId)
+                                                .replace("<createDate>", Instant.now().toString())
+                                                .replace("<qualifiedName>", lineData[2])
+                                                .replace("<commitSha1>", commitSha1)
+                                                .replace("<commitDate>", commitDate)
+                                                .replace("<startOffset>", startOffset)
+                                                .replace("<endOffset>", endOffset)
+                                                .replace("<isJdk>", lineData[6]))
+                                        fut.complete(importCode)
+                                    }
+                                })
+                            } else {
+                                //internal function references internal function
+                                def funcId = importData.definedFunctions.get(lineData[1])
+                                if (funcId == null) {
+                                    //println "todo: me" //todo: me
+                                    return
+                                }
+
+                                def fut = Future.future()
+                                importFutures.add(fut)
+                                redis.incrementFunctionReferenceCount(funcId, {
+                                    if (it.failed()) {
+                                        fut.fail(it.cause())
+                                    } else {
+                                        importCode.functionId = refFunctionId
+                                        importCode.functionInstanceId = importData.definedFunctionInstances.get(refFunctionId)
+                                        importCode.referenceFunctionId = funcId
+                                        importCode.referenceFunctionInstanceId = importData.definedFunctionInstances.get(funcId)
+                                        importCode.insertQuery = graql.parse(IMPORT_INTERNAL_REFERENCED_FUNCTIONS
+                                                .replace("<xFuncInstanceId>", importCode.functionInstanceId)
+                                                .replace("<yFuncInstanceId>", importCode.referenceFunctionInstanceId)
+                                                .replace("<createDate>", Instant.now().toString())
+                                                .replace("<startOffset>", startOffset)
+                                                .replace("<endOffset>", endOffset)
+                                                .replace("<isJdk>", lineData[6]))
+                                        fut.complete(importCode)
+                                    }
+                                })
                             }
                         }
                         WebLauncher.metrics.counter("ImportReferencedFunction").inc()
                     }
                 }
             }
-        } finally {
             tx.commit()
+        } finally {
+            tx.close()
         }
-        logPrintln(job, "Importing function references took: " + asPrettyTime(importReferencesContext.stop()))
+
+        CompositeFuture.all(importFutures).setHandler({
+            if (it.failed()) {
+                handler.handle(Future.failedFuture(it.cause()))
+            } else {
+                log.debug("Executing insert queries")
+                tx = graknSession.open(GraknTxType.BATCH)
+                try {
+                    def futures = it.result().list() as List<ImportableSourceCode>
+                    for (def importCode : futures) {
+                        importCode.insertQuery.execute() as List<QueryAnswer>
+
+                        if (importCode.isFileReferencing) {
+                            if (importCode.isExternalReference) {
+                                //cache imported function/reference (internal function -> external function)
+                                //def fut1 = Future.future()
+                                def fut2 = Future.future()
+                                cacheFutures.addAll(fut2)
+                                //redis.cacheProjectImportedFunction(githubRepo, importCode.referenceFunctionName, importCode.referenceFunctionId, fut1.completer())
+                                redis.cacheProjectImportedReference(importCode.fileId, importCode.referenceFunctionId, fut2.completer())
+                            } else {
+                                //cache imported reference (internal file -> internal function)
+                                def fut = Future.future()
+                                cacheFutures.add(fut)
+                                redis.cacheProjectImportedReference(importCode.fileId, importCode.referenceFunctionId, fut.completer())
+                            }
+                        } else {
+                            if (importCode.isExternalReference) {
+                                //cache imported function/reference (internal function -> external function)
+                                //def fut1 = Future.future()
+                                def fut2 = Future.future()
+                                cacheFutures.addAll(fut2)
+                                //redis.cacheProjectImportedFunction(githubRepo, importCode.referenceFunctionName, importCode.referenceFunctionId, fut1.completer())
+                                redis.cacheProjectImportedReference(importCode.functionId, importCode.referenceFunctionId, fut2.completer())
+                            } else {
+                                //cache imported reference (internal function -> internal function)
+                                def fut = Future.future()
+                                cacheFutures.add(fut)
+                                redis.cacheProjectImportedReference(importCode.functionId, importCode.referenceFunctionId, fut.completer())
+                            }
+                        }
+                    }
+                    tx.commit()
+                } finally {
+                    tx.close()
+                }
+                logPrintln(job, "Importing function references took: " + asPrettyTime(importReferencesContext.stop()))
+                handler.handle(Future.succeededFuture())
+            }
+        })
     }
 
     private File downloadAndExtractImportFiles(Job job) {

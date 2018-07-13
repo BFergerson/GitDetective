@@ -24,6 +24,7 @@ function-instance sub function
     has qualified_name
     has commit_sha1
     has commit_date
+    has instance_offset
     plays is_function_definition
     plays is_function_reference
     plays is_defines_function
@@ -52,6 +53,7 @@ function_name sub name datatype string;
 file_name sub name datatype string;
 start_offset sub attribute datatype long;
 end_offset sub attribute datatype long;
+instance_offset sub attribute datatype long;
 
 ##########---------- Relationships ----------##########
 #todo: can make parent relationship with create_date, start_offset, end_offset

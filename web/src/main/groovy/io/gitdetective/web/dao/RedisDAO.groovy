@@ -470,6 +470,14 @@ class RedisDAO {
         redis.publish(NEW_REFERENCE, "$fileOrFunctionId-$functionId", handler)
     }
 
+    void incrementFunctionDefinitionCount(String functionId, Handler<AsyncResult> handler) {
+        redis.incr("gitdetectie:counts:definition:function:$functionId", handler)
+    }
+
+    void incrementFunctionReferenceCount(String functionId, Handler<AsyncResult> handler) {
+        redis.incr("gitdetectie:counts:reference:function:$functionId", handler)
+    }
+
     RedisClient getClient() {
         return redis
     }
