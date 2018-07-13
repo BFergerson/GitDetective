@@ -624,12 +624,12 @@ class GraknImporter extends AbstractVerticle {
                                 //internal file references external function
                                 def fut = Future.future()
                                 importFutures.add(fut)
-                                redis.incrementFunctionReferenceCount(osFunc.functionId, {
+                                importCode.fileId = fileId
+                                importCode.referenceFunctionId = osFunc.functionId
+                                redis.incrementFunctionReferenceCount(importCode.referenceFunctionId, {
                                     if (it.failed()) {
                                         fut.fail(it.cause())
                                     } else {
-                                        importCode.fileId = fileId
-                                        importCode.referenceFunctionId = osFunc.functionId
                                         importCode.insertQuery = graql.parse(IMPORT_EXTERNAL_REFERENCED_FUNCTION_BY_FILE
                                                 .replace("<instanceOffset>", it.result().toString())
                                                 .replace("<xFileId>", importCode.fileId)
@@ -655,13 +655,13 @@ class GraknImporter extends AbstractVerticle {
 
                                 def fut = Future.future()
                                 importFutures.add(fut)
-                                redis.incrementFunctionReferenceCount(funcId, {
+                                importCode.fileId = fileId
+                                importCode.referenceFunctionId = funcId
+                                importCode.referenceFunctionInstanceId = importData.definedFunctionInstances.get(funcId)
+                                redis.incrementFunctionReferenceCount(importCode.referenceFunctionId, {
                                     if (it.failed()) {
                                         fut.fail(it.cause())
                                     } else {
-                                        importCode.fileId = fileId
-                                        importCode.referenceFunctionId = funcId
-                                        importCode.referenceFunctionInstanceId = importData.definedFunctionInstances.get(funcId)
                                         importCode.insertQuery = graql.parse(IMPORT_FILE_TO_FUNCTION_REFERENCE
                                                 .replace("<xFileId>", importCode.fileId)
                                                 .replace("<yFuncInstanceId>", importCode.referenceFunctionInstanceId)
@@ -679,13 +679,13 @@ class GraknImporter extends AbstractVerticle {
                                 //internal function references external function
                                 def fut = Future.future()
                                 importFutures.add(fut)
-                                redis.incrementFunctionReferenceCount(osFunc.functionId, {
+                                importCode.functionId = refFunctionId
+                                importCode.functionInstanceId = importData.definedFunctionInstances.get(refFunctionId)
+                                importCode.referenceFunctionId = osFunc.functionId
+                                redis.incrementFunctionReferenceCount(importCode.referenceFunctionId, {
                                     if (it.failed()) {
                                         fut.fail(it.cause())
                                     } else {
-                                        importCode.functionId = refFunctionId
-                                        importCode.functionInstanceId = importData.definedFunctionInstances.get(refFunctionId)
-                                        importCode.referenceFunctionId = osFunc.functionId
                                         importCode.insertQuery = graql.parse(IMPORT_EXTERNAL_REFERENCED_FUNCTIONS
                                                 .replace("<instanceOffset>", it.result().toString())
                                                 .replace("<xFuncInstanceId>", importCode.functionInstanceId)
@@ -711,13 +711,13 @@ class GraknImporter extends AbstractVerticle {
 
                                 def fut = Future.future()
                                 importFutures.add(fut)
-                                redis.incrementFunctionReferenceCount(funcId, {
+                                importCode.functionId = refFunctionId
+                                importCode.functionInstanceId = importData.definedFunctionInstances.get(refFunctionId)
+                                importCode.referenceFunctionId = funcId
+                                redis.incrementFunctionReferenceCount(importCode.referenceFunctionId, {
                                     if (it.failed()) {
                                         fut.fail(it.cause())
                                     } else {
-                                        importCode.functionId = refFunctionId
-                                        importCode.functionInstanceId = importData.definedFunctionInstances.get(refFunctionId)
-                                        importCode.referenceFunctionId = funcId
                                         importCode.referenceFunctionInstanceId = importData.definedFunctionInstances.get(funcId)
                                         importCode.insertQuery = graql.parse(IMPORT_INTERNAL_REFERENCED_FUNCTIONS
                                                 .replace("<xFuncInstanceId>", importCode.functionInstanceId)
