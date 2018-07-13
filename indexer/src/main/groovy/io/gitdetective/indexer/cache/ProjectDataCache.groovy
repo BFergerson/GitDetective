@@ -1,4 +1,4 @@
-package io.gitdetective.indexer.sync
+package io.gitdetective.indexer.cache
 
 import io.gitdetective.web.dao.RedisDAO
 import io.vertx.core.AbstractVerticle
@@ -11,9 +11,14 @@ import org.mapdb.DB
 import org.mapdb.DBMaker
 import org.mapdb.Serializer
 
-class IndexCacheSync extends AbstractVerticle {
+/**
+ * todo: description
+ *
+ * @author <a href="mailto:brandon.fergerson@codebrig.com">Brandon Fergerson</a>
+ */
+class ProjectDataCache extends AbstractVerticle {
 
-    private final static Logger log = LoggerFactory.getLogger(IndexCacheSync.class)
+    private final static Logger log = LoggerFactory.getLogger(ProjectDataCache.class)
     private final RedisDAO redis
     private DB db
     private Set<String> definitions
@@ -21,19 +26,30 @@ class IndexCacheSync extends AbstractVerticle {
     private Map<String, String> files
     private Map<String, String> functions
 
-    IndexCacheSync(RedisDAO redis) {
+    ProjectDataCache(RedisDAO redis) {
         this.redis = redis
     }
 
     @Override
     void start(Future<Void> startFuture) throws Exception {
+        //init project data cache
         db = DBMaker.fileDB(new File(config().getString("working_directory"), "gd-project.cache"))
+                .closeOnJvmShutdown()
                 .transactionEnable().make()
         definitions = db.hashSet("definitions", Serializer.STRING).createOrOpen()
         references = db.hashSet("references", Serializer.STRING).createOrOpen()
         files = db.hashMap("files", Serializer.STRING, Serializer.STRING).createOrOpen()
         functions = db.hashMap("functions", Serializer.STRING, Serializer.STRING).createOrOpen()
+        vertx.setPeriodic(config().getInteger("project_data_flush_ms"), {
+            db.commit()
+            log.debug("Flushed project index cache")
+            log.debug("Cached definitions: " + definitions.size())
+            log.debug("Cached references: " + references.size())
+            log.debug("Cached files: " + files.size())
+            log.debug("Cached functions: " + functions.size())
+        })
 
+        //setup message consumers
         vertx.eventBus().consumer("io.vertx.redis." + RedisDAO.NEW_PROJECT_FILE, {
             def msg = (it.body() as JsonObject).getJsonObject("value").getString("message")
             def msgParts = msg.split("\\|")
@@ -68,12 +84,12 @@ class IndexCacheSync extends AbstractVerticle {
         redis.client.subscribe(RedisDAO.NEW_DEFINITION, defFut.completer())
         redis.client.subscribe(RedisDAO.NEW_REFERENCE, refFut.completer())
         CompositeFuture.all(fileFut, funcFut, defFut, refFut).setHandler(startFuture.completer())
-        log.info "IndexCacheSync started"
+        log.info "ProjectDataCache started"
     }
 
     @Override
     void stop() throws Exception {
-        db.close()
+        db?.close()
     }
 
     Optional<String> getProjectFileId(String project, String fileName) {

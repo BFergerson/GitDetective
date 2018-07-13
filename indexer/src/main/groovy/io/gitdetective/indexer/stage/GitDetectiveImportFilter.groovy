@@ -1,6 +1,6 @@
 package io.gitdetective.indexer.stage
 
-import io.gitdetective.indexer.sync.IndexCacheSync
+import io.gitdetective.indexer.cache.ProjectDataCache
 import io.vertx.blueprint.kue.queue.Job
 import io.vertx.core.AbstractVerticle
 import io.vertx.core.logging.Logger
@@ -17,10 +17,10 @@ class GitDetectiveImportFilter extends AbstractVerticle {
 
     public static final String GITDETECTIVE_IMPORT_FILTER = "GitDetectiveImportFilter"
     private final static Logger log = LoggerFactory.getLogger(GitDetectiveImportFilter.class)
-    private final IndexCacheSync cacheSync
+    private final ProjectDataCache projectCache
 
-    GitDetectiveImportFilter(IndexCacheSync cacheSync) {
-        this.cacheSync = cacheSync
+    GitDetectiveImportFilter(ProjectDataCache projectCache) {
+        this.projectCache = projectCache
     }
 
     @Override
@@ -59,7 +59,7 @@ class GitDetectiveImportFilter extends AbstractVerticle {
             if (lineNumber > 1) {
                 def lineData = line.split("\\|")
 
-                def existingFile = cacheSync.getProjectFileId(githubRepo, lineData[1])
+                def existingFile = projectCache.getProjectFileId(githubRepo, lineData[1])
                 if (!existingFile.isPresent()) {
                     filesOutputFinal.append("$line\n") //do import
                 }
@@ -76,12 +76,12 @@ class GitDetectiveImportFilter extends AbstractVerticle {
                 def lineData = line.split("\\|")
 
                 //replace everything with ids (if possible)
-                def existingFile = cacheSync.getProjectFileId(githubRepo, lineData[0])
-                def existingFunction = cacheSync.getProjectFunctionId(githubRepo, lineData[1])
+                def existingFile = projectCache.getProjectFileId(githubRepo, lineData[0])
+                def existingFunction = projectCache.getProjectFunctionId(githubRepo, lineData[1])
 
                 if (existingFile.isPresent() && existingFunction.isPresent()) {
                     //check if import needed
-                    if (!cacheSync.hasDefinition(existingFile.get(), existingFunction.get())) {
+                    if (!projectCache.hasDefinition(existingFile.get(), existingFunction.get())) {
                         functionDefinitionsFinal.append("$line\n") //do import
                     }
                 } else {
@@ -102,15 +102,15 @@ class GitDetectiveImportFilter extends AbstractVerticle {
                 //replace everything with ids (if possible)
                 def existingFileOrFunction
                 if (lineData[0].contains("#")) {
-                    existingFileOrFunction = cacheSync.getProjectFunctionId(githubRepo, lineData[0])
+                    existingFileOrFunction = projectCache.getProjectFunctionId(githubRepo, lineData[0])
                 } else {
-                    existingFileOrFunction = cacheSync.getProjectFileId(githubRepo, lineData[0])
+                    existingFileOrFunction = projectCache.getProjectFileId(githubRepo, lineData[0])
                 }
-                def existingFunction = cacheSync.getProjectFunctionId(githubRepo, lineData[1])
+                def existingFunction = projectCache.getProjectFunctionId(githubRepo, lineData[1])
 
                 if (existingFileOrFunction.isPresent() && existingFunction.isPresent()) {
                     //check if import needed
-                    if (!cacheSync.hasReference(existingFileOrFunction.get(), existingFunction.get())) {
+                    if (!projectCache.hasReference(existingFileOrFunction.get(), existingFunction.get())) {
                         functionReferencesFinal.append("$line\n") //do import
                     }
                 } else {
