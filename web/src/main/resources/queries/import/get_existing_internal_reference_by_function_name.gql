@@ -11,4 +11,4 @@ $refCalled isa function-instance;
 $ref (has_ref_call: $refCaller, is_ref_call: $refCalled) isa ref_call
     has start_offset <startOffset>
     has end_offset <endOffset>;
-get $ref;
+get $ref, $func1, $func2;

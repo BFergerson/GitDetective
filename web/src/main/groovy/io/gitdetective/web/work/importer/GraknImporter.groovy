@@ -16,6 +16,8 @@ import io.gitdetective.web.work.calculator.GraknCalculator
 import io.vertx.blueprint.kue.Kue
 import io.vertx.blueprint.kue.queue.Job
 import io.vertx.core.*
+import io.vertx.core.logging.Logger
+import io.vertx.core.logging.LoggerFactory
 import javassist.ClassPool
 import javassist.CtClass
 import javassist.CtMethod
@@ -39,22 +41,22 @@ import static io.gitdetective.web.Utils.logPrintln
 class GraknImporter extends AbstractVerticle {
 
     public static final String GRAKN_INDEX_IMPORT_JOB_TYPE = "ImportGithubProject"
-    private final static String GET_EXISTING_FILE = Resources.toString(Resources.getResource(
+    private final static Logger log = LoggerFactory.getLogger(GraknImporter.class)
+    private final static String GET_FILE = Resources.toString(Resources.getResource(
             "queries/import/get_existing_file.gql"), Charsets.UTF_8)
     private final static String IMPORT_FILES = Resources.toString(Resources.getResource(
             "queries/import/import_files.gql"), Charsets.UTF_8)
-    private final static String GET_EXISTING_DEFINITION_BY_FILE_NAME = Resources.toString(Resources.getResource(
+    private final static String GET_DEFINITION_BY_FILE_NAME = Resources.toString(Resources.getResource(
             "queries/import/get_existing_definition_by_file_name.gql"), Charsets.UTF_8)
-    private final static String GET_EXISTING_INTERNAL_REFERENCE = Resources.toString(Resources.getResource(
+    private final static String GET_INTERNAL_REFERENCE = Resources.toString(Resources.getResource(
             "queries/import/get_existing_internal_reference.gql"), Charsets.UTF_8)
-    private final
-    static String GET_EXISTING_INTERNAL_REFERENCE_BY_FUNCTION_NAME = Resources.toString(Resources.getResource(
+    private final static String GET_INTERNAL_REFERENCE_BY_FUNCTION_NAME = Resources.toString(Resources.getResource(
             "queries/import/get_existing_internal_reference_by_function_name.gql"), Charsets.UTF_8)
-    private final static String GET_EXISTING_INTERNAL_REFERENCE_BY_FILE_NAME = Resources.toString(Resources.getResource(
+    private final static String GET_INTERNAL_REFERENCE_BY_FILE_NAME = Resources.toString(Resources.getResource(
             "queries/import/get_existing_internal_reference_by_file_name.gql"), Charsets.UTF_8)
-    private final static String GET_EXISTING_EXTERNAL_REFERENCE_BY_FILE_NAME = Resources.toString(Resources.getResource(
+    private final static String GET_EXTERNAL_REFERENCE_BY_FILE_NAME = Resources.toString(Resources.getResource(
             "queries/import/get_existing_external_reference_by_file_name.gql"), Charsets.UTF_8)
-    private final static String GET_EXISTING_EXTERNAL_REFERENCE = Resources.toString(Resources.getResource(
+    private final static String GET_EXTERNAL_REFERENCE = Resources.toString(Resources.getResource(
             "queries/import/get_existing_external_reference.gql"), Charsets.UTF_8)
     private final static String IMPORT_DEFINED_FUNCTIONS = Resources.toString(Resources.getResource(
             "queries/import/import_defined_functions.gql"), Charsets.UTF_8)
@@ -84,14 +86,14 @@ class GraknImporter extends AbstractVerticle {
     void start() throws Exception {
         String uploadsHost = config().getString("uploads.host")
         if (uploadsHost != null) {
-            println "Connecting to remote SFTP server"
+            log.info "Connecting to remote SFTP server"
             String uploadsUsername = config().getString("uploads.username")
             String uploadsPassword = config().getString("uploads.password")
             remoteSFTPSession = new JSch().getSession(uploadsUsername, uploadsHost, 22)
             remoteSFTPSession.setConfig("StrictHostKeyChecking", "no")
             remoteSFTPSession.setPassword(uploadsPassword)
             remoteSFTPSession.connect()
-            println "Connected to remote SFTP server"
+            log.info "Connected to remote SFTP server"
         }
 
         String graknHost = config().getString("grakn.host")
@@ -118,11 +120,11 @@ class GraknImporter extends AbstractVerticle {
         def importerConfig = config().getJsonObject("importer")
         def graknImportMeter = WebLauncher.metrics.meter("GraknImportJobProcessSpeed")
         kue.on("error", {
-            System.err.println("Import job error: " + it.body())
+            log.error "Import job error: " + it.body()
         })
         kue.process(GRAKN_INDEX_IMPORT_JOB_TYPE, importerConfig.getInteger("thread_count"), { parentJob ->
             graknImportMeter.mark()
-            println "Import job rate: " + (graknImportMeter.oneMinuteRate * 60) +
+            log.info "Import job rate: " + (graknImportMeter.oneMinuteRate * 60) +
                     " per/min - Thread: " + Thread.currentThread().name
 
             def indexJob = parentJob
@@ -144,21 +146,22 @@ class GraknImporter extends AbstractVerticle {
                 }
             })
         })
-        println "GraknImporter started"
+        log.info "GraknImporter started"
     }
 
     @Override
     void stop() throws Exception {
-        if (remoteSFTPSession != null) remoteSFTPSession.disconnect()
+        remoteSFTPSession?.disconnect()
+        graknSession?.close()
     }
 
     private void processImportJob(Job job, Job indexJob, Handler<AsyncResult> handler) {
         String githubRepo = job.data.getString("github_repository").toLowerCase()
-        println "Importing project: " + githubRepo
+        log.info "Importing project: " + githubRepo
         try {
             def outputDirectory = downloadAndExtractImportFiles(job)
             importProject(outputDirectory, job, {
-                println "Finished importing project: " + githubRepo
+                log.info "Finished importing project: " + githubRepo
                 logPrintln(job, "Index results imported")
 
                 def jobData = indexJob.data
@@ -195,9 +198,8 @@ class GraknImporter extends AbstractVerticle {
         def functionDefinitions = new File(outputDirectory, "functions_definition.txt")
         def functionReferences = new File(outputDirectory, "functions_reference.txt")
         def githubRepo = job.data.getString("github_repository").toLowerCase()
-        def commitSha1 = job.data.getString("commit")
-        def commitDate = job.data.getString("commit_date")
         def cacheFutures = new ArrayList<Future>()
+        def importData = new ImportSessionData()
 
         boolean newProject = false
         String projectId = null
@@ -223,8 +225,40 @@ class GraknImporter extends AbstractVerticle {
             tx.close()
         }
 
+        //open source functions
+        importOpenSourceFunctions(job, osFunctionsOutput, timeoutTime, importData, cacheFutures)
+        //project files
+        fileCount += importFiles(projectId, job, filesOutput, timeoutTime, newProject, importData, cacheFutures)
+        //project definitions
+        methodInstanceCount += importDefinitions(projectId, job, functionDefinitions, timeoutTime,
+                newProject, importData, cacheFutures)
+        //project references
+        importReferences(projectId, job, functionReferences, timeoutTime, newProject, importData, cacheFutures)
+
+        //cache new project/file counts; then finished
+        logPrintln(job, "Caching import data")
+        def cacheInfoTimer = WebLauncher.metrics.timer("CachingProjectInformation")
+        def cacheInfoContext = cacheInfoTimer.time()
+        def fut1 = Future.future()
+        cacheFutures.add(fut1)
+        redis.incrementCachedProjectFileCount(githubRepo, fileCount, fut1.completer())
+        def fut2 = Future.future()
+        cacheFutures.add(fut2)
+        redis.incrementCachedProjectMethodInstanceCount(githubRepo, methodInstanceCount, fut2.completer())
+        CompositeFuture.all(cacheFutures).setHandler({
+            if (it.failed()) {
+                handler.handle(Future.failedFuture(it.cause()))
+            } else {
+                logPrintln(job, "Caching import data took: " + asPrettyTime(cacheInfoContext.stop()))
+                handler.handle(Future.succeededFuture())
+            }
+        })
+    }
+
+    private void importOpenSourceFunctions(Job job, File osFunctionsOutput, Instant timeoutTime,
+                                           ImportSessionData importData, List<Future> cacheFutures) {
+        def tx
         logPrintln(job, "Importing open source functions")
-        def openSourceFunctions = new HashMap<String, OpenSourceFunction>()
         def importOSFTimer = WebLauncher.metrics.timer("ImportingOSFunctions")
         def importOSFContext = importOSFTimer.time()
         tx = graknSession.open(GraknTxType.BATCH)
@@ -240,16 +274,22 @@ class GraknImporter extends AbstractVerticle {
                     def fut = Future.future()
                     cacheFutures.add(fut)
                     def osFunc = grakn.getOrCreateOpenSourceFunction(lineData[0], graql, fut.completer())
-                    openSourceFunctions.put(lineData[0], osFunc)
+                    importData.openSourceFunctions.put(lineData[0], osFunc)
                 }
             }
         } finally {
             tx.commit()
         }
         logPrintln(job, "Importing open source functions took: " + asPrettyTime(importOSFContext.stop()))
+    }
+
+    private long importFiles(String projectId, Job job, File filesOutput, Instant timeoutTime, boolean newProject,
+                             ImportSessionData importData, List<Future> cacheFutures) {
+        long fileCount = 0
+        def githubRepo = job.data.getString("github_repository").toLowerCase()
+        def tx
 
         logPrintln(job, "Importing files")
-        def importedFiles = new HashMap<String, String>()
         def importFilesTimer = WebLauncher.metrics.timer("ImportingFiles")
         def importFilesContext = importFilesTimer.time()
         tx = graknSession.open(GraknTxType.BATCH)
@@ -265,11 +305,18 @@ class GraknImporter extends AbstractVerticle {
 
                     if (!newProject) {
                         //find existing file
-                        def query = graql.parse(GET_EXISTING_FILE
+                        def query = graql.parse(GET_FILE
                                 .replace("<filename>", lineData[1])
                                 .replace("<projectId>", projectId))
                         def match = query.execute() as List<QueryAnswer>
                         importFile = match.isEmpty()
+                        if (!importFile) {
+                            def existingFileId = match.get(0).get("x").asEntity().id.toString()
+                            def fut = Future.future()
+                            cacheFutures.add(fut)
+                            redis.cacheProjectImportedFile(githubRepo, lineData[1], existingFileId, fut.completer())
+                            importData.importedFiles.put(lineData[1], existingFileId)
+                        }
                     }
 
                     if (importFile) {
@@ -280,7 +327,7 @@ class GraknImporter extends AbstractVerticle {
                                 .replace("<filename>", lineData[1])
                                 .replace("<qualifiedName>", lineData[2])).execute() as List<QueryAnswer>
                         def importedFileId = importedFile.get(0).get("f").asEntity().id.toString()
-                        importedFiles.put(lineData[1], importedFileId)
+                        importData.importedFiles.put(lineData[1], importedFileId)
                         WebLauncher.metrics.counter("ImportFile").inc()
                         fileCount++
 
@@ -296,10 +343,18 @@ class GraknImporter extends AbstractVerticle {
             tx.close()
         }
         logPrintln(job, "Importing files took: " + asPrettyTime(importFilesContext.stop()))
+        return fileCount
+    }
+
+    private long importDefinitions(String projectId, Job job, File functionDefinitions, Instant timeoutTime,
+                                   boolean newProject, ImportSessionData importData, List<Future> cacheFutures) {
+        long methodInstanceCount = 0
+        def githubRepo = job.data.getString("github_repository").toLowerCase()
+        def commitSha1 = job.data.getString("commit")
+        def commitDate = job.data.getString("commit_date")
+        def tx
 
         logPrintln(job, "Importing defined functions")
-        def definedFunctions = new HashMap<String, String>()
-        def definedFunctionInstances = new HashMap<String, String>()
         def importDefinitionsTimer = WebLauncher.metrics.timer("ImportingDefinedFunctions")
         def importDefinitionsContext = importDefinitionsTimer.time()
         tx = graknSession.open(GraknTxType.BATCH)
@@ -312,25 +367,38 @@ class GraknImporter extends AbstractVerticle {
                 if (lineNumber > 1) {
                     def lineData = it.split("\\|")
                     def importDefinition = newProject
-                    def fileId = importedFiles.get(lineData[0])
+                    def fileId = importData.importedFiles.get(lineData[0])
 
                     if (!newProject) {
                         //find existing defined function
-                        def existingDef = graql.parse(GET_EXISTING_DEFINITION_BY_FILE_NAME
+                        def existingDef = graql.parse(GET_DEFINITION_BY_FILE_NAME
                                 .replace("<functionName>", lineData[2])
                                 .replace("<filename>", lineData[0])).execute() as List<QueryAnswer>
                         importDefinition = existingDef.isEmpty()
+                        if (!importDefinition) {
+                            def existingFileId = existingDef.get(0).get("x").asEntity().id.toString()
+                            def existingFunctionInstanceId = existingDef.get(0).get("y").asEntity().id.toString()
+                            def existingFunctionId = existingDef.get(0).get("z").asEntity().id.toString()
+                            def fut1 = Future.future()
+                            def fut2 = Future.future()
+                            cacheFutures.addAll(fut1, fut2)
+                            redis.cacheProjectImportedFunction(githubRepo, lineData[1], existingFunctionId, fut1.completer())
+                            redis.cacheProjectImportedDefinition(existingFileId, existingFunctionId, fut2.completer())
+
+                            importData.definedFunctions.put(lineData[1], existingFunctionId)
+                            importData.definedFunctionInstances.put(existingFunctionId, existingFunctionInstanceId)
+                        }
                     }
 
                     if (importDefinition) {
                         def startOffset = lineData[3]
                         def endOffset = lineData[4]
-                        def osFunc = openSourceFunctions.get(lineData[1])
+                        def osFunc = importData.openSourceFunctions.get(lineData[1])
                         if (osFunc == null) {
                             def fut = Future.future()
                             cacheFutures.add(fut)
                             osFunc = grakn.getOrCreateOpenSourceFunction(lineData[1], graql, fut.completer())
-                            openSourceFunctions.put(lineData[1], osFunc)
+                            importData.openSourceFunctions.put(lineData[1], osFunc)
                         }
                         if (fileId == null) {
                             //println "todo: me3" //todo: me
@@ -348,8 +416,8 @@ class GraknImporter extends AbstractVerticle {
                                 .replace("<startOffset>", startOffset)
                                 .replace("<endOffset>", endOffset)).execute() as List<QueryAnswer>
                         def importedFunctionId = result.get(0).get("y").asEntity().id.toString()
-                        definedFunctions.put(lineData[1], osFunc.functionId)
-                        definedFunctionInstances.put(osFunc.functionId, importedFunctionId)
+                        importData.definedFunctions.put(lineData[1], osFunc.functionId)
+                        importData.definedFunctionInstances.put(osFunc.functionId, importedFunctionId)
                         WebLauncher.metrics.counter("ImportDefinedFunction").inc()
                         methodInstanceCount++
 
@@ -366,6 +434,15 @@ class GraknImporter extends AbstractVerticle {
             tx.commit()
         }
         logPrintln(job, "Importing defined functions took: " + asPrettyTime(importDefinitionsContext.stop()))
+        return methodInstanceCount
+    }
+
+    private void importReferences(String projectId, Job job, File functionReferences, Instant timeoutTime,
+                                  boolean newProject, ImportSessionData importData, List<Future> cacheFutures) {
+        def githubRepo = job.data.getString("github_repository").toLowerCase()
+        def commitSha1 = job.data.getString("commit")
+        def commitDate = job.data.getString("commit_date")
+        def tx
 
         logPrintln(job, "Importing function references")
         def importReferencesTimer = WebLauncher.metrics.timer("ImportingReferences")
@@ -382,12 +459,12 @@ class GraknImporter extends AbstractVerticle {
                     def importReference = newProject
                     def isFileReferencing = !lineData[0].contains("#")
                     def isExternal = Boolean.valueOf(lineData[5])
-                    def osFunc = openSourceFunctions.get(lineData[1])
+                    def osFunc = importData.openSourceFunctions.get(lineData[1])
                     if (osFunc == null) {
                         def fut = Future.future()
                         cacheFutures.add(fut)
                         osFunc = grakn.getOrCreateOpenSourceFunction(lineData[1], graql, fut.completer())
-                        openSourceFunctions.put(lineData[1], osFunc)
+                        importData.openSourceFunctions.put(lineData[1], osFunc)
                     }
 
                     if (!newProject) {
@@ -395,14 +472,21 @@ class GraknImporter extends AbstractVerticle {
                         if (isFileReferencing) {
                             def refFile = lineData[0]
                             if (isExternal) {
-                                def existingRef = graql.parse(GET_EXISTING_EXTERNAL_REFERENCE_BY_FILE_NAME
+                                def existingRef = graql.parse(GET_EXTERNAL_REFERENCE_BY_FILE_NAME
                                         .replace("<xFileName>", refFile)
                                         .replace("<yFuncRefsId>", osFunc.functionReferencesId)
                                         .replace("<startOffset>", lineData[3])
                                         .replace("<endOffset>", lineData[4])).execute() as List<QueryAnswer>
                                 importReference = existingRef.isEmpty()
+                                if (!importReference) {
+                                    def fileId = existingRef.get(0).get("file").asEntity().id.toString()
+                                    def functionId = existingRef.get(0).get("func").asEntity().id.toString()
+                                    def fut = Future.future()
+                                    cacheFutures.addAll(fut)
+                                    redis.cacheProjectImportedReference(fileId, functionId, fut.completer())
+                                }
                             } else {
-                                def existingRef = graql.parse(GET_EXISTING_INTERNAL_REFERENCE_BY_FILE_NAME
+                                def existingRef = graql.parse(GET_INTERNAL_REFERENCE_BY_FILE_NAME
                                         .replace("<xFileName>", refFile)
                                         .replace("<yFuncDefsId>", osFunc.functionDefinitionsId)
                                         .replace("<startOffset>", lineData[3])
@@ -411,41 +495,57 @@ class GraknImporter extends AbstractVerticle {
                             }
                         } else {
                             if (isExternal) {
-                                def defOsFunc = openSourceFunctions.get(lineData[0])
+                                def defOsFunc = importData.openSourceFunctions.get(lineData[0])
                                 if (defOsFunc == null) {
                                     def fut = Future.future()
                                     cacheFutures.add(fut)
                                     defOsFunc = grakn.getOrCreateOpenSourceFunction(lineData[0], graql, fut.completer())
-                                    openSourceFunctions.put(lineData[0], defOsFunc)
+                                    importData.openSourceFunctions.put(lineData[0], defOsFunc)
                                 }
 
-                                def existingRef = graql.parse(GET_EXISTING_EXTERNAL_REFERENCE
+                                def existingRef = graql.parse(GET_EXTERNAL_REFERENCE
                                         .replace("<projectId>", projectId)
                                         .replace("<funcDefsId>", defOsFunc.functionDefinitionsId)
                                         .replace("<funcRefsId>", osFunc.functionReferencesId)
                                         .replace("<startOffset>", lineData[3])
                                         .replace("<endOffset>", lineData[4])).execute() as List<QueryAnswer>
                                 importReference = existingRef.isEmpty()
+                                if (!importReference) {
+                                    def functionInstance1Id = existingRef.get(0).get("yFunc").asEntity().id.toString()
+                                    def functionInstance2Id = existingRef.get(0).get("func").asEntity().id.toString()
+                                    def fut1 = Future.future()
+                                    def fut2 = Future.future()
+                                    cacheFutures.addAll(fut1, fut2)
+                                    redis.cacheProjectImportedFunction(githubRepo, lineData[1], osFunc.functionId, fut1.completer())
+                                    redis.cacheProjectImportedReference(functionInstance1Id, functionInstance2Id, fut2.completer())
+                                }
                             } else {
-                                def refFunctionId = definedFunctions.get(lineData[0])
+                                def refFunctionId = importData.definedFunctions.get(lineData[0])
                                 if (refFunctionId == null) {
-                                    def existingRef = graql.parse(GET_EXISTING_INTERNAL_REFERENCE_BY_FUNCTION_NAME
+                                    def existingRef = graql.parse(GET_INTERNAL_REFERENCE_BY_FUNCTION_NAME
                                             .replace("<funcName1>", lineData[0])
                                             .replace("<funcName2>", lineData[1])
                                             .replace("<startOffset>", lineData[3])
                                             .replace("<endOffset>", lineData[4])).execute() as List<QueryAnswer>
                                     importReference = existingRef.isEmpty()
+                                    if (!importReference) {
+                                        def existingFunc1Id = existingRef.get(0).get("func1").asEntity().id.toString()
+                                        def existingFunc2Id = existingRef.get(0).get("func2").asEntity().id.toString()
+                                        def fut = Future.future()
+                                        cacheFutures.addAll(fut)
+                                        redis.cacheProjectImportedReference(existingFunc1Id, existingFunc2Id, fut.completer())
+                                    }
                                 } else {
-                                    def funcId = definedFunctions.get(lineData[1])
-                                    if (funcId == null || definedFunctionInstances.get(refFunctionId) == null
-                                            || definedFunctionInstances.get(funcId) == null) {
+                                    def funcId = importData.definedFunctions.get(lineData[1])
+                                    if (funcId == null || importData.definedFunctionInstances.get(refFunctionId) == null
+                                            || importData.definedFunctionInstances.get(funcId) == null) {
                                         //println "todo: me5" //todo: me
                                         return
                                     }
 
-                                    def existingRef = graql.parse(GET_EXISTING_INTERNAL_REFERENCE
-                                            .replace("<xFunctionInstanceId>", definedFunctionInstances.get(refFunctionId))
-                                            .replace("<yFunctionInstanceId>", definedFunctionInstances.get(funcId))).execute() as List<QueryAnswer>
+                                    def existingRef = graql.parse(GET_INTERNAL_REFERENCE
+                                            .replace("<xFunctionInstanceId>", importData.definedFunctionInstances.get(refFunctionId))
+                                            .replace("<yFunctionInstanceId>", importData.definedFunctionInstances.get(funcId))).execute() as List<QueryAnswer>
                                     importReference = existingRef.isEmpty()
                                 }
                             }
@@ -455,12 +555,12 @@ class GraknImporter extends AbstractVerticle {
                     if (importReference) {
                         def startOffset = lineData[3]
                         def endOffset = lineData[4]
-                        def refFunctionId = definedFunctions.get(lineData[0])
+                        def refFunctionId = importData.definedFunctions.get(lineData[0])
 
                         if (refFunctionId == null) {
                             if (isFileReferencing) {
                                 //reference from file to function
-                                def fileId = importedFiles.get(lineData[0])
+                                def fileId = importData.importedFiles.get(lineData[0])
                                 if (isExternal) {
                                     //from file to undefined function
                                     if (fileId == null) {
@@ -486,14 +586,14 @@ class GraknImporter extends AbstractVerticle {
                                     redis.cacheProjectImportedFunction(githubRepo, lineData[1], osFunc.functionId, fut1.completer())
                                     redis.cacheProjectImportedReference(fileId, osFunc.functionId, fut2.completer())
                                 } else {
-                                    def funcId = definedFunctions.get(lineData[1])
-                                    if (funcId == null || fileId == null || definedFunctionInstances.get(funcId) == null) {
+                                    def funcId = importData.definedFunctions.get(lineData[1])
+                                    if (funcId == null || fileId == null || importData.definedFunctionInstances.get(funcId) == null) {
                                         //println "todo: me4" //todo: me
                                         return
                                     }
                                     graql.parse(IMPORT_FILE_TO_FUNCTION_REFERENCE
                                             .replace("<xFileId>", fileId)
-                                            .replace("<yFuncInstanceId>", definedFunctionInstances.get(funcId))
+                                            .replace("<yFuncInstanceId>", importData.definedFunctionInstances.get(funcId))
                                             .replace("<createDate>", Instant.now().toString())
                                             .replace("<startOffset>", startOffset)
                                             .replace("<endOffset>", endOffset)
@@ -505,13 +605,13 @@ class GraknImporter extends AbstractVerticle {
                                     redis.cacheProjectImportedReference(fileId, funcId, fut.completer())
                                 }
                             } else {
-                                //reference to function not defined this import
-                                //println "todo: me" //todo: me
+                                //internal reference to function not defined this import
+                                println "todo: me" //todo: me
                             }
                         } else {
                             if (isExternal) {
                                 graql.parse(IMPORT_EXTERNAL_REFERENCED_FUNCTIONS
-                                        .replace("<xFuncInstanceId>", definedFunctionInstances.get(refFunctionId))
+                                        .replace("<xFuncInstanceId>", importData.definedFunctionInstances.get(refFunctionId))
                                         .replace("<projectId>", projectId)
                                         .replace("<funcRefsId>", osFunc.functionReferencesId)
                                         .replace("<createDate>", Instant.now().toString())
@@ -529,10 +629,10 @@ class GraknImporter extends AbstractVerticle {
                                 redis.cacheProjectImportedFunction(githubRepo, lineData[1], osFunc.functionId, fut1.completer())
                                 redis.cacheProjectImportedReference(refFunctionId, osFunc.functionId, fut2.completer())
                             } else {
-                                def funcId = definedFunctions.get(lineData[1])
+                                def funcId = importData.definedFunctions.get(lineData[1])
                                 graql.parse(IMPORT_INTERNAL_REFERENCED_FUNCTIONS
-                                        .replace("<xFuncInstanceId>", definedFunctionInstances.get(refFunctionId))
-                                        .replace("<yFuncInstanceId>", definedFunctionInstances.get(funcId))
+                                        .replace("<xFuncInstanceId>", importData.definedFunctionInstances.get(refFunctionId))
+                                        .replace("<yFuncInstanceId>", importData.definedFunctionInstances.get(funcId))
                                         .replace("<createDate>", Instant.now().toString())
                                         .replace("<startOffset>", startOffset)
                                         .replace("<endOffset>", endOffset)
@@ -552,25 +652,6 @@ class GraknImporter extends AbstractVerticle {
             tx.commit()
         }
         logPrintln(job, "Importing function references took: " + asPrettyTime(importReferencesContext.stop()))
-
-        //cache new project/file counts; then finished
-        logPrintln(job, "Caching import data")
-        def cacheInfoTimer = WebLauncher.metrics.timer("CachingProjectInformation")
-        def cacheInfoContext = cacheInfoTimer.time()
-        def fut1 = Future.future()
-        cacheFutures.add(fut1)
-        redis.incrementCachedProjectFileCount(githubRepo, fileCount, fut1.completer())
-        def fut2 = Future.future()
-        cacheFutures.add(fut2)
-        redis.incrementCachedProjectMethodInstanceCount(githubRepo, methodInstanceCount, fut2.completer())
-        CompositeFuture.all(cacheFutures).setHandler({
-            if (it.failed()) {
-                handler.handle(Future.failedFuture(it.cause()))
-            } else {
-                logPrintln(job, "Caching import data took: " + asPrettyTime(cacheInfoContext.stop()))
-                handler.handle(Future.succeededFuture())
-            }
-        })
     }
 
     private File downloadAndExtractImportFiles(Job job) {
@@ -585,7 +666,7 @@ class GraknImporter extends AbstractVerticle {
 
         String uploadsHost = config().getString("uploads.host")
         if (uploadsHost != null) {
-            println "Downloading index results from SFTP"
+            log.debug "Downloading index results from SFTP"
 
             //try to connect 3 times (todo: use retryer?)
             boolean connected = false
