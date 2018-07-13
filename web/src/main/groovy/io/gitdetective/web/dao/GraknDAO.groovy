@@ -5,6 +5,8 @@ import ai.grakn.GraknTxType
 import ai.grakn.graql.QueryBuilder
 import ai.grakn.graql.internal.query.QueryAnswer
 import com.google.common.base.Charsets
+import com.google.common.cache.Cache
+import com.google.common.cache.CacheBuilder
 import com.google.common.io.Resources
 import io.gitdetective.web.WebLauncher
 import io.gitdetective.web.work.importer.OpenSourceFunction
@@ -13,6 +15,8 @@ import io.vertx.core.json.JsonArray
 import io.vertx.core.json.JsonObject
 import io.vertx.core.logging.Logger
 import io.vertx.core.logging.LoggerFactory
+
+import java.util.concurrent.TimeUnit
 
 import static io.gitdetective.web.Utils.*
 
@@ -41,6 +45,8 @@ class GraknDAO {
     private final Vertx vertx
     private final RedisDAO redis
     private final GraknSession session
+    private final Cache<String, OpenSourceFunction> osfCache = CacheBuilder.newBuilder()
+            .expireAfterWrite(1, TimeUnit.MINUTES).build()
 
     GraknDAO(Vertx vertx, RedisDAO redis, GraknSession graknSession) {
         this.vertx = vertx
@@ -50,6 +56,16 @@ class GraknDAO {
 
     OpenSourceFunction getOrCreateOpenSourceFunction(String functionName, QueryBuilder graql,
                                                      Handler<AsyncResult> handler) {
+        def osfFunction = osfCache.getIfPresent(functionName)
+        if (osfFunction != null) {
+            log.trace("Returned cached open source function")
+            handler.handle(Future.succeededFuture())
+            return osfFunction
+        } else {
+            osfFunction = new OpenSourceFunction()
+            osfCache.put(functionName, osfFunction)
+        }
+
         boolean created = false
         def query = graql.parse(GET_OPEN_SOURCE_FUNCTION
                 .replace("<name>", functionName))
@@ -62,15 +78,17 @@ class GraknDAO {
         def functionId = match.get(0).get("func").asEntity().id.toString()
         def functionDefinitionsId = match.get(0).get("funcDefs").asEntity().id.toString()
         def functionReferencesId = match.get(0).get("funcRefs").asEntity().id.toString()
-        def osFunc = new OpenSourceFunction(functionId, functionDefinitionsId, functionReferencesId)
+        osfFunction.functionId = functionId
+        osfFunction.functionDefinitionsId = functionDefinitionsId
+        osfFunction.functionReferencesId = functionReferencesId
         if (created) {
-            redis.cacheOpenSourceFunction(functionName, osFunc, handler)
+            redis.cacheOpenSourceFunction(functionName, osfFunction, handler)
             WebLauncher.metrics.counter("ImportMethod").inc()
             log.debug "Created open source function: $functionName"
         } else {
             handler.handle(Future.succeededFuture())
         }
-        return osFunc
+        return osfFunction
     }
 
     void getMethodMethodReferenceCount(String githubRepo, JsonArray methods, Handler<AsyncResult<JsonArray>> handler) {
