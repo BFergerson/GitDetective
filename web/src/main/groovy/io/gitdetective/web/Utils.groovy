@@ -32,11 +32,11 @@ final class Utils {
 
     static String getQualifiedClassName(String qualifiedName) {
         def withoutArgs = qualifiedName.substring(0, qualifiedName.indexOf("("))
-        try {
+        if (withoutArgs.contains("<")) {
+            withoutArgs = withoutArgs.substring(0, withoutArgs.indexOf("<"))
             return withoutArgs.substring(withoutArgs.lastIndexOf("?") + 1, withoutArgs.lastIndexOf("."))
-        } catch (StringIndexOutOfBoundsException e) {
-            log.error "Throwing index out of bounds on qualified name: " + qualifiedName
-            throw e
+        } else {
+            return withoutArgs.substring(withoutArgs.lastIndexOf("?") + 1, withoutArgs.lastIndexOf("."))
         }
     }
 
