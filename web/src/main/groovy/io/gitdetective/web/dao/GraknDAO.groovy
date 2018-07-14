@@ -93,7 +93,7 @@ class GraknDAO {
                 handler.handle(Future.failedFuture(it.cause()))
             } else {
                 def referencedMethods = it.result()
-                getMethodNewExternalReferences(githubRepo, referencedMethods, {
+                getMethodNewExternalReferences(referencedMethods, {
                     if (it.failed()) {
                         handler.handle(Future.failedFuture(it.cause()))
                     } else {
@@ -115,13 +115,20 @@ class GraknDAO {
                             if (it.failed()) {
                                 handler.handle(Future.failedFuture(it.cause()))
                             } else {
-                                //update project leaderboard
-                                redis.updateProjectReferenceLeaderboard(githubRepo, totalRefCount, {
+                                def res = it.result().list() as List<Long>
+                                updateMethodDefinitionComputedInstanceOffsets(referencedMethods, res, {
                                     if (it.failed()) {
                                         handler.handle(Future.failedFuture(it.cause()))
                                     } else {
-                                        //return from cache
-                                        redis.getProjectMostExternalReferencedMethods(githubRepo, 10, handler)
+                                        //update project leaderboard
+                                        redis.updateProjectReferenceLeaderboard(githubRepo, totalRefCount, {
+                                            if (it.failed()) {
+                                                handler.handle(Future.failedFuture(it.cause()))
+                                            } else {
+                                                //return from cache
+                                                redis.getProjectMostExternalReferencedMethods(githubRepo, 10, handler)
+                                            }
+                                        })
                                     }
                                 })
                             }
@@ -130,6 +137,40 @@ class GraknDAO {
                 })
             }
         })
+    }
+
+    private void updateMethodDefinitionComputedInstanceOffsets(JsonArray methods, List<Long> computedInstanceOffsets,
+                                                               Handler<AsyncResult> handler) {
+        if (methods.isEmpty()) {
+            handler.handle(Future.succeededFuture())
+            return
+        }
+
+        vertx.executeBlocking({ blocking ->
+            def tx = null
+            try {
+                tx = session.open(GraknTxType.BATCH)
+                def graql = tx.graql()
+                for (int i = 0; i < methods.size(); i++) {
+                    def method = methods.getJsonObject(i)
+                    graql.parse(('match $x id "<id>"; ' +
+                            '$defRel (has_defines_function: $file, is_defines_function: $x) isa defines_function; ' +
+                            '$defRel has computed_instance_offset $compOffset; $offsetRel ($defRel, $compOffset); ' +
+                            'delete $offsetRel;')
+                            .replace("<id>", method.getString("id"))).execute() as List<QueryAnswer>
+                    graql.parse(('match $x id "<id>"; ' +
+                            '$defRel (has_defines_function: $file, is_defines_function: $x) isa defines_function; ' +
+                            'insert $defRel has computed_instance_offset ' + computedInstanceOffsets.get(i) + ';')
+                            .replace("<id>", method.getString("id"))).execute() as List<QueryAnswer>
+                }
+                tx.commit()
+                blocking.complete(Future.succeededFuture())
+            } catch (all) {
+                blocking.fail(all)
+            } finally {
+                tx?.close()
+            }
+        }, false, handler)
     }
 
     void getProjectNewExternalReferences(String githubRepo, Handler<AsyncResult<JsonArray>> handler) {
@@ -171,91 +212,67 @@ class GraknDAO {
         }, false, handler)
     }
 
-    void getMethodNewExternalReferences(String githubRepo, JsonArray methods, Handler<AsyncResult<JsonArray>> handler) {
-        //prepare queries
-        def queryFutures = new ArrayList<Future<String>>()
-        for (int i = 0; i < methods.size(); i++) {
-            def methodId = methods.getJsonObject(i).getString("id")
-            def fut = Future.future()
-            queryFutures.add(fut)
-            redis.getProjectFunctionReferenceCount(githubRepo, methodId, {
-                if (it.failed()) {
-                    fut.fail(it.cause())
-                } else {
-                    fut.complete(GET_METHOD_NEW_EXTERNAL_REFERENCES
-                            .replace("<id>", methodId)
-                            .replace("<instanceOffset>", Long.toString(it.result())))
-                }
-            })
+    void getMethodNewExternalReferences(JsonArray methods, Handler<AsyncResult<JsonArray>> handler) {
+        if (methods.isEmpty()) {
+            handler.handle(Future.succeededFuture(new JsonArray()))
+            return
         }
 
-        //execute queries
-        CompositeFuture.all(queryFutures).setHandler({
-            if (it.failed()) {
-                handler.handle(Future.failedFuture(it.cause()))
-                return
-            }
+        vertx.executeBlocking({ blocking ->
+            def tx = null
+            def rtnArray = new JsonArray()
+            try {
+                tx = session.open(GraknTxType.BATCH)
+                def graql = tx.graql()
+                for (int i = 0; i < methods.size(); i++) {
+                    def method = methods.getJsonObject(i)
+                    def result = graql.parse(GET_METHOD_NEW_EXTERNAL_REFERENCES
+                            .replace("<id>", method.getString("id"))).execute() as List<QueryAnswer>
 
-            vertx.executeBlocking({ blocking ->
-                if (it.failed()) {
-                    blocking.fail(it.cause())
-                } else if (it.result().list().isEmpty()) {
-                    blocking.complete(new JsonArray())
-                } else {
-                    def queries = it.result().list() as List<String>
-                    def tx = null
-                    def rtnArray = new JsonArray()
-                    try {
-                        tx = session.open(GraknTxType.BATCH)
-                        def graql = tx.graql()
-                        for (def query : queries) {
-                            def result = graql.parse(query) as List<QueryAnswer>
-                            def methodRefs = new JsonArray()
-                            for (def answer : result) {
-                                def fileLocation = answer.get("file_location").asAttribute().getValue() as String
-                                def commitSha1 = answer.get("commit_sha1").asAttribute().getValue() as String
-                                def qualifiedName = answer.get("fu_name").asAttribute().getValue() as String
-                                def fileOrFunctionId = answer.get("fu_ref").asEntity().id.value
-                                def projectName = answer.get("p_name").asAttribute().value
-                                if (qualifiedName.contains("(")) {
-                                    //function ref
-                                    def function = new JsonObject()
-                                            .put("qualified_name", qualifiedName)
-                                            .put("file_location", fileLocation)
-                                            .put("commit_sha1", commitSha1)
-                                            .put("id", fileOrFunctionId)
-                                            .put("short_class_name", getShortQualifiedClassName(qualifiedName))
-                                            .put("class_name", getQualifiedClassName(qualifiedName))
-                                            .put("short_method_signature", getShortMethodSignature(qualifiedName))
-                                            .put("method_signature", getMethodSignature(qualifiedName))
-                                            .put("github_repo", projectName)
-                                            .put("is_function", true)
-                                    methodRefs.add(function)
-                                } else {
-                                    //file ref
-                                    def file = new JsonObject()
-                                            .put("qualified_name", qualifiedName)
-                                            .put("file_location", fileLocation)
-                                            .put("commit_sha1", commitSha1)
-                                            .put("id", fileOrFunctionId)
-                                            .put("short_class_name", getFilename(fileLocation))
-                                            .put("github_repo", projectName)
-                                            .put("is_file", true)
-                                    methodRefs.add(file)
-                                }
-                            }
-                            rtnArray.add(methodRefs)
+                    def methodRefs = new JsonArray()
+                    for (def answer : result) {
+                        def fileLocation = answer.get("file_location").asAttribute().getValue() as String
+                        def commitSha1 = answer.get("commit_sha1").asAttribute().getValue() as String
+                        def qualifiedName = answer.get("fu_name").asAttribute().getValue() as String
+                        def fileOrFunctionId = answer.get("fu_ref").asEntity().id.value
+                        def projectName = answer.get("p_name").asAttribute().value
+                        if (qualifiedName.contains("(")) {
+                            //function ref
+                            def function = new JsonObject()
+                                    .put("qualified_name", qualifiedName)
+                                    .put("file_location", fileLocation)
+                                    .put("commit_sha1", commitSha1)
+                                    .put("id", fileOrFunctionId)
+                                    .put("short_class_name", getShortQualifiedClassName(qualifiedName))
+                                    .put("class_name", getQualifiedClassName(qualifiedName))
+                                    .put("short_method_signature", getShortMethodSignature(qualifiedName))
+                                    .put("method_signature", getMethodSignature(qualifiedName))
+                                    .put("github_repo", projectName)
+                                    .put("is_function", true)
+                            methodRefs.add(function)
+                        } else {
+                            //file ref
+                            def file = new JsonObject()
+                                    .put("qualified_name", qualifiedName)
+                                    .put("file_location", fileLocation)
+                                    .put("commit_sha1", commitSha1)
+                                    .put("id", fileOrFunctionId)
+                                    .put("short_class_name", getFilename(fileLocation))
+                                    .put("github_repo", projectName)
+                                    .put("is_file", true)
+                            methodRefs.add(file)
                         }
-                        tx.commit()
-                        blocking.complete(rtnArray)
-                    } catch (all) {
-                        blocking.fail(all)
-                    } finally {
-                        tx?.close()
                     }
+                    rtnArray.add(methodRefs)
                 }
-            }, false, handler)
-        })
+                tx.commit()
+                blocking.complete(rtnArray)
+            } catch (all) {
+                blocking.fail(all)
+            } finally {
+                tx?.close()
+            }
+        }, false, handler)
     }
 
 }

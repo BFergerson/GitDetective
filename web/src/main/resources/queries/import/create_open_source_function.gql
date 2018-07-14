@@ -1,5 +1,4 @@
-insert $func isa function has function_name "<name>"
-    has reference_count 0;
+insert $func isa function has function_name "<name>";
 $funcDefs isa function-definitions;
     (has_function_definitions: $func, is_function_definitions: $funcDefs) isa function_definitions;
 $funcRefs isa function-references;

@@ -616,7 +616,7 @@ class GraknImporter extends AbstractVerticle {
                                 importFutures.add(fut)
                                 importCode.fileId = fileId
                                 importCode.referenceFunctionId = osFunc.functionId
-                                redis.incrementProjectFunctionReferenceCount(githubRepo, importCode.referenceFunctionId, {
+                                redis.incrementOpenSourceFunctionReferenceCount(importCode.referenceFunctionId, {
                                     if (it.failed()) {
                                         fut.fail(it.cause())
                                     } else {
@@ -666,7 +666,7 @@ class GraknImporter extends AbstractVerticle {
                                 importCode.functionId = refFunctionId
                                 importCode.functionInstanceId = importData.definedFunctionInstances.get(refFunctionId)
                                 importCode.referenceFunctionId = osFunc.functionId
-                                redis.incrementProjectFunctionReferenceCount(githubRepo, importCode.referenceFunctionId, {
+                                redis.incrementOpenSourceFunctionReferenceCount(importCode.referenceFunctionId, {
                                     if (it.failed()) {
                                         fut.fail(it.cause())
                                     } else {

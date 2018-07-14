@@ -116,7 +116,13 @@ class RedisDAO {
         def methodDupe = method.copy()
         methodDupe.remove("commit_sha1") //don't care about which commit method came from
         redis.zadd("gitdetective:project:$githubRepo:method_reference_leaderboard", referenceCount,
-                methodDupe.encode(), handler)
+                methodDupe.encode(), {
+            if (it.failed()) {
+                handler.handle(Future.failedFuture(it.cause()))
+            } else {
+                handler.handle(Future.succeededFuture(referenceCount)) //return new total
+            }
+        })
     }
 
     void getProjectMostExternalReferencedMethods(String githubRepo, int topCount, Handler<AsyncResult<JsonArray>> handler) {
@@ -500,24 +506,8 @@ class RedisDAO {
         redis.publish(NEW_REFERENCE, "$fileOrFunctionId-$functionId", handler)
     }
 
-    void incrementProjectFunctionReferenceCount(String githubRepository, String functionId,
-                                                Handler<AsyncResult<Long>> handler) {
-        redis.incr("gitdetective:counts:reference:function:$functionId:$githubRepository", handler)
-    }
-
-    void getProjectFunctionReferenceCount(String githubRepository, String functionId,
-                                          Handler<AsyncResult<Long>> handler) {
-        redis.get("gitdetective:counts:reference:function:$functionId:$githubRepository", {
-            if (it.failed()) {
-                handler.handle(Future.failedFuture(it.cause()))
-            } else {
-                if (it.result() == null) {
-                    handler.handle(Future.succeededFuture(0))
-                } else {
-                    handler.handle(Future.succeededFuture(it.result() as long))
-                }
-            }
-        })
+    void incrementOpenSourceFunctionReferenceCount(String functionId, Handler<AsyncResult<Long>> handler) {
+        redis.incr("gitdetective:counts:osf:reference:function:$functionId", handler)
     }
 
     RedisClient getClient() {

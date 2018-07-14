@@ -17,7 +17,6 @@ file sub node
     plays has_ref_call;
 function sub node
     has function_name
-    has reference_count
     plays has_function_references
     plays has_function_definitions;
 function-instance sub function
@@ -55,7 +54,7 @@ file_name sub name datatype string;
 start_offset sub attribute datatype long;
 end_offset sub attribute datatype long;
 instance_offset sub attribute datatype long;
-reference_count sub attribute datatype long;
+computed_instance_offset sub attribute datatype long;
 
 ##########---------- Relationships ----------##########
 #todo: can make parent relationship with create_date, start_offset, end_offset
@@ -73,6 +72,7 @@ has_defines_file sub has_defines;
 is_defines_file sub is_defines;
 
 defines_function sub defines
+    has computed_instance_offset
     relates has_defines_function, relates is_defines_function;
 has_defines_function sub has_defines;
 is_defines_function sub is_defines;

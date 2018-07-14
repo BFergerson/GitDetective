@@ -1,5 +1,7 @@
 #which external methods/files reference this method (delta)
 match $fu id "<id>";
+$fu_file isa file; (has_defines_function: $fu_file, is_defines_function: $fu) isa defines_function
+    has computed_instance_offset $compOffset;
 $fu_defs isa function-definitions;
     (has_function_definition: $fu_defs, is_function_definition: $fu) isa function_definition;
 $fu_refs isa function-references;
@@ -8,7 +10,7 @@ $open_fu isa function;
 	(has_function_references: $open_fu, is_function_references: $fu_refs) isa function_references;
 $fu_ref isa function-instance
     has commit_sha1 $commit_sha1
-    has instance_offset > <instanceOffset>;
+    has instance_offset > $compOffset;
     (has_function_reference: $fu_refs, is_function_reference: $fu_ref) isa function_reference;
 $fu_ref_caller has qualified_name $fu_name;
     (has_ref_call: $fu_ref_caller, is_ref_call: $fu_ref) isa ref_call;
