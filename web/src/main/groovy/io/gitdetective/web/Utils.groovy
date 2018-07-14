@@ -26,6 +26,10 @@ final class Utils {
         log.info logData + " (repo: " + job.data.getString("github_repository") + ")"
     }
 
+    static String getFilename(String fileLocation) {
+        return fileLocation.substring(fileLocation.lastIndexOf("/") + 1)
+    }
+
     static String getShortQualifiedClassName(String qualifiedName) {
         return getQualifiedClassName(qualifiedName).replaceAll('\\B\\w+(\\.[a-z])', '$1')
     }

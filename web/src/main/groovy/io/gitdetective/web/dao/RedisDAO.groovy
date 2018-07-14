@@ -2,6 +2,7 @@ package io.gitdetective.web.dao
 
 import io.gitdetective.web.work.importer.OpenSourceFunction
 import io.vertx.core.AsyncResult
+import io.vertx.core.CompositeFuture
 import io.vertx.core.Future
 import io.vertx.core.Handler
 import io.vertx.core.json.Json
@@ -110,8 +111,17 @@ class RedisDAO {
         })
     }
 
+    void updateMethodExternalReferenceCount(String githubRepo, JsonObject method, long referenceCount,
+                                            Handler<AsyncResult> handler) {
+        def methodDupe = method.copy()
+        methodDupe.remove("commit_sha1") //don't care about which commit method came from
+        redis.zadd("gitdetective:project:$githubRepo:method_reference_leaderboard", referenceCount,
+                methodDupe.encode(), handler)
+    }
+
     void getProjectMostExternalReferencedMethods(String githubRepo, int topCount, Handler<AsyncResult<JsonArray>> handler) {
-        redis.zrevrange("gitdetective:project:$githubRepo:method_method_reference_leaderboard", 0, topCount - 1, RangeOptions.WITHSCORES, {
+        redis.zrevrange("gitdetective:project:$githubRepo:method_reference_leaderboard",
+                0, topCount - 1, RangeOptions.WITHSCORES, {
             if (it.failed()) {
                 handler.handle(Future.failedFuture(it.cause()))
             } else {
@@ -126,50 +136,70 @@ class RedisDAO {
         })
     }
 
-    void getMethodExternalMethodReferences(String githubRepo, String methodId, int offset,
+    void getMethodExternalMethodReferences(String githubRepo, String methodId, int offset, int limit,
                                            Handler<AsyncResult<JsonArray>> handler) {
-        redis.get("gitdetective:project:$githubRepo:method_method_references:" + methodId + ":" + offset, {
+        redis.lrange("gitdetective:project:$githubRepo:method_references:$methodId", offset, limit, {
             if (it.failed()) {
                 handler.handle(Future.failedFuture(it.cause()))
             } else {
                 if (it.result() == null) {
                     handler.handle(Future.succeededFuture(new JsonArray()))
                 } else {
-                    handler.handle(Future.succeededFuture(new JsonArray(it.result())))
+                    handler.handle(Future.succeededFuture(new JsonArray(it.result().toString())))
                 }
             }
         })
     }
 
-    void cacheMethodMethodReferences(String githubRepo, String methodId, int offset,
-                                     JsonArray methodReferences, Handler<AsyncResult> handler) {
-        redis.set("gitdetective:project:$githubRepo:method_method_references:" + methodId + ":" + offset,
-                methodReferences.encode(), handler)
-    }
+    void cacheMethodMethodReferences(String githubRepo, JsonObject method, JsonArray methodReferences,
+                                     Handler<AsyncResult<Long>> handler) {
+        def futures = new ArrayList<Future>()
+        for (int i = 0; i < methodReferences.size(); i++) {
+            def methodRef = methodReferences.getJsonObject(i)
+            def fut = Future.future()
+            futures.addAll(fut)
+            redis.lpush("gitdetective:project:$githubRepo:method_references:" + method.getString("id"),
+                    methodRef.encode(), fut.completer())
+        }
 
-    void cacheMethodMethodReferenceCount(String githubRepo, JsonObject method, long referenceCount,
-                                         Handler<AsyncResult> handler) {
-        redis.set("gitdetective:project:$githubRepo:method_method_reference_count:" + method.getString("id"),
-                referenceCount as String, {
+        CompositeFuture.all(futures).setHandler({
             if (it.failed()) {
                 handler.handle(Future.failedFuture(it.cause()))
             } else {
-                def methodDupe = method.copy()
-                methodDupe.remove("commit_sha1") //don't care about which commit method came from
-                redis.zadd("gitdetective:project:$githubRepo:method_method_reference_leaderboard", referenceCount,
-                        methodDupe.encode(), handler)
+                redis.llen("gitdetective:project:$githubRepo:method_references:" + method.getString("id"), {
+                    if (it.failed()) {
+                        handler.handle(Future.failedFuture(it.cause()))
+                    } else {
+                        def totalRefCount = it.result()
+                        updateMethodExternalReferenceCount(githubRepo, method, totalRefCount, handler)
+                    }
+                })
             }
         })
     }
 
     void updateProjectReferenceLeaderboard(String githubRepo, long projectMethodReferenceCount,
                                            Handler<AsyncResult> handler) {
-        redis.set("gitdetective:project:$githubRepo:project_external_method_reference_count",
-                projectMethodReferenceCount as String, {
+        redis.get("gitdetective:project:$githubRepo:project_external_method_reference_count", {
             if (it.failed()) {
                 handler.handle(Future.failedFuture(it.cause()))
             } else {
-                redis.zadd("gitdetective:project_reference_leaderboard", projectMethodReferenceCount, githubRepo, handler)
+                def currentScore = it.result()
+                if (currentScore == null) {
+                    currentScore = 0
+                } else {
+                    currentScore = Long.parseLong(currentScore)
+                }
+                long newScore = (projectMethodReferenceCount + currentScore)
+
+                redis.set("gitdetective:project:$githubRepo:project_external_method_reference_count",
+                        newScore as String, {
+                    if (it.failed()) {
+                        handler.handle(Future.failedFuture(it.cause()))
+                    } else {
+                        redis.zadd("gitdetective:project_reference_leaderboard", newScore, githubRepo, handler)
+                    }
+                })
             }
         })
     }
@@ -470,12 +500,29 @@ class RedisDAO {
         redis.publish(NEW_REFERENCE, "$fileOrFunctionId-$functionId", handler)
     }
 
-    void incrementFunctionDefinitionCount(String functionId, Handler<AsyncResult<Long>> handler) {
-        redis.incr("gitdetectie:counts:definition:function:$functionId", handler)
+    void incrementProjectFunctionDefinitionCount(String githubRepository, String functionId,
+                                                 Handler<AsyncResult<Long>> handler) {
+        redis.incr("gitdetective:counts:definition:function:$functionId:$githubRepository", handler)
     }
 
-    void incrementFunctionReferenceCount(String functionId, Handler<AsyncResult<Long>> handler) {
-        redis.incr("gitdetectie:counts:reference:function:$functionId", handler)
+    void incrementProjectFunctionReferenceCount(String githubRepository, String functionId,
+                                                Handler<AsyncResult<Long>> handler) {
+        redis.incr("gitdetective:counts:reference:function:$functionId:$githubRepository", handler)
+    }
+
+    void getProjectFunctionReferenceCount(String githubRepository, String functionId,
+                                          Handler<AsyncResult<Long>> handler) {
+        redis.get("gitdetective:counts:reference:function:$functionId:$githubRepository", {
+            if (it.failed()) {
+                handler.handle(Future.failedFuture(it.cause()))
+            } else {
+                if (it.result() == null) {
+                    handler.handle(Future.succeededFuture(0))
+                } else {
+                    handler.handle(Future.succeededFuture(it.result() as long))
+                }
+            }
+        })
     }
 
     RedisClient getClient() {

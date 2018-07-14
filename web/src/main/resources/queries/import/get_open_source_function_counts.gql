@@ -1,6 +1,0 @@
-match $func id "<functionId>";
-$funcDefs isa function-definitions;
-    (has_function_definitions: $func, is_function_definitions: $funcDefs) isa function_definitions;
-$funcRefs isa function-references;
-    (has_function_references: $func, is_function_references: $funcRefs) isa function_references;
-get $defCount, $refCount;

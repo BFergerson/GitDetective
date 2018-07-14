@@ -1,7 +1,0 @@
-#which methods reference this method
-match $fu id "<id>";
-$fu_ref isa function; (has_ref: $fu_ref, is_ref: $fu) isa ref;
-$fu_ref has qualified_name $fu_name;
-$fi_ref isa file; (has_defines: $fi_ref, is_defines: $fu_ref) isa defines;
-$p_ref isa project has project_name $p_name; (has_defines: $p_ref, is_defines: $fi_ref) isa defines;
-get $fu_ref, $fu_name, $p_name;

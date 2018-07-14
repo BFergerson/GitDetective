@@ -412,7 +412,7 @@ class GitDetectiveService extends AbstractVerticle {
             def methodId = body.getString("method_id")
             def offset = body.getInteger("offset")
 
-            redis.getMethodExternalMethodReferences(githubRepo, methodId, offset, {
+            redis.getMethodExternalMethodReferences(githubRepo, methodId, offset, 10, {
                 if (it.failed()) {
                     it.cause().printStackTrace()
                     request.reply(it.cause())

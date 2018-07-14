@@ -140,10 +140,7 @@ class GraknImporter extends AbstractVerticle {
                         indexJob.done(result.cause())
                     })
                 } else {
-                    job.done()
-                    job.complete().setHandler({
-                        indexJob.done()
-                    })
+                    indexJob.done()
                 }
             })
         })
@@ -420,7 +417,7 @@ class GraknImporter extends AbstractVerticle {
 
                         def fut = Future.future()
                         importFutures.add(fut)
-                        redis.incrementFunctionDefinitionCount(osFunc.functionId, {
+                        redis.incrementProjectFunctionDefinitionCount(githubRepo, osFunc.functionId, {
                             if (it.failed()) {
                                 fut.fail(it.cause())
                             } else {
@@ -626,7 +623,7 @@ class GraknImporter extends AbstractVerticle {
                                 importFutures.add(fut)
                                 importCode.fileId = fileId
                                 importCode.referenceFunctionId = osFunc.functionId
-                                redis.incrementFunctionReferenceCount(importCode.referenceFunctionId, {
+                                redis.incrementProjectFunctionReferenceCount(githubRepo, importCode.referenceFunctionId, {
                                     if (it.failed()) {
                                         fut.fail(it.cause())
                                     } else {
@@ -676,7 +673,7 @@ class GraknImporter extends AbstractVerticle {
                                 importCode.functionId = refFunctionId
                                 importCode.functionInstanceId = importData.definedFunctionInstances.get(refFunctionId)
                                 importCode.referenceFunctionId = osFunc.functionId
-                                redis.incrementFunctionReferenceCount(importCode.referenceFunctionId, {
+                                redis.incrementProjectFunctionReferenceCount(githubRepo, importCode.referenceFunctionId, {
                                     if (it.failed()) {
                                         fut.fail(it.cause())
                                     } else {

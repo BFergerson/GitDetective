@@ -125,8 +125,6 @@ class GraknCalculator extends AbstractVerticle {
         def futures = new ArrayList<Future>()
 
         //method references
-        if (calcConfig.getBoolean("project_external_method_reference_count"))
-            futures.add(calculateProjectExternalMethodReferenceCount(job))
         if (calcConfig.getBoolean("project_most_referenced_methods"))
             futures.add(getProjectMostExternalReferencedMethods(job))
 
@@ -200,25 +198,6 @@ class GraknCalculator extends AbstractVerticle {
                 future.complete(it.cause())
             } else {
                 logPrintln(job, "Most referenced methods took: " + asPrettyTime(context.stop()))
-                future.complete()
-            }
-        })
-        return future
-    }
-
-    private Future calculateProjectExternalMethodReferenceCount(Job job) {
-        def timer = WebLauncher.metrics.timer("CalculateProjectExternalMethodReferenceCount")
-        def context = timer.time()
-        logPrintln(job, "Calculating external method reference count")
-        def githubRepo = job.data.getString("github_repository").toLowerCase()
-
-        def future = Future.future()
-        grakn.getProjectExternalMethodReferenceCount(githubRepo, {
-            if (it.failed()) {
-                it.cause().printStackTrace()
-                future.complete(it.cause())
-            } else {
-                logPrintln(job, "External method reference count took: " + asPrettyTime(context.stop()))
                 future.complete()
             }
         })
