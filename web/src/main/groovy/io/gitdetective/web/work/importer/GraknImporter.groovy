@@ -658,20 +658,14 @@ class GraknImporter extends AbstractVerticle {
                                 importCode.fileId = fileId
                                 importCode.referenceFunctionId = funcId
                                 importCode.referenceFunctionInstanceId = importData.definedFunctionInstances.get(funcId)
-                                redis.incrementFunctionReferenceCount(importCode.referenceFunctionId, {
-                                    if (it.failed()) {
-                                        fut.fail(it.cause())
-                                    } else {
-                                        importCode.insertQuery = graql.parse(IMPORT_FILE_TO_FUNCTION_REFERENCE
-                                                .replace("<xFileId>", importCode.fileId)
-                                                .replace("<yFuncInstanceId>", importCode.referenceFunctionInstanceId)
-                                                .replace("<createDate>", Instant.now().toString())
-                                                .replace("<startOffset>", startOffset)
-                                                .replace("<endOffset>", endOffset)
-                                                .replace("<isJdk>", lineData[6]))
-                                        fut.complete(importCode)
-                                    }
-                                })
+                                importCode.insertQuery = graql.parse(IMPORT_FILE_TO_FUNCTION_REFERENCE
+                                        .replace("<xFileId>", importCode.fileId)
+                                        .replace("<yFuncInstanceId>", importCode.referenceFunctionInstanceId)
+                                        .replace("<createDate>", Instant.now().toString())
+                                        .replace("<startOffset>", startOffset)
+                                        .replace("<endOffset>", endOffset)
+                                        .replace("<isJdk>", lineData[6]))
+                                fut.complete(importCode)
                             }
                         } else {
                             //references from functions
@@ -714,21 +708,15 @@ class GraknImporter extends AbstractVerticle {
                                 importCode.functionId = refFunctionId
                                 importCode.functionInstanceId = importData.definedFunctionInstances.get(refFunctionId)
                                 importCode.referenceFunctionId = funcId
-                                redis.incrementFunctionReferenceCount(importCode.referenceFunctionId, {
-                                    if (it.failed()) {
-                                        fut.fail(it.cause())
-                                    } else {
-                                        importCode.referenceFunctionInstanceId = importData.definedFunctionInstances.get(funcId)
-                                        importCode.insertQuery = graql.parse(IMPORT_INTERNAL_REFERENCED_FUNCTIONS
-                                                .replace("<xFuncInstanceId>", importCode.functionInstanceId)
-                                                .replace("<yFuncInstanceId>", importCode.referenceFunctionInstanceId)
-                                                .replace("<createDate>", Instant.now().toString())
-                                                .replace("<startOffset>", startOffset)
-                                                .replace("<endOffset>", endOffset)
-                                                .replace("<isJdk>", lineData[6]))
-                                        fut.complete(importCode)
-                                    }
-                                })
+                                importCode.referenceFunctionInstanceId = importData.definedFunctionInstances.get(funcId)
+                                importCode.insertQuery = graql.parse(IMPORT_INTERNAL_REFERENCED_FUNCTIONS
+                                        .replace("<xFuncInstanceId>", importCode.functionInstanceId)
+                                        .replace("<yFuncInstanceId>", importCode.referenceFunctionInstanceId)
+                                        .replace("<createDate>", Instant.now().toString())
+                                        .replace("<startOffset>", startOffset)
+                                        .replace("<endOffset>", endOffset)
+                                        .replace("<isJdk>", lineData[6]))
+                                fut.complete(importCode)
                             }
                         }
                         WebLauncher.metrics.counter("ImportReferencedFunction").inc()
