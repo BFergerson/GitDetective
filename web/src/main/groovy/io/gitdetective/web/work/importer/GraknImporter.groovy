@@ -417,28 +417,21 @@ class GraknImporter extends AbstractVerticle {
 
                         def fut = Future.future()
                         importFutures.add(fut)
-                        redis.incrementProjectFunctionDefinitionCount(githubRepo, osFunc.functionId, {
-                            if (it.failed()) {
-                                fut.fail(it.cause())
-                            } else {
-                                def importCode = new ImportableSourceCode()
-                                importCode.fileId = fileId
-                                importCode.functionId = osFunc.functionId
-                                importCode.functionName = lineData[1]
-                                importCode.insertQuery = graql.parse(IMPORT_DEFINED_FUNCTIONS
-                                        .replace("<instanceOffset>", it.result().toString())
-                                        .replace("<xFileId>", fileId)
-                                        .replace("<projectId>", projectId)
-                                        .replace("<funcDefsId>", osFunc.functionDefinitionsId)
-                                        .replace("<createDate>", Instant.now().toString())
-                                        .replace("<qualifiedName>", lineData[2])
-                                        .replace("<commitSha1>", commitSha1)
-                                        .replace("<commitDate>", commitDate)
-                                        .replace("<startOffset>", startOffset)
-                                        .replace("<endOffset>", endOffset))
-                                fut.complete(importCode)
-                            }
-                        })
+                        def importCode = new ImportableSourceCode()
+                        importCode.fileId = fileId
+                        importCode.functionId = osFunc.functionId
+                        importCode.functionName = lineData[1]
+                        importCode.insertQuery = graql.parse(IMPORT_DEFINED_FUNCTIONS
+                                .replace("<xFileId>", fileId)
+                                .replace("<projectId>", projectId)
+                                .replace("<funcDefsId>", osFunc.functionDefinitionsId)
+                                .replace("<createDate>", Instant.now().toString())
+                                .replace("<qualifiedName>", lineData[2])
+                                .replace("<commitSha1>", commitSha1)
+                                .replace("<commitDate>", commitDate)
+                                .replace("<startOffset>", startOffset)
+                                .replace("<endOffset>", endOffset))
+                        fut.complete(importCode)
                     }
                 }
             }

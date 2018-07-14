@@ -500,11 +500,6 @@ class RedisDAO {
         redis.publish(NEW_REFERENCE, "$fileOrFunctionId-$functionId", handler)
     }
 
-    void incrementProjectFunctionDefinitionCount(String githubRepository, String functionId,
-                                                 Handler<AsyncResult<Long>> handler) {
-        redis.incr("gitdetective:counts:definition:function:$functionId:$githubRepository", handler)
-    }
-
     void incrementProjectFunctionReferenceCount(String githubRepository, String functionId,
                                                 Handler<AsyncResult<Long>> handler) {
         redis.incr("gitdetective:counts:reference:function:$functionId:$githubRepository", handler)
