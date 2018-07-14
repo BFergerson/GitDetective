@@ -396,7 +396,8 @@ class GitDetectiveWebsite extends AbstractVerticle {
 
     private static Future getDatabaseStatistics(RoutingContext ctx) {
         def stats = new JsonArray()
-        stats.add(new JsonObject().put("stat1", "Active backlog").put("value1", asPrettyNumber(CURRENTLY_INDEXING_COUNT))
+        stats.add(new JsonObject().put("stat1", "Active backlog").put("value1",
+                asPrettyNumber(CURRENTLY_INDEXING_COUNT + CURRENTLY_IMPORTING_COUNT + CURRENTLY_CALCULATING_COUNT))
                 .put("stat2", "Projects").put("value2", asPrettyNumber(TOTAL_PROJECT_COUNT)))
         stats.add(new JsonObject().put("stat1", "Definitions").put("value1", asPrettyNumber(TOTAL_DEFINITION_COUNT))
                 .put("stat2", "Files").put("value2", asPrettyNumber(TOTAL_FILE_COUNT)))
