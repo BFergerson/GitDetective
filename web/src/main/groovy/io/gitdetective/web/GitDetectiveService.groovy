@@ -190,10 +190,9 @@ class GitDetectiveService extends AbstractVerticle {
 
             String order = "asc"
             Long from = 0
-            Long to = 200
+            Long to = 50
             String state = "active"
-            //get 200 active jobs; return most recent 10
-            //todo: smarter
+            //get 50 active jobs; return most recent 10
             kue.jobRangeByState(state, from, to, order).setHandler({
                 if (it.failed()) {
                     it.cause().printStackTrace()
@@ -203,16 +202,29 @@ class GitDetectiveService extends AbstractVerticle {
                 }
                 def allJobs = it.result()
 
-                //filter out index imports (todo: use as status)
-                allJobs.removeAll {
-                    it.type == GraknImporter.GRAKN_INDEX_IMPORT_JOB_TYPE ||
-                            it.type == GraknCalculator.GRAKN_CALCULATE_JOB_TYPE
-                }
                 //order by most recently updated
                 allJobs = allJobs.sort({ it.updated_at }).reverse()
+                //remove jobs with jobs previous to latest
+                def finalAllJobs = new ArrayList<Job>(allJobs)
+                allJobs.each {
+                    def githubRepo = it.data.getString("github_repository")
+                    if (it.type == GraknCalculator.GRAKN_CALCULATE_JOB_TYPE) {
+                        finalAllJobs.removeIf({
+                            it.data.getString("github_repository") == githubRepo &&
+                                    it.type != GraknCalculator.GRAKN_CALCULATE_JOB_TYPE
+                        })
+                    } else if (it.type == GraknImporter.GRAKN_INDEX_IMPORT_JOB_TYPE) {
+                        finalAllJobs.removeIf({
+                            it.data.getString("github_repository") == githubRepo &&
+                                    it.type != GraknCalculator.GRAKN_CALCULATE_JOB_TYPE &&
+                                    it.type != GraknImporter.GRAKN_INDEX_IMPORT_JOB_TYPE
+                        })
+                    }
+                }
+
                 JsonArray activeJobs = new JsonArray()
                 //encode jobs
-                allJobs.each { activeJobs.add(new JsonObject(Json.encode(it))) }
+                finalAllJobs.each { activeJobs.add(new JsonObject(Json.encode(it))) }
                 //only most recent 10
                 if (activeJobs.size() > 10) {
                     activeJobs = new JsonArray(activeJobs.take(10))
@@ -611,6 +623,7 @@ class GitDetectiveService extends AbstractVerticle {
             jobData = JsonObject.mapFrom(jobData)
         }
         Job job = new Job(jobData)
+        jobData.put("github_repository", job.data.getString("github_repository"))
 
         if (job.data.getBoolean("build_skipped")) {
             kue.createJob(GraknCalculator.GRAKN_CALCULATE_JOB_TYPE, jobData)

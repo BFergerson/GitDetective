@@ -181,6 +181,19 @@ class GitDetectiveWebsite extends AbstractVerticle {
             if (it.failed()) {
                 it.cause().printStackTrace()
             } else {
+                //add pretty job type
+                def activeJobs = it.result().body() as JsonArray
+                for (int i = 0; i < activeJobs.size(); i++) {
+                    def job = activeJobs.getJsonObject(i)
+                    if (job.getString("type") == GraknCalculator.GRAKN_CALCULATE_JOB_TYPE) {
+                        job.getJsonObject("data").put("job_type", "Calculating")
+                    } else if (job.getString("type") == GraknImporter.GRAKN_INDEX_IMPORT_JOB_TYPE) {
+                        job.getJsonObject("data").put("job_type", "Importing")
+                    } else {
+                        job.getJsonObject("data").put("job_type", "Indexing")
+                    }
+                }
+
                 ctx.put("active_jobs", it.result().body())
             }
             handler.handle(Future.succeededFuture())
