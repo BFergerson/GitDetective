@@ -38,6 +38,7 @@ import java.time.Instant
 import java.time.temporal.ChronoUnit
 
 import static io.gitdetective.web.Utils.logPrintln
+import static io.gitdetective.web.WebServices.*
 import static java.util.UUID.randomUUID
 
 /**
@@ -164,8 +165,8 @@ class GitDetectiveService extends AbstractVerticle {
         router.route("/backend/services/eventbus/*").handler(sockJSHandler)
 
         //event bus services
-        vertx.eventBus().consumer("GetProjectReferenceLeaderboard", { request ->
-            def timer = WebLauncher.metrics.timer("GetProjectReferenceLeaderboard")
+        vertx.eventBus().consumer(GET_PROJECT_REFERENCE_LEADERBOARD, { request ->
+            def timer = WebLauncher.metrics.timer(GET_PROJECT_REFERENCE_LEADERBOARD)
             def context = timer.time()
             log.debug "Getting project reference leaderboard"
 
@@ -182,8 +183,8 @@ class GitDetectiveService extends AbstractVerticle {
                 context.stop()
             })
         })
-        vertx.eventBus().consumer("GetActiveJobs", { request ->
-            def timer = WebLauncher.metrics.timer("GetActiveJobs")
+        vertx.eventBus().consumer(GET_ACTIVE_JOBS, { request ->
+            def timer = WebLauncher.metrics.timer(GET_ACTIVE_JOBS)
             def context = timer.time()
             log.debug "Getting active jobs"
 
@@ -222,8 +223,8 @@ class GitDetectiveService extends AbstractVerticle {
                 context.stop()
             })
         })
-        vertx.eventBus().consumer("GetLatestJobLog", { request ->
-            def timer = WebLauncher.metrics.timer("GetLatestJobLog")
+        vertx.eventBus().consumer(GET_LATEST_JOB_LOG, { request ->
+            def timer = WebLauncher.metrics.timer(GET_LATEST_JOB_LOG)
             def context = timer.time()
             def body = (JsonObject) request.body()
             def githubRepo = body.getString("github_repo").toLowerCase()
@@ -256,8 +257,8 @@ class GitDetectiveService extends AbstractVerticle {
                 }
             })
         })
-        vertx.eventBus().consumer("CreateJob", { request ->
-            def timer = WebLauncher.metrics.timer("CreateJob")
+        vertx.eventBus().consumer(CREATE_JOB, { request ->
+            def timer = WebLauncher.metrics.timer(CREATE_JOB)
             def context = timer.time()
             log.debug "Creating job"
 
@@ -283,14 +284,14 @@ class GitDetectiveService extends AbstractVerticle {
                 }
             })
         })
-        vertx.eventBus().consumer("TriggerRecalculation", { request ->
-            def timer = WebLauncher.metrics.timer("TriggerRecalculation")
+        vertx.eventBus().consumer(TRIGGER_RECALCULATION, { request ->
+            def timer = WebLauncher.metrics.timer(TRIGGER_RECALCULATION)
             def context = timer.time()
             def body = (JsonObject) request.body()
             def githubRepo = body.getString("github_repo").toLowerCase()
 
             //check if can re-calculator
-            vertx.eventBus().send("GetTriggerInformation", new JsonObject().put("github_repo", githubRepo), {
+            vertx.eventBus().send(GET_TRIGGER_INFORMATION, new JsonObject().put("github_repo", githubRepo), {
                 def triggerInformation = it.result().body() as JsonObject
                 if (triggerInformation.getBoolean("can_recalculate")) {
                     log.debug "Triggering recalculation"
@@ -319,8 +320,8 @@ class GitDetectiveService extends AbstractVerticle {
                 }
             })
         })
-        vertx.eventBus().consumer("GetProjectFileCount", { request ->
-            def timer = WebLauncher.metrics.timer("GetProjectFileCount")
+        vertx.eventBus().consumer(GET_PROJECT_FILE_COUNT, { request ->
+            def timer = WebLauncher.metrics.timer(GET_PROJECT_FILE_COUNT)
             def context = timer.time()
             def body = (JsonObject) request.body()
             def githubRepo = body.getString("github_repo").toLowerCase()
@@ -337,26 +338,26 @@ class GitDetectiveService extends AbstractVerticle {
                 context.stop()
             })
         })
-        vertx.eventBus().consumer("GetProjectMethodVersionCount", { request ->
-            def timer = WebLauncher.metrics.timer("GetProjectMethodVersionCount")
+        vertx.eventBus().consumer(GET_PROJECT_METHOD_INSTANCE_COUNT, { request ->
+            def timer = WebLauncher.metrics.timer(GET_PROJECT_METHOD_INSTANCE_COUNT)
             def context = timer.time()
             def body = (JsonObject) request.body()
             def githubRepo = body.getString("github_repo").toLowerCase()
-            log.debug "Getting project method version count: " + githubRepo
+            log.debug "Getting project method instance count: " + githubRepo
 
             redis.getProjectMethodInstanceCount(githubRepo, {
                 if (it.failed()) {
                     it.cause().printStackTrace()
                     request.reply(it.cause())
                 } else {
-                    log.debug "Got method version count: " + it.result() + " - Repo: " + githubRepo
+                    log.debug "Got method instance count: " + it.result() + " - Repo: " + githubRepo
                     request.reply(it.result())
                 }
                 context.stop()
             })
         })
-        vertx.eventBus().consumer("GetProjectMostReferencedMethods", { request ->
-            def timer = WebLauncher.metrics.timer("GetProjectMostReferencedMethods")
+        vertx.eventBus().consumer(GET_PROJECT_MOST_REFERENCED_METHODS, { request ->
+            def timer = WebLauncher.metrics.timer(GET_PROJECT_MOST_REFERENCED_METHODS)
             def context = timer.time()
             log.debug "Getting project most referenced methods"
 
@@ -401,8 +402,8 @@ class GitDetectiveService extends AbstractVerticle {
                 context.stop()
             })
         })
-        vertx.eventBus().consumer("GetMethodMethodReferences", { request ->
-            def timer = WebLauncher.metrics.timer("GetMethodMethodReferences")
+        vertx.eventBus().consumer(GET_METHOD_METHOD_REFERENCES, { request ->
+            def timer = WebLauncher.metrics.timer(GET_METHOD_METHOD_REFERENCES)
             def context = timer.time()
             log.debug "Getting method method references"
 
@@ -422,8 +423,8 @@ class GitDetectiveService extends AbstractVerticle {
                 context.stop()
             })
         })
-        vertx.eventBus().consumer("GetProjectFirstIndexed", { request ->
-            def timer = WebLauncher.metrics.timer("GetProjectFirstIndexed")
+        vertx.eventBus().consumer(GET_PROJECT_FIRST_INDEXED, { request ->
+            def timer = WebLauncher.metrics.timer(GET_PROJECT_FIRST_INDEXED)
             def context = timer.time()
             log.debug "Getting project first indexed"
 
@@ -441,8 +442,8 @@ class GitDetectiveService extends AbstractVerticle {
                 context.stop()
             })
         })
-        vertx.eventBus().consumer("GetProjectLastIndexed", { request ->
-            def timer = WebLauncher.metrics.timer("GetProjectLastIndexed")
+        vertx.eventBus().consumer(GET_PROJECT_LAST_INDEXED, { request ->
+            def timer = WebLauncher.metrics.timer(GET_PROJECT_LAST_INDEXED)
             def context = timer.time()
             log.debug "Getting project last indexed"
 
@@ -460,8 +461,8 @@ class GitDetectiveService extends AbstractVerticle {
                 context.stop()
             })
         })
-        vertx.eventBus().consumer("GetProjectLastIndexedCommitInformation", { request ->
-            def timer = WebLauncher.metrics.timer("GetProjectLastIndexedCommitInformation")
+        vertx.eventBus().consumer(GET_PROJECT_LAST_INDEXED_COMMIT_INFORMATION, { request ->
+            def timer = WebLauncher.metrics.timer(GET_PROJECT_LAST_INDEXED_COMMIT_INFORMATION)
             def context = timer.time()
             log.debug "Getting project last indexed commit information"
 
@@ -479,8 +480,8 @@ class GitDetectiveService extends AbstractVerticle {
                 context.stop()
             })
         })
-        vertx.eventBus().consumer("GetProjectLastCalculated", { request ->
-            def timer = WebLauncher.metrics.timer("GetProjectLastCalculated")
+        vertx.eventBus().consumer(GET_PROJECT_LAST_CALCULATED, { request ->
+            def timer = WebLauncher.metrics.timer(GET_PROJECT_LAST_CALCULATED)
             def context = timer.time()
             log.debug "Getting project last calculated"
 
@@ -498,8 +499,8 @@ class GitDetectiveService extends AbstractVerticle {
                 context.stop()
             })
         })
-        vertx.eventBus().consumer("GetTriggerInformation", { request ->
-            def timer = WebLauncher.metrics.timer("GetTriggerInformation")
+        vertx.eventBus().consumer(GET_TRIGGER_INFORMATION, { request ->
+            def timer = WebLauncher.metrics.timer(GET_TRIGGER_INFORMATION)
             def context = timer.time()
             log.debug "Getting trigger information"
 
