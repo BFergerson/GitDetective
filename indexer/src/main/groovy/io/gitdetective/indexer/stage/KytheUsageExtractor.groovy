@@ -149,15 +149,15 @@ class KytheUsageExtractor extends AbstractVerticle {
                                             File filesOutput) {
         if (predicate == "/kythe/node/kind") {
             if (object == "file" || object == "function") {
-                if (!subject.startsWith("kythe://jdk")) {
+                if (!isJDK(subject)) {
                     if (object == "file") {
                         String fileLocation = fullSubjectPath.substring(fullSubjectPath.indexOf("path=") + 5)
                         filesOutput.append("$fileLocation|$subject|" + qualifiedNameMap.get(subject) + "\n")
                     }
+                    if (object == "function") {
+                        functionNameSet.add(subject)
+                    }
                     aliasMap.put(subject, subject)
-                }
-                if (object == "function" && !subject.startsWith("kythe://jdk")) {
-                    functionNameSet.add(subject)
                 }
             }
         } else if (predicate == "/kythe/edge/childof") {
@@ -207,7 +207,7 @@ class KytheUsageExtractor extends AbstractVerticle {
             def qualifiedName = qualifiedNameMap.get(object)
             if (qualifiedName == null || !qualifiedName.endsWith(")")) {
                 return //todo: understand why these exists and how to process
-            } else if (subject.startsWith("kythe://jdk") || object.startsWith("kythe://jdk")) {
+            } else if (isJDK(subject) || isJDK(object)) {
                 return //no jdk
             }
             functionReferences.append("$subject|$object|$qualifiedName|" + location[0] + "|" + location[1] + "\n")
@@ -224,7 +224,7 @@ class KytheUsageExtractor extends AbstractVerticle {
             def qualifiedName = qualifiedNameMap.get(object)
             if (qualifiedName == null || !qualifiedName.endsWith(")")) {
                 return //todo: understand why these exists and how to process
-            } else if (subject.startsWith("kythe://jdk") || object.startsWith("kythe://jdk")) {
+            } else if (isJDK(subject) || isJDK(object)) {
                 return //no jdk
             }
             functionDefinitions.append("$subject|$object|$qualifiedName|" + location[0] + "|" + location[1] + "\n")
@@ -258,6 +258,13 @@ class KytheUsageExtractor extends AbstractVerticle {
         }
         //todo: other languages!
         return fullPath.replace("kythe://github?lang=java#", "kythe://github?lang=java?")
+    }
+
+    static boolean isJDK(String kythePath) {
+        return kythePath.startsWith("kythe://jdk") ||
+                kythePath.startsWith("kythe://github?lang=java?java/") ||
+                kythePath.startsWith("kythe://github?lang=java?javax/") ||
+                kythePath.startsWith("kythe://github?lang=java?sun/")
     }
 
 }
