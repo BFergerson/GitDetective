@@ -172,6 +172,7 @@ class KytheIndexAugment extends AbstractVerticle {
         def gitdetectivePort = config().getInteger("gitdetective_service.port")
         def fs = vertx.fileSystem()
         def clientOptions = new WebClientOptions()
+        clientOptions.setVerifyHost(false) //todo: why is this needed now?
         clientOptions.setTrustAll(true)
         def client = WebClient.create(vertx, clientOptions)
 
