@@ -68,7 +68,7 @@ class KytheUsageExtractor extends AbstractVerticle {
             processRelationships(job, importFile, buildDirectory, aliasMap, sourceLocationMap, qualifiedNameMap,
                     functionNameSet, functionDefinitions, functionReferences)
             future.complete()
-        }, { res ->
+        }, false, { res ->
             db.close()
 
             if (res.failed()) {

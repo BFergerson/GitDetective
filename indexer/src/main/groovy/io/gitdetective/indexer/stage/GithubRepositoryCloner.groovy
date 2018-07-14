@@ -259,7 +259,7 @@ class GithubRepositoryCloner extends AbstractVerticle {
                 logPrintln(job, "Project clone timed out")
                 future.fail("Project clone timed out")
             }
-        }, { res ->
+        }, false, { res ->
             if (res.failed()) {
                 job.done(res.cause())
             } else {

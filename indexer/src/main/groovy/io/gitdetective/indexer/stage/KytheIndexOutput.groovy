@@ -2,7 +2,6 @@ package io.gitdetective.indexer.stage
 
 import io.vertx.blueprint.kue.queue.Job
 import io.vertx.core.AbstractVerticle
-import io.vertx.core.json.JsonObject
 import io.vertx.core.logging.Logger
 import io.vertx.core.logging.LoggerFactory
 
@@ -34,7 +33,7 @@ class KytheIndexOutput extends AbstractVerticle {
                     processKytheIndexFile(it, outputFile)
                 }
                 future.complete()
-            }, { res ->
+            }, false, { res ->
                 logPrintln(job, "Finished processing Kythe .kindex file(s)")
                 if (outputFile.exists()) {
                     job.data.put("import_file", outputFile.absolutePath)
