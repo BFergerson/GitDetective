@@ -8,7 +8,8 @@ import io.vertx.core.Future
 import io.vertx.core.buffer.Buffer
 import io.vertx.core.file.FileProps
 import io.vertx.core.file.OpenOptions
-import io.vertx.core.json.JsonObject
+import io.vertx.core.logging.Logger
+import io.vertx.core.logging.LoggerFactory
 import io.vertx.ext.web.client.HttpRequest
 import io.vertx.ext.web.client.WebClient
 import io.vertx.ext.web.client.WebClientOptions
@@ -29,6 +30,7 @@ import static io.gitdetective.web.Utils.logPrintln
 class KytheIndexAugment extends AbstractVerticle {
 
     public static final String KYTHE_INDEX_AUGMENT = "KytheIndexAugment"
+    private final static Logger log = LoggerFactory.getLogger(KytheIndexAugment.class)
     private final RedisDAO redis
 
     KytheIndexAugment(RedisDAO redis) {
@@ -44,6 +46,7 @@ class KytheIndexAugment extends AbstractVerticle {
                 it.complete()
             }, false, {})
         })
+        log.info "KytheIndexAugment started"
     }
 
     private void doAugment(Job job) {

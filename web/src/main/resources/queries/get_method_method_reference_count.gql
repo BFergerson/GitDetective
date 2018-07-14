@@ -1,4 +1,0 @@
-#how many methods reference this method
-match $fu id "<id>";
-$fu_ref isa function; (has_ref: $fu_ref, is_ref: $fu) isa ref;
-aggregate count;

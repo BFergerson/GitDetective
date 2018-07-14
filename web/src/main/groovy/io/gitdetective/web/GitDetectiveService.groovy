@@ -21,6 +21,8 @@ import io.vertx.core.*
 import io.vertx.core.json.Json
 import io.vertx.core.json.JsonArray
 import io.vertx.core.json.JsonObject
+import io.vertx.core.logging.Logger
+import io.vertx.core.logging.LoggerFactory
 import io.vertx.ext.web.Router
 import io.vertx.ext.web.RoutingContext
 import io.vertx.ext.web.handler.sockjs.BridgeOptions
@@ -36,6 +38,7 @@ import java.time.Instant
 import java.time.temporal.ChronoUnit
 
 import static io.gitdetective.web.Utils.logPrintln
+import static io.gitdetective.web.WebServices.*
 import static java.util.UUID.randomUUID
 
 /**
@@ -45,6 +48,7 @@ import static java.util.UUID.randomUUID
  */
 class GitDetectiveService extends AbstractVerticle {
 
+    private final static Logger log = LoggerFactory.getLogger(GitDetectiveService.class)
     private final Router router
     private final Kue kue
     private final JobsDAO jobs
@@ -64,7 +68,7 @@ class GitDetectiveService extends AbstractVerticle {
 
         vertx.executeBlocking({
             if (config().getBoolean("grakn.enabled")) {
-                println "Ontology setup enabled"
+                log.info "Ontology setup enabled"
                 String graknHost = config().getString("grakn.host")
                 int graknPort = config().getInteger("grakn.port")
                 String graknKeyspace = config().getString("grakn.keyspace")
@@ -90,22 +94,22 @@ class GitDetectiveService extends AbstractVerticle {
                 def grakn = new GraknDAO(vertx, redis, session)
 
                 if (jobProcessingEnabled) {
-                    println "Calculate job processing enabled"
+                    log.info "Calculate job processing enabled"
                     def calculatorOptions = new DeploymentOptions().setConfig(config())
                     vertx.deployVerticle(new GraknCalculator(kue, redis, grakn), calculatorOptions)
                 } else {
-                    println "Calculate job processing disabled"
+                    log.info "Calculate job processing disabled"
                 }
             } else if (jobProcessingEnabled) {
-                System.err.println("Job processing cannot be enabled with Grakn disabled")
+                log.error "Job processing cannot be enabled with Grakn disabled"
                 System.exit(-1)
             } else {
-                println "Ontology setup disabled"
+                log.info "Ontology setup disabled"
             }
             it.complete()
 
             if (jobProcessingEnabled) {
-                println "Import job processing enabled"
+                log.info "Import job processing enabled"
                 String graknHost = config().getString("grakn.host")
                 int graknPort = config().getInteger("grakn.port")
                 String graknKeyspace = config().getString("grakn.keyspace")
@@ -132,11 +136,11 @@ class GitDetectiveService extends AbstractVerticle {
                 def importerOptions = new DeploymentOptions().setConfig(config())
                 vertx.deployVerticle(new GraknImporter(kue, redis, grakn, uploadsDirectory), importerOptions)
             } else {
-                println "Import job processing disabled"
+                log.info "Import job processing disabled"
             }
 
             if (config().getBoolean("launch_website")) {
-                println "Launching GitDetective website"
+                log.info "Launching GitDetective website"
                 def options = new DeploymentOptions().setConfig(config())
                 vertx.deployVerticle(new GitDetectiveWebsite(jobs, redis, router), options)
                 vertx.deployVerticle(new GHArchiveSync(jobs, redis), options)
@@ -161,10 +165,10 @@ class GitDetectiveService extends AbstractVerticle {
         router.route("/backend/services/eventbus/*").handler(sockJSHandler)
 
         //event bus services
-        vertx.eventBus().consumer("GetProjectReferenceLeaderboard", { request ->
-            def timer = WebLauncher.metrics.timer("GetProjectReferenceLeaderboard")
+        vertx.eventBus().consumer(GET_PROJECT_REFERENCE_LEADERBOARD, { request ->
+            def timer = WebLauncher.metrics.timer(GET_PROJECT_REFERENCE_LEADERBOARD)
             def context = timer.time()
-            println "Getting project reference leaderboard"
+            log.debug "Getting project reference leaderboard"
 
             redis.getProjectReferenceLeaderboard(10, {
                 if (it.failed()) {
@@ -174,22 +178,21 @@ class GitDetectiveService extends AbstractVerticle {
                     return
                 }
 
-                println "Got project reference leaderboard - Size: " + it.result().size()
+                log.debug "Got project reference leaderboard - Size: " + it.result().size()
                 request.reply(it.result())
                 context.stop()
             })
         })
-        vertx.eventBus().consumer("GetActiveJobs", { request ->
-            def timer = WebLauncher.metrics.timer("GetActiveJobs")
+        vertx.eventBus().consumer(GET_ACTIVE_JOBS, { request ->
+            def timer = WebLauncher.metrics.timer(GET_ACTIVE_JOBS)
             def context = timer.time()
-            println "Getting active jobs"
+            log.debug "Getting active jobs"
 
             String order = "asc"
             Long from = 0
-            Long to = 200
+            Long to = 50
             String state = "active"
-            //get 200 active jobs; return most recent 10
-            //todo: smarter
+            //get 50 active jobs; return most recent 10
             kue.jobRangeByState(state, from, to, order).setHandler({
                 if (it.failed()) {
                     it.cause().printStackTrace()
@@ -199,32 +202,45 @@ class GitDetectiveService extends AbstractVerticle {
                 }
                 def allJobs = it.result()
 
-                //filter out index imports (todo: use as status)
-                allJobs.removeAll {
-                    it.type == GraknImporter.GRAKN_INDEX_IMPORT_JOB_TYPE ||
-                            it.type == GraknCalculator.GRAKN_CALCULATE_JOB_TYPE
-                }
                 //order by most recently updated
                 allJobs = allJobs.sort({ it.updated_at }).reverse()
+                //remove jobs with jobs previous to latest
+                def finalAllJobs = new ArrayList<Job>(allJobs)
+                allJobs.each {
+                    def githubRepo = it.data.getString("github_repository")
+                    if (it.type == GraknCalculator.GRAKN_CALCULATE_JOB_TYPE) {
+                        finalAllJobs.removeIf({
+                            it.data.getString("github_repository") == githubRepo &&
+                                    it.type != GraknCalculator.GRAKN_CALCULATE_JOB_TYPE
+                        })
+                    } else if (it.type == GraknImporter.GRAKN_INDEX_IMPORT_JOB_TYPE) {
+                        finalAllJobs.removeIf({
+                            it.data.getString("github_repository") == githubRepo &&
+                                    it.type != GraknCalculator.GRAKN_CALCULATE_JOB_TYPE &&
+                                    it.type != GraknImporter.GRAKN_INDEX_IMPORT_JOB_TYPE
+                        })
+                    }
+                }
+
                 JsonArray activeJobs = new JsonArray()
                 //encode jobs
-                allJobs.each { activeJobs.add(new JsonObject(Json.encode(it))) }
+                finalAllJobs.each { activeJobs.add(new JsonObject(Json.encode(it))) }
                 //only most recent 10
                 if (activeJobs.size() > 10) {
                     activeJobs = new JsonArray(activeJobs.take(10))
                 }
 
-                println "Got active jobs - Size: " + activeJobs.size()
+                log.debug "Got active jobs - Size: " + activeJobs.size()
                 request.reply(activeJobs)
                 context.stop()
             })
         })
-        vertx.eventBus().consumer("GetLatestJobLog", { request ->
-            def timer = WebLauncher.metrics.timer("GetLatestJobLog")
+        vertx.eventBus().consumer(GET_LATEST_JOB_LOG, { request ->
+            def timer = WebLauncher.metrics.timer(GET_LATEST_JOB_LOG)
             def context = timer.time()
             def body = (JsonObject) request.body()
             def githubRepo = body.getString("github_repo").toLowerCase()
-            println "Getting job log: " + githubRepo
+            log.debug "Getting job log: " + githubRepo
 
             jobs.getProjectLatestJob(githubRepo, {
                 if (it.failed()) {
@@ -240,23 +256,23 @@ class GitDetectiveService extends AbstractVerticle {
                                 request.reply(it.cause())
                                 context.stop()
                             } else {
-                                println "Got job log. Size: " + it.result().size() + " - Repo: " + githubRepo
+                                log.debug "Got job log. Size: " + it.result().size() + " - Repo: " + githubRepo
                                 request.reply(new JsonObject().put("job_id", job.get().id).put("logs", it.result()))
                                 context.stop()
                             }
                         })
                     } else {
-                        println "Found no job logs"
+                        log.debug "Found no job logs"
                         request.reply(new JsonObject().put("job_id", -1).put("logs", new JsonArray()))
                         context.stop()
                     }
                 }
             })
         })
-        vertx.eventBus().consumer("CreateJob", { request ->
-            def timer = WebLauncher.metrics.timer("CreateJob")
+        vertx.eventBus().consumer(CREATE_JOB, { request ->
+            def timer = WebLauncher.metrics.timer(CREATE_JOB)
             def context = timer.time()
-            println "Creating job"
+            log.debug "Creating job"
 
             def body = (JsonObject) request.body()
             def githubRepo = body.getString("github_repo").toLowerCase()
@@ -273,24 +289,24 @@ class GitDetectiveService extends AbstractVerticle {
                     String result = new JsonObject()
                             .put("message", "User build job queued (id: $jobId)")
                             .put("id", jobId)
-                    println "Created job: " + result
+                    log.debug "Created job: " + result
 
                     request.reply(result)
                     context.stop()
                 }
             })
         })
-        vertx.eventBus().consumer("TriggerRecalculation", { request ->
-            def timer = WebLauncher.metrics.timer("TriggerRecalculation")
+        vertx.eventBus().consumer(TRIGGER_RECALCULATION, { request ->
+            def timer = WebLauncher.metrics.timer(TRIGGER_RECALCULATION)
             def context = timer.time()
             def body = (JsonObject) request.body()
             def githubRepo = body.getString("github_repo").toLowerCase()
 
             //check if can re-calculator
-            vertx.eventBus().send("GetTriggerInformation", new JsonObject().put("github_repo", githubRepo), {
+            vertx.eventBus().send(GET_TRIGGER_INFORMATION, new JsonObject().put("github_repo", githubRepo), {
                 def triggerInformation = it.result().body() as JsonObject
                 if (triggerInformation.getBoolean("can_recalculate")) {
-                    println "Triggering recalculation"
+                    log.debug "Triggering recalculation"
 
                     // user requested = highest priority
                     jobs.createJob(GraknCalculator.GRAKN_CALCULATE_JOB_TYPE,
@@ -308,7 +324,7 @@ class GitDetectiveService extends AbstractVerticle {
                             String result = new JsonObject()
                                     .put("message", "User reference recalculation queued (id: $jobId)")
                                     .put("id", jobId)
-                            println "Created recalculation job: " + result
+                            log.debug "Created recalculation job: " + result
                             request.reply(result)
                             context.stop()
                         }
@@ -316,46 +332,46 @@ class GitDetectiveService extends AbstractVerticle {
                 }
             })
         })
-        vertx.eventBus().consumer("GetProjectFileCount", { request ->
-            def timer = WebLauncher.metrics.timer("GetProjectFileCount")
+        vertx.eventBus().consumer(GET_PROJECT_FILE_COUNT, { request ->
+            def timer = WebLauncher.metrics.timer(GET_PROJECT_FILE_COUNT)
             def context = timer.time()
             def body = (JsonObject) request.body()
             def githubRepo = body.getString("github_repo").toLowerCase()
-            println "Getting project file count: " + githubRepo
+            log.debug "Getting project file count: " + githubRepo
 
             redis.getProjectFileCount(githubRepo, {
                 if (it.failed()) {
                     it.cause().printStackTrace()
                     request.reply(it.cause())
                 } else {
-                    println "Got file count: " + it.result() + " - Repo: " + githubRepo
+                    log.debug "Got file count: " + it.result() + " - Repo: " + githubRepo
                     request.reply(it.result())
                 }
                 context.stop()
             })
         })
-        vertx.eventBus().consumer("GetProjectMethodVersionCount", { request ->
-            def timer = WebLauncher.metrics.timer("GetProjectMethodVersionCount")
+        vertx.eventBus().consumer(GET_PROJECT_METHOD_INSTANCE_COUNT, { request ->
+            def timer = WebLauncher.metrics.timer(GET_PROJECT_METHOD_INSTANCE_COUNT)
             def context = timer.time()
             def body = (JsonObject) request.body()
             def githubRepo = body.getString("github_repo").toLowerCase()
-            println "Getting project method version count: " + githubRepo
+            log.debug "Getting project method instance count: " + githubRepo
 
             redis.getProjectMethodInstanceCount(githubRepo, {
                 if (it.failed()) {
                     it.cause().printStackTrace()
                     request.reply(it.cause())
                 } else {
-                    println "Got method version count: " + it.result() + " - Repo: " + githubRepo
+                    log.debug "Got method instance count: " + it.result() + " - Repo: " + githubRepo
                     request.reply(it.result())
                 }
                 context.stop()
             })
         })
-        vertx.eventBus().consumer("GetProjectMostReferencedMethods", { request ->
-            def timer = WebLauncher.metrics.timer("GetProjectMostReferencedMethods")
+        vertx.eventBus().consumer(GET_PROJECT_MOST_REFERENCED_METHODS, { request ->
+            def timer = WebLauncher.metrics.timer(GET_PROJECT_MOST_REFERENCED_METHODS)
             def context = timer.time()
-            println "Getting project most referenced methods"
+            log.debug "Getting project most referenced methods"
 
             def body = (JsonObject) request.body()
             def githubRepo = body.getString("github_repo").toLowerCase()
@@ -392,37 +408,37 @@ class GitDetectiveService extends AbstractVerticle {
                         }
                     }
 
-                    println "Got project most referenced methods - Size: " + result.size()
+                    log.debug "Got project most referenced methods - Size: " + result.size()
                     request.reply(result)
                 }
                 context.stop()
             })
         })
-        vertx.eventBus().consumer("GetMethodMethodReferences", { request ->
-            def timer = WebLauncher.metrics.timer("GetMethodMethodReferences")
+        vertx.eventBus().consumer(GET_METHOD_METHOD_REFERENCES, { request ->
+            def timer = WebLauncher.metrics.timer(GET_METHOD_METHOD_REFERENCES)
             def context = timer.time()
-            println "Getting method method references"
+            log.debug "Getting method method references"
 
             def body = (JsonObject) request.body()
             def githubRepo = body.getString("github_repo").toLowerCase()
             def methodId = body.getString("method_id")
             def offset = body.getInteger("offset")
 
-            redis.getMethodExternalMethodReferences(githubRepo, methodId, offset, {
+            redis.getMethodExternalMethodReferences(githubRepo, methodId, offset, 10, {
                 if (it.failed()) {
                     it.cause().printStackTrace()
                     request.reply(it.cause())
                 } else {
-                    println "Got method method references: " + it.result()
+                    log.debug "Got method method references: " + it.result()
                     request.reply(it.result())
                 }
                 context.stop()
             })
         })
-        vertx.eventBus().consumer("GetProjectFirstIndexed", { request ->
-            def timer = WebLauncher.metrics.timer("GetProjectFirstIndexed")
+        vertx.eventBus().consumer(GET_PROJECT_FIRST_INDEXED, { request ->
+            def timer = WebLauncher.metrics.timer(GET_PROJECT_FIRST_INDEXED)
             def context = timer.time()
-            println "Getting project first indexed"
+            log.debug "Getting project first indexed"
 
             def body = (JsonObject) request.body()
             def githubRepo = body.getString("github_repo").toLowerCase()
@@ -432,16 +448,16 @@ class GitDetectiveService extends AbstractVerticle {
                     it.cause().printStackTrace()
                     request.reply(it.cause())
                 } else {
-                    println "Got project first indexed: " + it.result()
+                    log.debug "Got project first indexed: " + it.result()
                     request.reply(it.result())
                 }
                 context.stop()
             })
         })
-        vertx.eventBus().consumer("GetProjectLastIndexed", { request ->
-            def timer = WebLauncher.metrics.timer("GetProjectLastIndexed")
+        vertx.eventBus().consumer(GET_PROJECT_LAST_INDEXED, { request ->
+            def timer = WebLauncher.metrics.timer(GET_PROJECT_LAST_INDEXED)
             def context = timer.time()
-            println "Getting project last indexed"
+            log.debug "Getting project last indexed"
 
             def body = (JsonObject) request.body()
             def githubRepo = body.getString("github_repo").toLowerCase()
@@ -451,16 +467,16 @@ class GitDetectiveService extends AbstractVerticle {
                     it.cause().printStackTrace()
                     request.reply(it.cause())
                 } else {
-                    println "Got project last indexed: " + it.result()
+                    log.debug "Got project last indexed: " + it.result()
                     request.reply(it.result())
                 }
                 context.stop()
             })
         })
-        vertx.eventBus().consumer("GetProjectLastIndexedCommitInformation", { request ->
-            def timer = WebLauncher.metrics.timer("GetProjectLastIndexedCommitInformation")
+        vertx.eventBus().consumer(GET_PROJECT_LAST_INDEXED_COMMIT_INFORMATION, { request ->
+            def timer = WebLauncher.metrics.timer(GET_PROJECT_LAST_INDEXED_COMMIT_INFORMATION)
             def context = timer.time()
-            println "Getting project last indexed commit information"
+            log.debug "Getting project last indexed commit information"
 
             def body = (JsonObject) request.body()
             def githubRepo = body.getString("github_repo").toLowerCase()
@@ -470,16 +486,16 @@ class GitDetectiveService extends AbstractVerticle {
                     it.cause().printStackTrace()
                     request.reply(it.cause())
                 } else {
-                    println "Got project last indexed commit information: " + it.result()
+                    log.debug "Got project last indexed commit information: " + it.result()
                     request.reply(it.result())
                 }
                 context.stop()
             })
         })
-        vertx.eventBus().consumer("GetProjectLastCalculated", { request ->
-            def timer = WebLauncher.metrics.timer("GetProjectLastCalculated")
+        vertx.eventBus().consumer(GET_PROJECT_LAST_CALCULATED, { request ->
+            def timer = WebLauncher.metrics.timer(GET_PROJECT_LAST_CALCULATED)
             def context = timer.time()
-            println "Getting project last calculated"
+            log.debug "Getting project last calculated"
 
             def body = (JsonObject) request.body()
             def githubRepo = body.getString("github_repo").toLowerCase()
@@ -489,16 +505,16 @@ class GitDetectiveService extends AbstractVerticle {
                     it.cause().printStackTrace()
                     request.reply(it.cause())
                 } else {
-                    println "Got project last calculated: " + it.result()
+                    log.debug "Got project last calculated: " + it.result()
                     request.reply(it.result())
                 }
                 context.stop()
             })
         })
-        vertx.eventBus().consumer("GetTriggerInformation", { request ->
-            def timer = WebLauncher.metrics.timer("GetTriggerInformation")
+        vertx.eventBus().consumer(GET_TRIGGER_INFORMATION, { request ->
+            def timer = WebLauncher.metrics.timer(GET_TRIGGER_INFORMATION)
             def context = timer.time()
-            println "Getting trigger information"
+            log.debug "Getting trigger information"
 
             def body = (JsonObject) request.body()
             def githubRepo = body.getString("github_repo").toLowerCase()
@@ -567,7 +583,7 @@ class GitDetectiveService extends AbstractVerticle {
                 context.stop()
             })
         })
-        println "GitDetectiveService started"
+        log.info "GitDetectiveService started"
     }
 
     static void setupOntology(String graknHost, int graknPort, String graknKeyspace) {
@@ -579,12 +595,12 @@ class GitDetectiveService extends AbstractVerticle {
         query.execute()
         tx.commit()
         session.close()
-        println "Ontology setup"
+        log.info "Ontology setup"
     }
 
     private void downloadIndexFile(RoutingContext routingContext) {
         def uuid = randomUUID() as String
-        println "Downloading index file. Index id: " + uuid
+        log.info "Downloading index file. Index id: " + uuid
 
         def downloadFile = new File(uploadsDirectory, uuid + ".zip")
         downloadFile.parentFile.mkdirs()
@@ -607,6 +623,7 @@ class GitDetectiveService extends AbstractVerticle {
             jobData = JsonObject.mapFrom(jobData)
         }
         Job job = new Job(jobData)
+        jobData.put("github_repository", job.data.getString("github_repository"))
 
         if (job.data.getBoolean("build_skipped")) {
             kue.createJob(GraknCalculator.GRAKN_CALCULATE_JOB_TYPE, jobData)

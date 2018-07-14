@@ -1,7 +1,7 @@
 subprojects {
     apply plugin: 'groovy'
 
-    version = '1.0.2'
+    version = '1.1.0'
     sourceCompatibility = 1.8
     targetCompatibility = 1.8
 
@@ -15,6 +15,7 @@ subprojects {
         compile group: 'io.vertx', name: 'vertx-core', version: '3.4.1'
         compile 'com.github.bfergerson:vertx-kue:gd-branch-SNAPSHOT'
 
+        compile 'org.mapdb:mapdb:3.0.5'
         compile group: 'io.netty', name: 'netty-all', version: '4.1.18.Final'
         compile group: 'io.netty', name: 'netty-common', version: '4.1.18.Final'
         compile group: 'io.netty', name: 'netty-codec', version: '4.1.18.Final'

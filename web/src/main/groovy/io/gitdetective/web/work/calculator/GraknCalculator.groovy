@@ -7,6 +7,8 @@ import io.gitdetective.web.dao.RedisDAO
 import io.vertx.blueprint.kue.Kue
 import io.vertx.blueprint.kue.queue.Job
 import io.vertx.core.*
+import io.vertx.core.logging.Logger
+import io.vertx.core.logging.LoggerFactory
 
 import java.time.Instant
 import java.time.temporal.ChronoUnit
@@ -23,6 +25,7 @@ import static io.gitdetective.web.Utils.logPrintln
 class GraknCalculator extends AbstractVerticle {
 
     public static final String GRAKN_CALCULATE_JOB_TYPE = "CalculateGithubProject"
+    private final static Logger log = LoggerFactory.getLogger(GraknCalculator.class)
     private final Kue kue
     private final RedisDAO redis
     private final GraknDAO grakn
@@ -45,7 +48,7 @@ class GraknCalculator extends AbstractVerticle {
         })
         kue.process(GRAKN_CALCULATE_JOB_TYPE, calculatorConfig.getInteger("thread_count"), { calculateJob ->
             graknCalculateMeter.mark()
-            println "Calculate job rate: " + (graknCalculateMeter.oneMinuteRate * 60) +
+            log.info "Calculate job rate: " + (graknCalculateMeter.oneMinuteRate * 60) +
                     " per/min - Thread: " + Thread.currentThread().name
 
             vertx.executeBlocking({ blocking ->
@@ -81,7 +84,7 @@ class GraknCalculator extends AbstractVerticle {
                 //do nothing
             })
         })
-        println "GraknCalculator started"
+        log.info "GraknCalculator started"
     }
 
     private void processCalculateJob(Job job, Handler<AsyncResult> handler) {
@@ -90,7 +93,7 @@ class GraknCalculator extends AbstractVerticle {
         if (buildSkipped == null) {
             buildSkipped = false
         }
-        println "Calculating references for project: " + githubRepo + " - Build skipped: " + buildSkipped
+        log.info "Calculating references for project: " + githubRepo + " - Build skipped: " + buildSkipped
 
         redis.getProjectLastCalculated(githubRepo, {
             if (it.failed()) {
@@ -122,8 +125,6 @@ class GraknCalculator extends AbstractVerticle {
         def futures = new ArrayList<Future>()
 
         //method references
-        if (calcConfig.getBoolean("project_external_method_reference_count"))
-            futures.add(calculateProjectExternalMethodReferenceCount(job))
         if (calcConfig.getBoolean("project_most_referenced_methods"))
             futures.add(getProjectMostExternalReferencedMethods(job))
 
@@ -197,25 +198,6 @@ class GraknCalculator extends AbstractVerticle {
                 future.complete(it.cause())
             } else {
                 logPrintln(job, "Most referenced methods took: " + asPrettyTime(context.stop()))
-                future.complete()
-            }
-        })
-        return future
-    }
-
-    private Future calculateProjectExternalMethodReferenceCount(Job job) {
-        def timer = WebLauncher.metrics.timer("CalculateProjectExternalMethodReferenceCount")
-        def context = timer.time()
-        logPrintln(job, "Calculating external method reference count")
-        def githubRepo = job.data.getString("github_repository").toLowerCase()
-
-        def future = Future.future()
-        grakn.getProjectExternalMethodReferenceCount(githubRepo, {
-            if (it.failed()) {
-                it.cause().printStackTrace()
-                future.complete(it.cause())
-            } else {
-                logPrintln(job, "External method reference count took: " + asPrettyTime(context.stop()))
                 future.complete()
             }
         })

@@ -1,8 +1,0 @@
-#how many projects this project references (me -> them)
-match $p isa project has project_name "<githubRepo>";
-$fi isa file; (has_defines: $p, is_defines: $fi) isa defines;
-$fu_ref isa function; (has_ref: $fi, is_ref: $fu_ref) isa ref;
-$fi_ref isa file; (has_defines: $fi_ref, is_defines: $fu_ref) isa defines;
-$p_ref isa project; (has_defines: $p_ref, is_defines: $fi_ref) isa defines;
-$p_ref != $p;
-aggregate count;

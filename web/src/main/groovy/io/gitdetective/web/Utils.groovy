@@ -3,6 +3,8 @@ package io.gitdetective.web
 import io.vertx.blueprint.kue.queue.Job
 import io.vertx.core.buffer.Buffer
 import io.vertx.core.eventbus.MessageCodec
+import io.vertx.core.logging.Logger
+import io.vertx.core.logging.LoggerFactory
 
 import java.util.concurrent.TimeUnit
 
@@ -13,13 +15,19 @@ import java.util.concurrent.TimeUnit
  */
 final class Utils {
 
+    private final static Logger log = LoggerFactory.getLogger(Utils.class)
+
     private Utils() {
     }
 
     //todo: extend Job and add as method to that
-    static void logPrintln(Job job, String log) {
-        job.log(log)
-        println log + " (repo: " + job.data.getString("github_repository") + ")"
+    static void logPrintln(Job job, String logData) {
+        job.log(logData)
+        log.info logData + " (repo: " + job.data.getString("github_repository") + ")"
+    }
+
+    static String getFilename(String fileLocation) {
+        return fileLocation.substring(fileLocation.lastIndexOf("/") + 1)
     }
 
     static String getShortQualifiedClassName(String qualifiedName) {
@@ -28,11 +36,11 @@ final class Utils {
 
     static String getQualifiedClassName(String qualifiedName) {
         def withoutArgs = qualifiedName.substring(0, qualifiedName.indexOf("("))
-        try {
+        if (withoutArgs.contains("<")) {
+            withoutArgs = withoutArgs.substring(0, withoutArgs.indexOf("<"))
             return withoutArgs.substring(withoutArgs.lastIndexOf("?") + 1, withoutArgs.lastIndexOf("."))
-        } catch (StringIndexOutOfBoundsException e) {
-            println "Throwing index out of bounds on qualified name: " + qualifiedName
-            throw e
+        } else {
+            return withoutArgs.substring(withoutArgs.lastIndexOf("?") + 1, withoutArgs.lastIndexOf("."))
         }
     }
 

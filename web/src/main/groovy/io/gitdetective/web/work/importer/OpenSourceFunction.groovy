@@ -1,18 +1,13 @@
 package io.gitdetective.web.work.importer
 
+import groovy.transform.Canonical
+
 /**
  * @author <a href="mailto:brandon.fergerson@codebrig.com">Brandon Fergerson</a>
  */
+@Canonical
 class OpenSourceFunction {
-
-    final String functionId
-    final String functionDefinitionsId
-    final String functionReferencesId
-
-    OpenSourceFunction(String functionId, String functionDefinitionsId, String functionReferencesId) {
-        this.functionId = functionId
-        this.functionDefinitionsId = functionDefinitionsId
-        this.functionReferencesId = functionReferencesId
-    }
-
+    String functionId
+    String functionDefinitionsId
+    String functionReferencesId
 }

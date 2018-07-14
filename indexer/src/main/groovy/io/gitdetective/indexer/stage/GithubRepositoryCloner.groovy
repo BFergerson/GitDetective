@@ -7,6 +7,8 @@ import io.vertx.blueprint.kue.Kue
 import io.vertx.blueprint.kue.queue.Job
 import io.vertx.core.AbstractVerticle
 import io.vertx.core.json.JsonObject
+import io.vertx.core.logging.Logger
+import io.vertx.core.logging.LoggerFactory
 import io.vertx.ext.web.client.WebClient
 import io.vertx.ext.web.client.WebClientOptions
 import org.eclipse.jgit.api.Git
@@ -30,6 +32,7 @@ import static io.gitdetective.web.Utils.logPrintln
 class GithubRepositoryCloner extends AbstractVerticle {
 
     public static final String INDEX_GITHUB_PROJECT_JOB_TYPE = "IndexGithubProject"
+    private final static Logger log = LoggerFactory.getLogger(GithubRepositoryCloner.class)
     private static final int CLONE_TIMEOUT_LIMIT_MINUTES = 20
     private static final int NEEDED_GITHUB_HIT_COUNT = 6
     private static final int GITHUB_RATE_LIMIT_WAIT_MINUTES = 15
@@ -47,10 +50,10 @@ class GithubRepositoryCloner extends AbstractVerticle {
     @Override
     void start() throws Exception {
         github = GitHub.connectUsingOAuth(config().getString("oauth_token"))
-        println "Connected to GitHub: " + github.credentialValid
+        log.info "Connected to GitHub: " + github.credentialValid
 
         kue.on("error", {
-            System.err.println("Indexer job error: " + it.body())
+            log.error "Indexer job error: " + it.body()
         })
         kue.processBlocking(INDEX_GITHUB_PROJECT_JOB_TYPE, config().getInteger("builder_thread_count"), { job ->
             def githubRepo = job.data.getString("github_repository").toLowerCase()
@@ -105,11 +108,11 @@ class GithubRepositoryCloner extends AbstractVerticle {
     private void downloadAndExtractProject(Job job, String githubRepository) throws IOException {
         def rateLimit = github.getRateLimit()
         if (rateLimit.remaining <= NEEDED_GITHUB_HIT_COUNT) {
-            println "Current limit: " + rateLimit.remaining + "; Waiting $GITHUB_RATE_LIMIT_WAIT_MINUTES minutes"
+            log.info "Current limit: " + rateLimit.remaining + "; Waiting $GITHUB_RATE_LIMIT_WAIT_MINUTES minutes"
             Thread.sleep(TimeUnit.MINUTES.toMillis(GITHUB_RATE_LIMIT_WAIT_MINUTES))
-            println "Finishing waiting"
+            log.info "Finishing waiting"
         } else {
-            println "Current rate limit remaining: " + rateLimit.remaining
+            log.debug "Current rate limit remaining: " + rateLimit.remaining
         }
 
         logPrintln(job, "Fetching project data from GitHub")
@@ -143,7 +146,7 @@ class GithubRepositoryCloner extends AbstractVerticle {
                         it.cause().printStackTrace()
                     } else {
                         def parentProjectName = it.result().data.getString("github_repository")
-                        println "Forked project created job: " + it.result().id + " - Parent: " + parentProjectName
+                        log.info "Forked project created job: " + it.result().id + " - Parent: " + parentProjectName
                         logPrintln(job, "Queued build for parent project: " + parentProjectName)
                         job.done()
                     }
@@ -270,7 +273,6 @@ class GithubRepositoryCloner extends AbstractVerticle {
                     } else {
                         job = it.result()
                         vertx.eventBus().send(KytheMavenBuilder.BUILDER_ADDRESS, job)
-                        logPrintln(job, "Sent project to builder")
                     }
                 })
             }

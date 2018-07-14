@@ -136,24 +136,38 @@ function displayMethodReference (method) {
       $('#method_references').html('')
       var mostReferencedMethods = message.body
       for (var i = 0; i < mostReferencedMethods.length; i++) {
-        var method = mostReferencedMethods[i]
-        var codeLocation = 'https://github.com/' + method.github_repo +
-          '/blob/' + method.commit_sha1 + '/' + method.file_location
+        var methodOrFile = mostReferencedMethods[i]
+        var codeLocation = 'https://github.com/' + methodOrFile.github_repo +
+          '/blob/' + methodOrFile.commit_sha1 + '/' + methodOrFile.file_location
 
         //table entry
         var rowHtml = '<tr>'
-        rowHtml += '<td><h6>' + method.short_class_name +
-          '</h6> <div style="max-width: 450px; word-wrap:break-word;" class="text-muted">'
-          + method.short_method_signature.toHtmlEntities() +
-          '</div></td>'
-        rowHtml += '<td><button onclick=\'location.href="' + gitdetectiveUrl +
-          method.github_repo +
-          '";\' type="button" class="btn waves-effect waves-light btn-outline-primary">' +
-          method.github_repo +
-          '</button></td>'
-        rowHtml += '<td><a target="_blank" href="' + codeLocation + '">' +
-          '<button type="button" class="btn waves-effect waves-light btn-outline-primary">Code location</button>' +
-          '</a></td>'
+        if (methodOrFile.is_function) {
+          rowHtml += '<td><h6>' + methodOrFile.short_class_name +
+            '</h6> <div style="max-width: 450px; word-wrap:break-word;" class="text-muted">'
+            + methodOrFile.short_method_signature.toHtmlEntities() +
+            '</div></td>'
+          rowHtml += '<td><button onclick=\'location.href="' + gitdetectiveUrl +
+            methodOrFile.github_repo +
+            '";\' type="button" class="btn waves-effect waves-light btn-outline-primary">' +
+            methodOrFile.github_repo +
+            '</button></td>'
+          rowHtml += '<td><a target="_blank" href="' + codeLocation + '">' +
+            '<button type="button" class="btn waves-effect waves-light btn-outline-primary">Code location</button>' +
+            '</a></td>'
+        } else {
+          rowHtml += '<td><h6>' + methodOrFile.short_class_name +
+            '</h6> <div style="max-width: 450px; word-wrap:break-word;" class="text-muted">'
+            + methodOrFile.file_location + '</div></td>'
+          rowHtml += '<td><button onclick=\'location.href="' + gitdetectiveUrl +
+            methodOrFile.github_repo +
+            '";\' type="button" class="btn waves-effect waves-light btn-outline-primary">' +
+            methodOrFile.github_repo +
+            '</button></td>'
+          rowHtml += '<td><a target="_blank" href="' + codeLocation + '">' +
+            '<button type="button" class="btn waves-effect waves-light btn-outline-primary">Code location</button>' +
+            '</a></td>'
+        }
         rowHtml += '</tr>'
         $('#method_references').append(rowHtml)
       }

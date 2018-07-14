@@ -16,6 +16,8 @@ import io.vertx.core.Vertx
 import io.vertx.core.VertxOptions
 import io.vertx.core.http.HttpServerOptions
 import io.vertx.core.json.JsonObject
+import io.vertx.core.logging.Logger
+import io.vertx.core.logging.LoggerFactory
 import io.vertx.core.net.JksOptions
 import io.vertx.ext.dropwizard.DropwizardMetricsOptions
 import io.vertx.ext.web.Router
@@ -35,9 +37,10 @@ import static io.gitdetective.web.Utils.messageCodec
 class WebLauncher {
 
     public static final MetricRegistry metrics = new MetricRegistry()
+    private final static Logger log = LoggerFactory.getLogger(WebLauncher.class)
 
     static void main(String[] args) {
-        println "GitDetective Web - Version: " + GitDetectiveVersion.version
+        log.info "GitDetective Web - Version: " + GitDetectiveVersion.version
         def configInputStream = new File("web-config.json").newInputStream()
         def config = new JsonObject(IOUtils.toString(configInputStream, StandardCharsets.UTF_8))
         def deployOptions = new DeploymentOptions().setConfig(config)
@@ -53,7 +56,7 @@ class WebLauncher {
         router.route().handler(BodyHandler.create())
         if (deployOptions.config.getBoolean("ssl_enabled")) {
             if (!new File("server-keystore.jks").exists()) {
-                System.err.println("Keystore file required to run with SSL enabled")
+                log.error "Keystore file required to run with SSL enabled"
                 System.exit(-1)
             }
             vertx.createHttpServer(new HttpServerOptions().setSsl(deployOptions.config.getBoolean("ssl_enabled"))
@@ -62,13 +65,13 @@ class WebLauncher {
             )).requestHandler(router.&accept).listen(443, {
                 if (it.failed()) {
                     if (it.cause() instanceof BindException) {
-                        System.err.println("Failed to bind to port: 443")
+                        log.error "Failed to bind to port: 443"
                     } else {
                         it.cause().printStackTrace()
                     }
                     System.exit(-1)
                 } else {
-                    println "GitDetective active on port: 443"
+                    log.info "GitDetective active on port: 443"
                 }
             })
             addHttpRedirection(vertx, deployOptions.config)
@@ -76,13 +79,13 @@ class WebLauncher {
             vertx.createHttpServer().requestHandler(router.&accept).listen(80, {
                 if (it.failed()) {
                     if (it.cause() instanceof BindException) {
-                        System.err.println("Failed to bind to port: 80")
+                        log.error "Failed to bind to port: 80"
                     } else {
                         it.cause().printStackTrace()
                     }
                     System.exit(-1)
                 } else {
-                    println "GitDetective active on port: 80"
+                    log.info "GitDetective active on port: 80"
                 }
             })
         }
@@ -92,7 +95,7 @@ class WebLauncher {
             kueOptions.config = deployOptions.config.getJsonObject("jobs_server")
         }
 
-        println "Launching GitDetective service"
+        log.info "Launching GitDetective service"
         vertx.deployVerticle(new KueVerticle(), kueOptions, {
             if (it.failed()) {
                 it.cause().printStackTrace()
@@ -149,13 +152,13 @@ class WebLauncher {
         vertx.createHttpServer().requestHandler(redirectRouter.&accept).listen(80, {
             if (it.failed()) {
                 if (it.cause() instanceof BindException) {
-                    System.err.println("Failed to bind to port: 80")
+                    log.error "Failed to bind to port: 80"
                 } else {
                     it.cause().printStackTrace()
                 }
                 System.exit(-1)
             } else {
-                println "GitDetective active on port: 80"
+                log.info "GitDetective active on port: 80"
             }
         })
     }

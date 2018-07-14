@@ -1,0 +1,8 @@
+match $x isa file has file_name "<filename>";
+$y isa function-instance has qualified_name "<functionName>";
+$def (has_defines_function: $x, is_defines_function: $y) isa defines_function;
+$funcDefs isa function-definitions;
+    (has_function_definitions: $z, is_function_definitions: $funcDefs) isa function_definitions;
+    (has_function_definition: $funcDefs, is_function_definition: $y) isa function_definition;
+$z isa function;
+get $def, $x, $y, $z;

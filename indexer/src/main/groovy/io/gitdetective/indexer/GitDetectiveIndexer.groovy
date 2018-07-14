@@ -4,6 +4,7 @@ import com.codahale.metrics.MetricRegistry
 import io.gitdetective.GitDetectiveVersion
 import io.gitdetective.indexer.stage.*
 import io.gitdetective.indexer.support.KytheMavenBuilder
+import io.gitdetective.indexer.cache.ProjectDataCache
 import io.gitdetective.web.dao.JobsDAO
 import io.gitdetective.web.dao.RedisDAO
 import io.vertx.blueprint.kue.Kue
@@ -15,6 +16,8 @@ import io.vertx.core.DeploymentOptions
 import io.vertx.core.Vertx
 import io.vertx.core.VertxOptions
 import io.vertx.core.json.JsonObject
+import io.vertx.core.logging.Logger
+import io.vertx.core.logging.LoggerFactory
 import org.apache.commons.io.IOUtils
 
 import java.nio.charset.StandardCharsets
@@ -29,9 +32,10 @@ import static io.gitdetective.web.Utils.messageCodec
 class GitDetectiveIndexer extends AbstractVerticle {
 
     public static final MetricRegistry metrics = new MetricRegistry()
+    private final static Logger log = LoggerFactory.getLogger(GitDetectiveIndexer.class)
 
     static void main(String[] args) {
-        println "GitDetective Indexer - Version: " + GitDetectiveVersion.version
+        log.info "GitDetective Indexer - Version: " + GitDetectiveVersion.version
         System.setProperty("vertx.disableFileCPResolving", "true")
         def configInputStream = new File("indexer-config.json").newInputStream()
         def config = new JsonObject(IOUtils.toString(configInputStream, StandardCharsets.UTF_8))
@@ -76,15 +80,23 @@ class GitDetectiveIndexer extends AbstractVerticle {
         def deployOptions = new DeploymentOptions()
         deployOptions.config = config()
 
-        //core
-        vertx.deployVerticle(new GithubRepositoryCloner(kue, jobs, redis), deployOptions)
-        vertx.deployVerticle(new KytheIndexOutput(), deployOptions)
-        vertx.deployVerticle(new KytheUsageExtractor(), deployOptions)
-        vertx.deployVerticle(new GitDetectiveImportFilter(redis), deployOptions)
-        vertx.deployVerticle(new KytheIndexAugment(redis), deployOptions)
+        def projectCache = new ProjectDataCache(redis)
+        vertx.deployVerticle(projectCache, deployOptions, {
+            if (it.failed()) {
+                it.cause().printStackTrace()
+                System.exit(-1)
+            }
 
-        //project builders
-        vertx.deployVerticle(new KytheMavenBuilder(), deployOptions)
+            //core
+            vertx.deployVerticle(new GithubRepositoryCloner(kue, jobs, redis), deployOptions)
+            vertx.deployVerticle(new KytheIndexOutput(), deployOptions)
+            vertx.deployVerticle(new KytheUsageExtractor(), deployOptions)
+            vertx.deployVerticle(new GitDetectiveImportFilter(projectCache), deployOptions)
+            vertx.deployVerticle(new KytheIndexAugment(redis), deployOptions)
+
+            //project builders
+            vertx.deployVerticle(new KytheMavenBuilder(), deployOptions)
+        })
     }
 
 }

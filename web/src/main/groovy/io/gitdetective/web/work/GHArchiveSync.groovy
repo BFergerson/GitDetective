@@ -9,6 +9,8 @@ import io.vertx.blueprint.kue.queue.Job
 import io.vertx.core.AbstractVerticle
 import io.vertx.core.Handler
 import io.vertx.core.json.JsonObject
+import io.vertx.core.logging.Logger
+import io.vertx.core.logging.LoggerFactory
 
 import java.time.Instant
 import java.time.LocalDate
@@ -25,6 +27,7 @@ import java.util.zip.GZIPInputStream
  */
 class GHArchiveSync extends AbstractVerticle {
 
+    private final static Logger log = LoggerFactory.getLogger(GHArchiveSync.class)
     private final JobsDAO jobs
     private final RedisDAO redis
 
@@ -46,11 +49,11 @@ class GHArchiveSync extends AbstractVerticle {
 
     private void syncGithubArchive() {
         if (!config().getBoolean("github_archive_sync_enabled")) {
-            println "GitHub Archive sync disabled. Skipping sync"
+            log.info "GitHub Archive sync disabled. Skipping sync"
             return
         }
 
-        println "Syncing GitHub Archive"
+        log.info "Syncing GitHub Archive"
         redis.getLastArchiveSync({
             if (it.failed()) {
                 it.cause().printStackTrace()
@@ -94,7 +97,7 @@ class GHArchiveSync extends AbstractVerticle {
         def jsonFile = new File(tempDir, archiveFile + ".json")
         gunzip(dlFile, jsonFile)
         dlFile.delete()
-        println "Extracted archive data"
+        log.debug "Extracted archive data"
 
         int lineNumber = 0
         Set<String> interestedRepos = new HashSet<String>()
@@ -122,10 +125,10 @@ class GHArchiveSync extends AbstractVerticle {
             }
 
             if (++lineNumber % 10000 == 0) {
-                println "Found " + interestedRepos.size() + " interested repos of " + lineNumber + " line entries"
+                log.debug "Found " + interestedRepos.size() + " interested repos of " + lineNumber + " line entries"
             }
         }
-        println "Found " + interestedRepos.size() + " interested repos"
+        log.info "Found " + interestedRepos.size() + " interested repos"
 
         def jobsCreated = new AtomicInteger(0)
         def observables = new ArrayList<Observable>()
@@ -134,12 +137,12 @@ class GHArchiveSync extends AbstractVerticle {
         }
         Observable.concat(Observable.fromIterable(observables)).subscribe(
                 {}, { it.printStackTrace() },
-                { println "Jobs created: " + jobsCreated.get() }
+                { log.info "Jobs created: " + jobsCreated.get() }
         )
     }
 
     private File downloadArchive(String archiveFile) {
-        println "Downloading GitHub archive file: " + archiveFile
+        log.debug "Downloading GitHub archive file: " + archiveFile
         def tempDir = config().getString("temp_directory")
         def url = "http://data.gharchive.org/" + archiveFile + ".json.gz"
         def dlFile = new File(tempDir, archiveFile + ".json.gz")
@@ -153,11 +156,12 @@ class GHArchiveSync extends AbstractVerticle {
             file << httpcon.getInputStream()
             file.close()
         } catch (all) {
-            println "$archiveFile archive file not available yet"
+            all.printStackTrace()
+            log.error "$archiveFile archive file not available yet"
             return null
         }
 
-        println "Downloaded archive data"
+        log.info "Downloaded archive data"
         return dlFile
     }
 
