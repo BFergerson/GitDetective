@@ -54,7 +54,7 @@ class GraknDAO {
                                                      Handler<AsyncResult> handler) {
         def osfFunction = osfCache.getIfPresent(functionName)
         if (osfFunction != null) {
-            log.trace("Returned cached open source function")
+            log.trace "Returned cached open source function"
             handler.handle(Future.succeededFuture())
             return osfFunction
         } else {
@@ -80,7 +80,7 @@ class GraknDAO {
         if (created) {
             redis.cacheOpenSourceFunction(functionName, osfFunction, handler)
             WebLauncher.metrics.counter("ImportMethod").inc()
-            log.debug "Created open source function: $functionName"
+            log.trace "Created open source function: $functionName"
         } else {
             handler.handle(Future.succeededFuture())
         }
