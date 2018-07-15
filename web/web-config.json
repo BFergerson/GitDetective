@@ -9,8 +9,8 @@
   "uploads.directory": "/opt/gitdetective/uploads",
   "ssl_enabled": false,
   "keystore_password": "password",
-  "job_processing_enabled": true,
   "launch_website": true,
+  "vertx_metrics_enabled": false,
   "github_archive_sync_enabled": false,
   "temp_directory": "/opt/gitdetective-web/tmp",
   "gitdetective_url": "http://localhost/",
@@ -20,10 +20,12 @@
     "max_worker_time_minutes": 99999999
   },
   "importer": {
+    "enabled": true,
     "thread_count": 15,
     "max_worker_time_minutes": 99999999
   },
   "calculator": {
+    "enabled": true,
     "thread_count": 15,
     "max_worker_time_minutes": 99999999,
     "project_recalculate_wait_time": 2,

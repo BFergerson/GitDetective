@@ -60,82 +60,39 @@ class GitDetectiveService extends AbstractVerticle {
     @Override
     void start() {
         uploadsDirectory = config().getString("uploads.directory")
-        boolean jobProcessingEnabled = config().getBoolean("job_processing_enabled")
         def redis = new RedisDAO(RedisHelper.client(vertx, config()))
         def jobs = new JobsDAO(kue, redis)
 
         vertx.executeBlocking({
+            def importJobEnabled = config().getJsonObject("importer").getBoolean("enabled")
+            def calculateJobEnabled = config().getJsonObject("calculator").getBoolean("enabled")
             if (config().getBoolean("grakn.enabled")) {
-                log.info "Ontology setup enabled"
-                String graknHost = config().getString("grakn.host")
-                int graknPort = config().getInteger("grakn.port")
-                String graknKeyspace = config().getString("grakn.keyspace")
-                def keyspace = Keyspace.of(graknKeyspace)
+                log.info "Grakn integration enabled"
+                setupOntology()
 
-                def session = Grakn.session(graknHost + ":" + graknPort, keyspace)
-                if (SystemUtils.IS_OS_WINDOWS) {
-                    //start of hacks because Grakn doesn't make things easy for Windows :/
-                    try {
-                        GraknConfig config = Reflect.on(session).get("config")
-                        config.setConfigProperty(GraknConfigKey.STORAGE_HOSTNAME, "192.168.99.100")
-
-                        CtClass clazz = ClassPool.getDefault().get("org.apache.cassandra.thrift.EndpointDetails")
-                        CtMethod originalMethod = clazz.getDeclaredMethod("getHost")
-                        originalMethod.setBody("return \"" + graknHost + "\";")
-                        clazz.toClass()
-                    } catch (Exception e) {
-                        e.printStackTrace()
-                    }
-                    //end of hacks because Grakn didn't make things easy for Windows :/
+                if (importJobEnabled) {
+                    def grakn = makeGraknDAO(redis)
+                    log.info "Import job processing enabled"
+                    def importerOptions = new DeploymentOptions().setConfig(config())
+                    vertx.deployVerticle(new GraknImporter(kue, redis, grakn, uploadsDirectory), importerOptions)
+                } else {
+                    log.info "Import job processing disabled"
                 }
-                setupOntology(graknHost, graknPort, graknKeyspace)
-                def grakn = new GraknDAO(vertx, redis, session)
-
-                if (jobProcessingEnabled) {
-                    log.info "Calculate job processing enabled"
+                if (calculateJobEnabled) {
+                    def grakn = makeGraknDAO(redis)
+                    log.info "Reference calculation job processing enabled"
                     def calculatorOptions = new DeploymentOptions().setConfig(config())
                     vertx.deployVerticle(new GraknCalculator(kue, redis, grakn), calculatorOptions)
                 } else {
-                    log.info "Calculate job processing disabled"
+                    log.info "Reference calculation job processing disabled"
                 }
-            } else if (jobProcessingEnabled) {
+            } else if (importJobEnabled || calculateJobEnabled) {
                 log.error "Job processing cannot be enabled with Grakn disabled"
                 System.exit(-1)
             } else {
-                log.info "Ontology setup disabled"
+                log.info "Grakn integration disabled"
             }
             it.complete()
-
-            if (jobProcessingEnabled) {
-                log.info "Import job processing enabled"
-                String graknHost = config().getString("grakn.host")
-                int graknPort = config().getInteger("grakn.port")
-                String graknKeyspace = config().getString("grakn.keyspace")
-                def keyspace = Keyspace.of(graknKeyspace)
-
-                def session = Grakn.session(graknHost + ":" + graknPort, keyspace)
-                if (SystemUtils.IS_OS_WINDOWS) {
-                    //start of hacks because Grakn doesn't make things easy for Windows :/
-                    try {
-                        GraknConfig config = Reflect.on(session).get("config")
-                        config.setConfigProperty(GraknConfigKey.STORAGE_HOSTNAME, "192.168.99.100")
-
-                        CtClass clazz = ClassPool.getDefault().get("org.apache.cassandra.thrift.EndpointDetails")
-                        CtMethod originalMethod = clazz.getDeclaredMethod("getHost")
-                        originalMethod.setBody("return \"" + graknHost + "\";")
-                        clazz.toClass()
-                    } catch (Exception e) {
-                        e.printStackTrace()
-                    }
-                    //end of hacks because Grakn didn't make things easy for Windows :/
-                }
-                def grakn = new GraknDAO(vertx, redis, session)
-
-                def importerOptions = new DeploymentOptions().setConfig(config())
-                vertx.deployVerticle(new GraknImporter(kue, redis, grakn, uploadsDirectory), importerOptions)
-            } else {
-                log.info "Import job processing disabled"
-            }
 
             if (config().getBoolean("launch_website")) {
                 log.info "Launching GitDetective website"
@@ -577,12 +534,56 @@ class GitDetectiveService extends AbstractVerticle {
         log.info "GitDetectiveService started"
     }
 
-    static void setupOntology(String graknHost, int graknPort, String graknKeyspace) {
-        def session = Grakn.session(graknHost + ":" + graknPort, graknKeyspace)
+    private GraknDAO makeGraknDAO(RedisDAO redis) {
+        String graknHost = config().getString("grakn.host")
+        int graknPort = config().getInteger("grakn.port")
+        String graknKeyspace = config().getString("grakn.keyspace")
+        def keyspace = Keyspace.of(graknKeyspace)
+        def session = Grakn.session(graknHost + ":" + graknPort, keyspace)
+        if (SystemUtils.IS_OS_WINDOWS) {
+            //start of hacks because Grakn doesn't make things easy for Windows :/
+            try {
+                GraknConfig config = Reflect.on(session).get("config")
+                config.setConfigProperty(GraknConfigKey.STORAGE_HOSTNAME, "192.168.99.100")
+
+                CtClass clazz = ClassPool.getDefault().get("org.apache.cassandra.thrift.EndpointDetails")
+                CtMethod originalMethod = clazz.getDeclaredMethod("getHost")
+                originalMethod.setBody("return \"" + graknHost + "\";")
+                clazz.toClass()
+            } catch (Exception e) {
+                e.printStackTrace()
+            }
+            //end of hacks because Grakn didn't make things easy for Windows :/
+        }
+        return new GraknDAO(vertx, redis, session)
+    }
+
+    private void setupOntology() {
+        log.info "Setting up Grakn ontology"
+        String graknHost = config().getString("grakn.host")
+        int graknPort = config().getInteger("grakn.port")
+        String graknKeyspace = config().getString("grakn.keyspace")
+        def keyspace = Keyspace.of(graknKeyspace)
+        def session = Grakn.session(graknHost + ":" + graknPort, keyspace)
+        if (SystemUtils.IS_OS_WINDOWS) {
+            //start of hacks because Grakn doesn't make things easy for Windows :/
+            try {
+                GraknConfig config = Reflect.on(session).get("config")
+                config.setConfigProperty(GraknConfigKey.STORAGE_HOSTNAME, "192.168.99.100")
+
+                CtClass clazz = ClassPool.getDefault().get("org.apache.cassandra.thrift.EndpointDetails")
+                CtMethod originalMethod = clazz.getDeclaredMethod("getHost")
+                originalMethod.setBody("return \"" + graknHost + "\";")
+                clazz.toClass()
+            } catch (Exception e) {
+                e.printStackTrace()
+            }
+            //end of hacks because Grakn didn't make things easy for Windows :/
+        }
+
         def tx = session.open(GraknTxType.WRITE)
         def graql = tx.graql()
-        def query = graql.parse(Resources.toString(Resources.getResource(
-                "gitdetective-schema.gql"), Charsets.UTF_8))
+        def query = graql.parse(Resources.toString(Resources.getResource("gitdetective-schema.gql"), Charsets.UTF_8))
         query.execute()
         tx.commit()
         session.close()
