@@ -18,7 +18,7 @@ import io.vertx.core.logging.LoggerFactory
 
 import java.util.concurrent.TimeUnit
 
-import static io.gitdetective.web.Utils.*
+import static io.gitdetective.web.WebServices.*
 
 /**
  * @author <a href="mailto:brandon.fergerson@codebrig.com">Brandon Fergerson</a>
@@ -200,7 +200,7 @@ class GraknDAO {
                             .put("class_name", getQualifiedClassName(qualifiedName))
                             .put("short_method_signature", getShortMethodSignature(qualifiedName))
                             .put("method_signature", getMethodSignature(qualifiedName))
-                            .put("github_repository", githubRepository.toLowerCase())
+                            .put("github_repository", githubRepository)
                             .put("osf_id", osfId)
                     rtnArray.add(function)
                 }
@@ -236,7 +236,7 @@ class GraknDAO {
                         def commitSha1 = answer.get("commit_sha1").asAttribute().getValue() as String
                         def qualifiedName = answer.get("fu_name").asAttribute().getValue() as String
                         def fileOrFunctionId = answer.get("fu_ref").asEntity().id.value
-                        def projectName = answer.get("p_name").asAttribute().value
+                        def githubRepository = answer.get("p_name").asAttribute().value
                         if (qualifiedName.contains("(")) {
                             //function ref
                             def function = new JsonObject()
@@ -248,7 +248,7 @@ class GraknDAO {
                                     .put("class_name", getQualifiedClassName(qualifiedName))
                                     .put("short_method_signature", getShortMethodSignature(qualifiedName))
                                     .put("method_signature", getMethodSignature(qualifiedName))
-                                    .put("github_repository", projectName)
+                                    .put("github_repository", githubRepository)
                                     .put("is_function", true)
                             methodRefs.add(function)
                         } else {
@@ -259,7 +259,7 @@ class GraknDAO {
                                     .put("commit_sha1", commitSha1)
                                     .put("id", fileOrFunctionId)
                                     .put("short_class_name", getFilename(fileLocation))
-                                    .put("github_repository", projectName)
+                                    .put("github_repository", githubRepository)
                                     .put("is_file", true)
                             methodRefs.add(file)
                         }

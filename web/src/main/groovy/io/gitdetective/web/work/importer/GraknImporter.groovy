@@ -31,8 +31,9 @@ import java.time.Instant
 import java.time.temporal.ChronoUnit
 import java.util.zip.ZipFile
 
-import static io.gitdetective.web.Utils.asPrettyTime
-import static io.gitdetective.web.Utils.logPrintln
+import static io.gitdetective.web.WebServices.asPrettyTime
+import static io.gitdetective.web.WebServices.logPrintln
+
 
 /**
  * Import augmented and filtered/funnelled Kythe compilation data into Grakn

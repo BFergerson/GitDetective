@@ -19,7 +19,7 @@ import org.mapdb.Serializer
 import java.util.zip.ZipEntry
 import java.util.zip.ZipOutputStream
 
-import static io.gitdetective.web.Utils.logPrintln
+import static io.gitdetective.indexer.IndexerServices.logPrintln
 
 /**
  * Pre-computes definition/reference counts

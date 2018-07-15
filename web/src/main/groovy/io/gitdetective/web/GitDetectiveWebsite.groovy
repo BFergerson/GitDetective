@@ -20,8 +20,6 @@ import io.vertx.ext.web.templ.HandlebarsTemplateEngine
 
 import java.util.concurrent.TimeUnit
 
-import static io.gitdetective.web.Utils.asPrettyNumber
-import static io.gitdetective.web.Utils.isValidGithubString
 import static io.gitdetective.web.WebServices.*
 
 /**
@@ -58,7 +56,7 @@ class GitDetectiveWebsite extends AbstractVerticle {
                 .setWebRoot("webroot/static")
                 .setCachingEnabled(true))
         router.get("/").handler({ ctx ->
-            handleIndex(ctx)
+            handleIndexPage(ctx)
         })
         router.get("/static").handler({ ctx ->
             ctx.response().setStatusCode(404).end()
@@ -71,10 +69,10 @@ class GitDetectiveWebsite extends AbstractVerticle {
             ctx.response().setStatusCode(404).end()
         })
         router.get("/:githubUsername/:githubProject").handler({ ctx ->
-            handleProject(ctx)
+            handleProjectPage(ctx)
         })
         router.get("/:githubUsername/:githubProject/").handler({ ctx ->
-            handleProject(ctx)
+            handleProjectPage(ctx)
         })
         router.route().last().handler({
             it.response().putHeader("location", "/")
@@ -88,7 +86,15 @@ class GitDetectiveWebsite extends AbstractVerticle {
             updateDatabaseStatistics(false)
             log.info "Updated database statistics"
         })
+        //update job processing stats every minute
+        vertx.setPeriodic(TimeUnit.MINUTES.toMillis(1), {
+            updateJobProcessingStatistics()
+            log.info "Updated job processing statistics"
+        })
         log.info "GitDetectiveWebsite started"
+    }
+
+    private void updateJobProcessingStatistics() {
     }
 
     private void updateDatabaseStatistics(boolean initial) {
@@ -152,12 +158,13 @@ class GitDetectiveWebsite extends AbstractVerticle {
         }
     }
 
-    private void handleIndex(RoutingContext ctx) {
+    private void handleIndexPage(RoutingContext ctx) {
         ctx.put("gitdetective_url", config().getString("gitdetective_url"))
         ctx.put("gitdetective_eventbus_url", config().getString("gitdetective_url") + "backend/services/eventbus")
         ctx.put("gitdetective_version", GitDetectiveVersion.version)
 
         //load and send page data
+        log.info "Displaying index page"
         CompositeFuture.all(Lists.asList(
                 getActiveJobs(ctx),
                 getProjectReferenceLeaderboard(ctx),
@@ -223,7 +230,7 @@ class GitDetectiveWebsite extends AbstractVerticle {
         return future
     }
 
-    private void handleProject(RoutingContext ctx) {
+    private void handleProjectPage(RoutingContext ctx) {
         def username = ctx.pathParam("githubUsername")
         def project = ctx.pathParam("githubProject")
         if (!isValidGithubString(username) || !isValidGithubString(project)) {
@@ -241,6 +248,7 @@ class GitDetectiveWebsite extends AbstractVerticle {
         ctx.put("gitdetective_version", GitDetectiveVersion.version)
 
         //load and send page data
+        log.info "Displaying project page: $username/$project"
         def githubRepository = new JsonObject().put("github_repository", "$username/$project")
         CompositeFuture.all(Lists.asList(
                 getLatestBuildLog(ctx, githubRepository),

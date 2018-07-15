@@ -13,8 +13,8 @@ import io.vertx.core.logging.LoggerFactory
 import java.time.Instant
 import java.time.temporal.ChronoUnit
 
-import static io.gitdetective.web.Utils.asPrettyTime
-import static io.gitdetective.web.Utils.logPrintln
+import static io.gitdetective.web.WebServices.asPrettyTime
+import static io.gitdetective.web.WebServices.logPrintln
 
 /**
  * Runs queries on Grakn to calculate project reference data which
@@ -195,7 +195,7 @@ class GraknCalculator extends AbstractVerticle {
         grakn.getProjectMostExternalReferencedMethods(githubRepository, {
             if (it.failed()) {
                 it.cause().printStackTrace()
-                future.complete(it.cause())
+                future.fail(it.cause())
             } else {
                 logPrintln(job, "Most referenced methods took: " + asPrettyTime(context.stop()))
                 future.complete()

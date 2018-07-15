@@ -37,7 +37,6 @@ import org.joor.Reflect
 import java.time.Instant
 import java.time.temporal.ChronoUnit
 
-import static io.gitdetective.web.Utils.logPrintln
 import static io.gitdetective.web.WebServices.*
 import static java.util.UUID.randomUUID
 
@@ -51,13 +50,11 @@ class GitDetectiveService extends AbstractVerticle {
     private final static Logger log = LoggerFactory.getLogger(GitDetectiveService.class)
     private final Router router
     private final Kue kue
-    private final JobsDAO jobs
     private String uploadsDirectory
 
-    GitDetectiveService(Router router, Kue kue, JobsDAO jobs) {
+    GitDetectiveService(Router router, Kue kue) {
         this.router = router
         this.kue = kue
-        this.jobs = jobs
     }
 
     @Override
@@ -65,6 +62,7 @@ class GitDetectiveService extends AbstractVerticle {
         uploadsDirectory = config().getString("uploads.directory")
         boolean jobProcessingEnabled = config().getBoolean("job_processing_enabled")
         def redis = new RedisDAO(RedisHelper.client(vertx, config()))
+        def jobs = new JobsDAO(kue, redis)
 
         vertx.executeBlocking({
             if (config().getBoolean("grakn.enabled")) {

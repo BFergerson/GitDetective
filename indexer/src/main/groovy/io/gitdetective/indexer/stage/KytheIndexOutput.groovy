@@ -5,7 +5,7 @@ import io.vertx.core.AbstractVerticle
 import io.vertx.core.logging.Logger
 import io.vertx.core.logging.LoggerFactory
 
-import static io.gitdetective.web.Utils.logPrintln
+import static io.gitdetective.indexer.IndexerServices.logPrintln
 
 /**
  * Takes .kindex and outputs triples files

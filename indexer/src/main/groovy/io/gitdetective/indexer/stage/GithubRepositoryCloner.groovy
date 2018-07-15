@@ -21,7 +21,7 @@ import java.time.Instant
 import java.time.temporal.ChronoUnit
 import java.util.concurrent.TimeUnit
 
-import static io.gitdetective.web.Utils.logPrintln
+import static io.gitdetective.indexer.IndexerServices.logPrintln
 
 /**
  * Determines if project should be indexed.

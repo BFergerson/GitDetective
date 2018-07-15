@@ -27,7 +27,7 @@ import org.apache.commons.io.IOUtils
 import java.nio.charset.StandardCharsets
 import java.util.concurrent.TimeUnit
 
-import static io.gitdetective.web.Utils.messageCodec
+import static io.gitdetective.web.WebServices.messageCodec
 
 /**
  * Web module main entry
@@ -104,8 +104,7 @@ class WebLauncher {
             }
 
             def kue = new Kue(vertx, kueOptions.config)
-            def jobs = new JobsDAO(kue, new RedisDAO(RedisHelper.client(vertx, kueOptions.config)))
-            vertx.deployVerticle(new GitDetectiveService(router, kue, jobs), deployOptions, {
+            vertx.deployVerticle(new GitDetectiveService(router, kue), deployOptions, {
                 if (it.failed()) {
                     it.cause().printStackTrace()
                     System.exit(-1)

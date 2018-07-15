@@ -6,7 +6,7 @@ import io.vertx.core.AbstractVerticle
 import io.vertx.core.logging.Logger
 import io.vertx.core.logging.LoggerFactory
 
-import static io.gitdetective.web.Utils.logPrintln
+import static io.gitdetective.indexer.IndexerServices.logPrintln
 
 /**
  * Filters out definition/reference data which has already been imported

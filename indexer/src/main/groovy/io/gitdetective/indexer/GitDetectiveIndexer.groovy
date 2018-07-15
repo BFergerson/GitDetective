@@ -2,9 +2,9 @@ package io.gitdetective.indexer
 
 import com.codahale.metrics.MetricRegistry
 import io.gitdetective.GitDetectiveVersion
+import io.gitdetective.indexer.cache.ProjectDataCache
 import io.gitdetective.indexer.stage.*
 import io.gitdetective.indexer.support.KytheMavenBuilder
-import io.gitdetective.indexer.cache.ProjectDataCache
 import io.gitdetective.web.dao.JobsDAO
 import io.gitdetective.web.dao.RedisDAO
 import io.vertx.blueprint.kue.Kue
@@ -22,7 +22,7 @@ import org.apache.commons.io.IOUtils
 
 import java.nio.charset.StandardCharsets
 
-import static io.gitdetective.web.Utils.messageCodec
+import static io.gitdetective.indexer.IndexerServices.messageCodec
 
 /**
  * Indexer main entry
@@ -50,13 +50,12 @@ class GitDetectiveIndexer extends AbstractVerticle {
         }
 
         def kue = new Kue(vertx, kueOptions.config)
-        def jobs = new JobsDAO(kue, new RedisDAO(RedisHelper.client(vertx, kueOptions.config)))
         vertx.deployVerticle(new KueVerticle(), kueOptions, {
             if (it.failed()) {
                 it.cause().printStackTrace()
                 System.exit(-1)
             }
-            vertx.deployVerticle(new GitDetectiveIndexer(kue, jobs), deployOptions, {
+            vertx.deployVerticle(new GitDetectiveIndexer(kue), deployOptions, {
                 if (it.failed()) {
                     it.cause().printStackTrace()
                     System.exit(-1)
@@ -66,17 +65,16 @@ class GitDetectiveIndexer extends AbstractVerticle {
     }
 
     private final Kue kue
-    private final JobsDAO jobs
 
-    GitDetectiveIndexer(Kue kue, JobsDAO jobs) {
+    GitDetectiveIndexer(Kue kue) {
         this.kue = kue
-        this.jobs = jobs
     }
 
     @Override
     void start() throws Exception {
         vertx.eventBus().registerDefaultCodec(Job.class, messageCodec(Job.class))
         def redis = new RedisDAO(RedisHelper.client(vertx, config()))
+        def jobs = new JobsDAO(kue, redis)
         def deployOptions = new DeploymentOptions()
         deployOptions.config = config()
 

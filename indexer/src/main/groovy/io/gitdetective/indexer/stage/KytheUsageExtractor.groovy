@@ -8,7 +8,7 @@ import io.vertx.core.logging.LoggerFactory
 import org.mapdb.DBMaker
 import org.mapdb.Serializer
 
-import static io.gitdetective.web.Utils.logPrintln
+import static io.gitdetective.indexer.IndexerServices.logPrintln
 
 /**
  * Takes Kythe triples and extracts usage triples (ref/def)
