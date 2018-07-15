@@ -15,7 +15,7 @@ final class WebServices {
     static final String GET_ACTIVE_JOBS = "GetActiveJobs"
     static final String CREATE_JOB = "CreateJob"
     static final String TRIGGER_RECALCULATION = "TriggerRecalculation"
-    static final String GET_METHOD_METHOD_REFERENCES = "GetMethodMethodReferences"
+    static final String GET_METHOD_EXTERNAL_REFERENCES = "GetMethodExternalReferences"
 
     private WebServices() {
     }

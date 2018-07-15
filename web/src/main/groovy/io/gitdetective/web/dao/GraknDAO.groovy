@@ -108,7 +108,7 @@ class GraknDAO {
 
                             def fut = Future.future()
                             cacheFutures.add(fut)
-                            redis.cacheMethodMethodReferences(githubRepo, method, methodRefs, fut.completer())
+                            redis.cacheMethodReferences(githubRepo, method, methodRefs, fut.completer())
                         }
 
                         CompositeFuture.all(cacheFutures).setHandler({
@@ -145,6 +145,7 @@ class GraknDAO {
             handler.handle(Future.succeededFuture())
             return
         }
+        log.info "Updating " + methods.size() + " method definition computed offsets"
 
         vertx.executeBlocking({ blocking ->
             def tx = null

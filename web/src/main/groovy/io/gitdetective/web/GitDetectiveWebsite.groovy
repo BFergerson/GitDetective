@@ -266,10 +266,10 @@ class GitDetectiveWebsite extends AbstractVerticle {
         vertx.eventBus().send(GET_TRIGGER_INFORMATION, githubRepo, {
             def triggerInformation = it.result().body() as JsonObject
             if (triggerInformation.getBoolean("can_build")) {
-                println "Auto-building: " + githubRepo.getString("github_repo")
+                log.info "Auto-building: " + githubRepo.getString("github_repo")
                 vertx.eventBus().send(CREATE_JOB, githubRepo)
             } else if (triggerInformation.getBoolean("can_recalculate")) {
-                println "Auto-recalculating: " + githubRepo.getString("github_repo")
+                log.info "Auto-recalculating: " + githubRepo.getString("github_repo")
                 vertx.eventBus().send(TRIGGER_RECALCULATION, githubRepo)
             }
         })

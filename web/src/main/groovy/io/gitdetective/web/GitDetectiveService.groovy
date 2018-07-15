@@ -414,22 +414,22 @@ class GitDetectiveService extends AbstractVerticle {
                 context.stop()
             })
         })
-        vertx.eventBus().consumer(GET_METHOD_METHOD_REFERENCES, { request ->
-            def timer = WebLauncher.metrics.timer(GET_METHOD_METHOD_REFERENCES)
+        vertx.eventBus().consumer(GET_METHOD_EXTERNAL_REFERENCES, { request ->
+            def timer = WebLauncher.metrics.timer(GET_METHOD_EXTERNAL_REFERENCES)
             def context = timer.time()
-            log.debug "Getting method method references"
+            log.debug "Getting method external references"
 
             def body = (JsonObject) request.body()
             def githubRepo = body.getString("github_repo").toLowerCase()
             def methodId = body.getString("method_id")
             def offset = body.getInteger("offset")
 
-            redis.getMethodExternalMethodReferences(githubRepo, methodId, offset, 10, {
+            redis.getMethodExternalReferences(githubRepo, methodId, offset, 10, {
                 if (it.failed()) {
                     it.cause().printStackTrace()
                     request.reply(it.cause())
                 } else {
-                    log.debug "Got method method references: " + it.result()
+                    log.debug "Got method external references: " + it.result()
                     request.reply(it.result())
                 }
                 context.stop()

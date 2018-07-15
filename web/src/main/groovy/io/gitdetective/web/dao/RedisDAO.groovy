@@ -142,8 +142,8 @@ class RedisDAO {
         })
     }
 
-    void getMethodExternalMethodReferences(String githubRepo, String methodId, int offset, int limit,
-                                           Handler<AsyncResult<JsonArray>> handler) {
+    void getMethodExternalReferences(String githubRepo, String methodId, int offset, int limit,
+                                     Handler<AsyncResult<JsonArray>> handler) {
         redis.lrange("gitdetective:project:$githubRepo:method_references:$methodId", offset, limit, {
             if (it.failed()) {
                 handler.handle(Future.failedFuture(it.cause()))
@@ -157,8 +157,8 @@ class RedisDAO {
         })
     }
 
-    void cacheMethodMethodReferences(String githubRepo, JsonObject method, JsonArray methodReferences,
-                                     Handler<AsyncResult<Long>> handler) {
+    void cacheMethodReferences(String githubRepo, JsonObject method, JsonArray methodReferences,
+                               Handler<AsyncResult<Long>> handler) {
         def futures = new ArrayList<Future>()
         for (int i = 0; i < methodReferences.size(); i++) {
             def methodRef = methodReferences.getJsonObject(i)
