@@ -11,10 +11,11 @@ import io.vertx.blueprint.kue.queue.Priority
 import io.vertx.blueprint.kue.util.RedisHelper
 import io.vertx.core.*
 import io.vertx.core.json.JsonObject
+import org.apache.commons.io.IOUtils
+
+import java.nio.charset.StandardCharsets
 
 /**
- * todo: description
- *
  * @author <a href="mailto:brandon.fergerson@codebrig.com">Brandon Fergerson</a>
  */
 class CreateJobs extends AbstractVerticle {
@@ -24,12 +25,15 @@ class CreateJobs extends AbstractVerticle {
     static String projectsFile
 
     static void main(String[] args) {
-        if (args.length < 4) {
+        def configFile = new File("web-config.json")
+        if (!configFile.exists()) {
+            throw new IllegalStateException("Missing web-config.json")
+        } else if (args.length < 3) {
             throw new IllegalArgumentException("Invalid arguments: " + args.toArrayString())
         }
 
-        def config = new JsonObject().put("redis.host", "localhost").put("redis.port", 6379)
-        jobType = args[1].toLowerCase()
+        def config = new JsonObject(IOUtils.toString(configFile.newInputStream(), StandardCharsets.UTF_8))
+        jobType = args[0].toLowerCase()
         if (jobType == "index") {
             jobType = GithubRepositoryCloner.INDEX_GITHUB_PROJECT_JOB_TYPE
         } else if (jobType == "calculate") {
@@ -39,8 +43,8 @@ class CreateJobs extends AbstractVerticle {
         } else {
             throw new IllegalArgumentException("Invalid job type: " + jobType)
         }
-        priority = args[2]
-        projectsFile = args[3]
+        priority = args[1]
+        projectsFile = args[2]
         if (!new File(projectsFile).exists()) {
             throw new IllegalStateException("File does not exists: " + projectsFile)
         }
@@ -49,26 +53,37 @@ class CreateJobs extends AbstractVerticle {
         VertxOptions vertxOptions = new VertxOptions()
         vertxOptions.setBlockedThreadCheckInterval(Integer.MAX_VALUE)
         Vertx vertx = Vertx.vertx(vertxOptions)
+        def kueOptions = new DeploymentOptions().setConfig(config)
+        if (config.getJsonObject("jobs_server") != null) {
+            kueOptions.config = config.getJsonObject("jobs_server")
+        }
 
-        vertx.deployVerticle(new KueVerticle(), options, {
+        vertx.deployVerticle(new KueVerticle(), kueOptions, {
             if (it.failed()) {
                 it.cause().printStackTrace()
-                System.exit(-3)
+                System.exit(-1)
             }
-            vertx.deployVerticle(new CreateJobs(), options, {
+
+            def kue = Kue.createQueue(vertx, kueOptions.config)
+            vertx.deployVerticle(new CreateJobs(kue), options, {
                 if (it.failed()) {
                     it.cause().printStackTrace()
-                    System.exit(-4)
+                    System.exit(-1)
                 }
             })
         })
+    }
+
+    private final Kue kue
+
+    CreateJobs(Kue kue) {
+        this.kue = kue
     }
 
     @Override
     void start() throws Exception {
         def redisClient = RedisHelper.client(vertx, config())
         def redis = new RedisDAO(redisClient)
-        def kue = Kue.createQueue(vertx, config())
         def jobs = new JobsDAO(kue, redis)
 
         def futures = new ArrayList<Future>()
@@ -87,7 +102,7 @@ class CreateJobs extends AbstractVerticle {
                     Priority.valueOf(priority.toUpperCase()), {
                 if (it.failed()) {
                     it.cause().printStackTrace()
-                    System.exit(-5)
+                    System.exit(-1)
                 }
 
                 println "Created job: " + it.result().getId()

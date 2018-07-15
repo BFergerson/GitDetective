@@ -1,7 +1,7 @@
 package io.gitdetective.tools
 
 /**
- * todo: description
+ * Homemade admin CLI till I get serious about it
  *
  * @author <a href="mailto:brandon.fergerson@codebrig.com">Brandon Fergerson</a>
  */
@@ -23,7 +23,7 @@ class GDTools {
             MoveJobs.main(args.drop(1))
         } else {
             System.err.println("Unknown command: " + args.toArrayString())
-            System.exit(-2)
+            System.exit(-1)
         }
     }
 
