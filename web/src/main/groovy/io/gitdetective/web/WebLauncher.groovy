@@ -30,7 +30,7 @@ import java.util.concurrent.TimeUnit
 import static io.gitdetective.web.Utils.messageCodec
 
 /**
- * Web main entry
+ * Web module main entry
  *
  * @author <a href="mailto:brandon.fergerson@codebrig.com">Brandon Fergerson</a>
  */
