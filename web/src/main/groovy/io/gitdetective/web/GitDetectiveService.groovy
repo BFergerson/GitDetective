@@ -145,7 +145,7 @@ class GitDetectiveService extends AbstractVerticle {
                 vertx.deployVerticle(new GitDetectiveWebsite(jobs, redis, router), options)
                 vertx.deployVerticle(new GHArchiveSync(jobs, redis), options)
             }
-        }, {
+        }, false, {
             if (it.failed()) {
                 it.cause().printStackTrace()
                 System.exit(-1)

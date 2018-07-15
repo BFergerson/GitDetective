@@ -175,7 +175,7 @@ class GraknDAO {
     }
 
     void getProjectNewExternalReferences(String githubRepository, Handler<AsyncResult<JsonArray>> handler) {
-        vertx.executeBlocking({ future ->
+        vertx.executeBlocking({ blocking ->
             def tx = null
             try {
                 tx = session.open(GraknTxType.READ)
@@ -204,9 +204,9 @@ class GraknDAO {
                             .put("osf_id", osfId)
                     rtnArray.add(function)
                 }
-                future.complete(rtnArray)
+                blocking.complete(rtnArray)
             } catch (all) {
-                future.fail(all)
+                blocking.fail(all)
             } finally {
                 tx?.close()
             }

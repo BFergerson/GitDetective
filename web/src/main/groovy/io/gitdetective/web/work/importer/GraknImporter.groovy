@@ -362,7 +362,6 @@ class GraknImporter extends AbstractVerticle {
         def commitDate = job.data.getString("commit_date")
         def tx
 
-        log.debug("Preparing insert queries")
         logPrintln(job, "Importing defined functions")
         def importDefinitionsTimer = WebLauncher.metrics.timer("ImportingDefinedFunctions")
         def importDefinitionsContext = importDefinitionsTimer.time()
@@ -444,7 +443,7 @@ class GraknImporter extends AbstractVerticle {
             if (it.failed()) {
                 handler.handle(Future.failedFuture(it.cause()))
             } else {
-                log.debug("Executing insert queries")
+                log.debug "Executing insert queries"
                 tx = graknSession.open(GraknTxType.BATCH)
                 try {
                     def futures = it.result().list() as List<ImportableSourceCode>
@@ -722,7 +721,7 @@ class GraknImporter extends AbstractVerticle {
             if (it.failed()) {
                 handler.handle(Future.failedFuture(it.cause()))
             } else {
-                log.debug("Executing insert queries")
+                log.debug "Executing insert queries"
                 tx = graknSession.open(GraknTxType.BATCH)
                 try {
                     def futures = it.result().list() as List<ImportableSourceCode>
