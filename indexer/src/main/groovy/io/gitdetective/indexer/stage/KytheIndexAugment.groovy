@@ -32,6 +32,7 @@ class KytheIndexAugment extends AbstractVerticle {
     public static final String KYTHE_INDEX_AUGMENT = "KytheIndexAugment"
     private final static Logger log = LoggerFactory.getLogger(KytheIndexAugment.class)
     private final RedisDAO redis
+    private boolean trackInternalReferences
 
     KytheIndexAugment(RedisDAO redis) {
         this.redis = redis
@@ -39,6 +40,7 @@ class KytheIndexAugment extends AbstractVerticle {
 
     @Override
     void start() throws Exception {
+        trackInternalReferences = config().getBoolean("track_internal_references")
         vertx.eventBus().consumer(KYTHE_INDEX_AUGMENT, {
             def job = (Job) it.body()
             vertx.executeBlocking({
@@ -94,14 +96,19 @@ class KytheIndexAugment extends AbstractVerticle {
         def functionReferences = new File(outputDirectory, "functions_reference.txt")
         lineNumber = 0
         partialFunctionReferences.each {
-            functionReferences.append(it)
             lineNumber++
             if (lineNumber > 1) {
                 def lineData = it.split("\\|")
                 def xFunctionName = lineData[0]
                 def yFunctionName = lineData[1]
+                boolean internalReference = definedFunctions.contains(yFunctionName)
+                if (internalReference && !trackInternalReferences) {
+                    return //skip internal reference
+                } else {
+                    functionReferences.append(it)
+                }
 
-                if (definedFunctions.contains(yFunctionName)) {
+                if (internalReference) {
                     functionReferences.append("|false")
                 } else {
                     functionReferences.append("|true")
@@ -129,6 +136,8 @@ class KytheIndexAugment extends AbstractVerticle {
                     }
                     fut2.complete()
                 })
+            } else {
+                functionReferences.append(it) //header
             }
             functionReferences.append("\n")
         }
