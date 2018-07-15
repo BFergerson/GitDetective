@@ -49,6 +49,7 @@ class WebLauncher {
         vertxOptions.maxWorkerExecuteTime = TimeUnit.MINUTES.toNanos(serviceConfig.getInteger("max_worker_time_minutes"))
         vertxOptions.workerPoolSize = serviceConfig.getInteger("worker_pool_size")
         vertxOptions.internalBlockingPoolSize = serviceConfig.getInteger("blocking_pool_size")
+        setupMetricReporters(vertxOptions)
 
         def vertx = Vertx.vertx(vertxOptions)
         vertx.eventBus().registerDefaultCodec(Job.class, messageCodec(Job.class))
@@ -111,8 +112,6 @@ class WebLauncher {
                 }
             })
         })
-
-        setupMetricReporters(vertxOptions)
     }
 
     private static void setupMetricReporters(VertxOptions vertxOptions) {
@@ -127,8 +126,8 @@ class WebLauncher {
         reporter.start(1, TimeUnit.MINUTES)
 
         reporter = ConsoleReporter.forRegistry(metrics)
-                .convertRatesTo(TimeUnit.SECONDS)
-                .convertDurationsTo(TimeUnit.SECONDS)
+                .convertRatesTo(TimeUnit.MINUTES)
+                .convertDurationsTo(TimeUnit.MINUTES)
                 .build()
         reporter.start(10, TimeUnit.MINUTES)
     }
