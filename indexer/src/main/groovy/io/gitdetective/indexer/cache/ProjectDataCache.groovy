@@ -42,7 +42,7 @@ class ProjectDataCache extends AbstractVerticle {
         functions = db.hashMap("functions", Serializer.STRING, Serializer.STRING).createOrOpen()
         vertx.setPeriodic(config().getInteger("project_data_flush_ms"), {
             db.commit()
-            log.debug "Flushed project index cache"
+            log.trace "Flushed project index cache"
             log.trace "Cached definitions: " + definitions.size()
             log.trace "Cached references: " + references.size()
             log.trace "Cached files: " + files.size()
