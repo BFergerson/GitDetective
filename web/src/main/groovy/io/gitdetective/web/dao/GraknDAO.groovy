@@ -87,8 +87,8 @@ class GraknDAO {
         return osfFunction
     }
 
-    void getProjectMostExternalReferencedMethods(String githubRepo, Handler<AsyncResult<JsonArray>> handler) {
-        getProjectNewExternalReferences(githubRepo, {
+    void getProjectMostExternalReferencedMethods(String githubRepository, Handler<AsyncResult<JsonArray>> handler) {
+        getProjectNewExternalReferences(githubRepository, {
             if (it.failed()) {
                 handler.handle(Future.failedFuture(it.cause()))
             } else {
@@ -108,7 +108,7 @@ class GraknDAO {
 
                             def fut = Future.future()
                             cacheFutures.add(fut)
-                            redis.cacheMethodReferences(githubRepo, method, methodRefs, fut.completer())
+                            redis.cacheMethodReferences(githubRepository, method, methodRefs, fut.completer())
                         }
 
                         CompositeFuture.all(cacheFutures).setHandler({
@@ -121,12 +121,12 @@ class GraknDAO {
                                         handler.handle(Future.failedFuture(it.cause()))
                                     } else {
                                         //update project leaderboard
-                                        redis.updateProjectReferenceLeaderboard(githubRepo, totalRefCount, {
+                                        redis.updateProjectReferenceLeaderboard(githubRepository, totalRefCount, {
                                             if (it.failed()) {
                                                 handler.handle(Future.failedFuture(it.cause()))
                                             } else {
                                                 //return from cache
-                                                redis.getProjectMostExternalReferencedMethods(githubRepo, 10, handler)
+                                                redis.getProjectMostExternalReferencedMethods(githubRepository, 10, handler)
                                             }
                                         })
                                     }
@@ -174,14 +174,14 @@ class GraknDAO {
         }, false, handler)
     }
 
-    void getProjectNewExternalReferences(String githubRepo, Handler<AsyncResult<JsonArray>> handler) {
+    void getProjectNewExternalReferences(String githubRepository, Handler<AsyncResult<JsonArray>> handler) {
         vertx.executeBlocking({ future ->
             def tx = null
             try {
                 tx = session.open(GraknTxType.READ)
                 def graql = tx.graql()
                 def query = graql.parse(GET_PROJECT_NEW_EXTERNAL_REFERENCES
-                        .replace("<githubRepo>", githubRepo))
+                        .replace("<githubRepo>", githubRepository))
 
                 def rtnArray = new JsonArray()
                 def result = query.execute() as List<QueryAnswer>
@@ -200,7 +200,7 @@ class GraknDAO {
                             .put("class_name", getQualifiedClassName(qualifiedName))
                             .put("short_method_signature", getShortMethodSignature(qualifiedName))
                             .put("method_signature", getMethodSignature(qualifiedName))
-                            .put("github_repo", githubRepo.toLowerCase())
+                            .put("github_repository", githubRepository.toLowerCase())
                             .put("osf_id", osfId)
                     rtnArray.add(function)
                 }
@@ -248,7 +248,7 @@ class GraknDAO {
                                     .put("class_name", getQualifiedClassName(qualifiedName))
                                     .put("short_method_signature", getShortMethodSignature(qualifiedName))
                                     .put("method_signature", getMethodSignature(qualifiedName))
-                                    .put("github_repo", projectName)
+                                    .put("github_repository", projectName)
                                     .put("is_function", true)
                             methodRefs.add(function)
                         } else {
@@ -259,7 +259,7 @@ class GraknDAO {
                                     .put("commit_sha1", commitSha1)
                                     .put("id", fileOrFunctionId)
                                     .put("short_class_name", getFilename(fileLocation))
-                                    .put("github_repo", projectName)
+                                    .put("github_repository", projectName)
                                     .put("is_file", true)
                             methodRefs.add(file)
                         }

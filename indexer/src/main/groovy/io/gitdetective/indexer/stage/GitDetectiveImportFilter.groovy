@@ -46,7 +46,7 @@ class GitDetectiveImportFilter extends AbstractVerticle {
     private void doFilter(Job job) {
         logPrintln(job, "Filtering already imported data")
 
-        def githubRepo = job.data.getString("github_repository")
+        def githubRepository = job.data.getString("github_repository")
         def outputDirectory = job.data.getString("output_directory")
         def readyFunctionDefinitions = new File(outputDirectory, "functions_definition_raw.txt")
         def readyFunctionReferences = new File(outputDirectory, "functions_reference_raw.txt")
@@ -59,7 +59,7 @@ class GitDetectiveImportFilter extends AbstractVerticle {
             if (lineNumber > 1) {
                 def lineData = line.split("\\|")
 
-                def existingFile = projectCache.getProjectFileId(githubRepo, lineData[1])
+                def existingFile = projectCache.getProjectFileId(githubRepository, lineData[1])
                 if (!existingFile.isPresent()) {
                     filesOutputFinal.append("$line\n") //do import
                 }
@@ -76,8 +76,8 @@ class GitDetectiveImportFilter extends AbstractVerticle {
                 def lineData = line.split("\\|")
 
                 //replace everything with ids (if possible)
-                def existingFile = projectCache.getProjectFileId(githubRepo, lineData[0])
-                def existingFunction = projectCache.getProjectFunctionId(githubRepo, lineData[1])
+                def existingFile = projectCache.getProjectFileId(githubRepository, lineData[0])
+                def existingFunction = projectCache.getProjectFunctionId(githubRepository, lineData[1])
 
                 if (existingFile.isPresent() && existingFunction.isPresent()) {
                     //check if import needed
@@ -102,11 +102,11 @@ class GitDetectiveImportFilter extends AbstractVerticle {
                 //replace everything with ids (if possible)
                 def existingFileOrFunction
                 if (lineData[0].contains("#")) {
-                    existingFileOrFunction = projectCache.getProjectFunctionId(githubRepo, lineData[0])
+                    existingFileOrFunction = projectCache.getProjectFunctionId(githubRepository, lineData[0])
                 } else {
-                    existingFileOrFunction = projectCache.getProjectFileId(githubRepo, lineData[0])
+                    existingFileOrFunction = projectCache.getProjectFileId(githubRepository, lineData[0])
                 }
-                def existingFunction = projectCache.getProjectFunctionId(githubRepo, lineData[1])
+                def existingFunction = projectCache.getProjectFunctionId(githubRepository, lineData[1])
 
                 if (existingFileOrFunction.isPresent() && existingFunction.isPresent()) {
                     //check if import needed

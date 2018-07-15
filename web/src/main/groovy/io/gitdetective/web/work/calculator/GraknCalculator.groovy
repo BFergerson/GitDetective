@@ -44,7 +44,7 @@ class GraknCalculator extends AbstractVerticle {
 
         def graknCalculateMeter = WebLauncher.metrics.meter("GraknCalculateJobProcessSpeed")
         kue.on("error", {
-            System.err.println("Calculate job error: " + it.body())
+            log.error "Calculate job error: " + it.body()
         })
         kue.process(GRAKN_CALCULATE_JOB_TYPE, calculatorConfig.getInteger("thread_count"), { calculateJob ->
             graknCalculateMeter.mark()
@@ -88,14 +88,14 @@ class GraknCalculator extends AbstractVerticle {
     }
 
     private void processCalculateJob(Job job, Handler<AsyncResult> handler) {
-        def githubRepo = job.data.getString("github_repository").toLowerCase()
+        def githubRepository = job.data.getString("github_repository").toLowerCase()
         def buildSkipped = job.data.getBoolean("build_skipped")
         if (buildSkipped == null) {
             buildSkipped = false
         }
-        log.info "Calculating references for project: " + githubRepo + " - Build skipped: " + buildSkipped
+        log.info "Calculating references for project: " + githubRepository + " - Build skipped: " + buildSkipped
 
-        redis.getProjectLastCalculated(githubRepo, {
+        redis.getProjectLastCalculated(githubRepository, {
             if (it.failed()) {
                 handler.handle(Future.failedFuture(it.cause()))
             } else {
@@ -114,13 +114,13 @@ class GraknCalculator extends AbstractVerticle {
                     logPrintln(job, "Skipped calculating references")
                     handler.handle(Future.succeededFuture())
                 } else {
-                    performCalculations(job, githubRepo, !buildSkipped, handler)
+                    performCalculations(job, githubRepository, !buildSkipped, handler)
                 }
             }
         })
     }
 
-    private void performCalculations(Job job, String githubRepo, boolean indexed, Handler<AsyncResult> handler) {
+    private void performCalculations(Job job, String githubRepository, boolean indexed, Handler<AsyncResult> handler) {
         def calcConfig = config().getJsonObject("calculator")
         def futures = new ArrayList<Future>()
 
@@ -139,7 +139,7 @@ class GraknCalculator extends AbstractVerticle {
 
             logPrintln(job, "Successfully calculated references")
             if (indexed) {
-                redis.getProjectFirstIndexed(githubRepo, {
+                redis.getProjectFirstIndexed(githubRepository, {
                     if (it.failed()) {
                         handler.handle(Future.failedFuture(it.cause()))
                         return
@@ -149,19 +149,19 @@ class GraknCalculator extends AbstractVerticle {
                     if (it.result() == null) {
                         def fut = Future.future()
                         moreFutures.add(fut)
-                        redis.setProjectFirstIndexed(githubRepo, Instant.now(), fut.completer())
+                        redis.setProjectFirstIndexed(githubRepository, Instant.now(), fut.completer())
                     }
 
                     def fut2 = Future.future()
                     moreFutures.add(fut2)
-                    redis.setProjectLastIndexed(githubRepo, Instant.now(), fut2.completer())
+                    redis.setProjectLastIndexed(githubRepository, Instant.now(), fut2.completer())
                     def fut3 = Future.future()
                     moreFutures.add(fut3)
-                    redis.setProjectLastIndexedCommitInformation(githubRepo,
+                    redis.setProjectLastIndexedCommitInformation(githubRepository,
                             job.data.getString("commit"), job.data.getInstant("commit_date"), fut3.completer())
                     def fut4 = Future.future()
                     moreFutures.add(fut4)
-                    redis.setProjectLastCalculated(githubRepo, Instant.now(), fut4.completer())
+                    redis.setProjectLastCalculated(githubRepository, Instant.now(), fut4.completer())
 
                     CompositeFuture.all(moreFutures).setHandler({
                         if (it.failed()) {
@@ -173,7 +173,7 @@ class GraknCalculator extends AbstractVerticle {
                     })
                 })
             } else {
-                redis.setProjectLastCalculated(githubRepo, Instant.now(), {
+                redis.setProjectLastCalculated(githubRepository, Instant.now(), {
                     if (it.failed()) {
                         handler.handle(Future.failedFuture(it.cause()))
                     } else {
@@ -189,10 +189,10 @@ class GraknCalculator extends AbstractVerticle {
         def timer = WebLauncher.metrics.timer("CalculateProjectMostExternalReferencedMethods")
         def context = timer.time()
         logPrintln(job, "Calculating project most referenced methods")
-        def githubRepo = job.data.getString("github_repository").toLowerCase()
+        def githubRepository = job.data.getString("github_repository").toLowerCase()
 
         def future = Future.future()
-        grakn.getProjectMostExternalReferencedMethods(githubRepo, {
+        grakn.getProjectMostExternalReferencedMethods(githubRepository, {
             if (it.failed()) {
                 it.cause().printStackTrace()
                 future.complete(it.cause())

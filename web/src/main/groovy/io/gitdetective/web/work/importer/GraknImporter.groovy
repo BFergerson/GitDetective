@@ -154,12 +154,12 @@ class GraknImporter extends AbstractVerticle {
     }
 
     private void processImportJob(Job job, Job indexJob, Handler<AsyncResult> handler) {
-        String githubRepo = job.data.getString("github_repository").toLowerCase()
-        log.info "Importing project: " + githubRepo
+        String githubRepository = job.data.getString("github_repository").toLowerCase()
+        log.info "Importing project: " + githubRepository
         try {
             def outputDirectory = downloadAndExtractImportFiles(job)
             importProject(outputDirectory, job, {
-                log.info "Finished importing project: " + githubRepo
+                log.info "Finished importing project: " + githubRepository
                 logPrintln(job, "Index results imported")
 
                 def jobData = indexJob.data
@@ -193,7 +193,7 @@ class GraknImporter extends AbstractVerticle {
         def osFunctionsOutput = new File(outputDirectory, "functions_open-source.txt")
         def functionDefinitions = new File(outputDirectory, "functions_definition.txt")
         def functionReferences = new File(outputDirectory, "functions_reference.txt")
-        def githubRepo = job.data.getString("github_repository").toLowerCase()
+        def githubRepository = job.data.getString("github_repository").toLowerCase()
         def cacheFutures = new ArrayList<Future>()
         def importData = new ImportSessionData()
         boolean newProject = false
@@ -203,7 +203,7 @@ class GraknImporter extends AbstractVerticle {
         try {
             def graql = tx.graql()
             def res = graql.parse(GraknDAO.GET_PROJECT
-                    .replace("<githubRepo>", githubRepo)).execute() as List<QueryAnswer>
+                    .replace("<githubRepo>", githubRepository)).execute() as List<QueryAnswer>
             if (!res.isEmpty()) {
                 logPrintln(job, "Updating existing project")
                 projectId = res.get(0).get("p").asEntity().id.toString()
@@ -211,7 +211,7 @@ class GraknImporter extends AbstractVerticle {
                 newProject = true
                 logPrintln(job, "Creating new project")
                 def query = graql.parse(GraknDAO.CREATE_PROJECT
-                        .replace("<githubRepo>", githubRepo)
+                        .replace("<githubRepo>", githubRepository)
                         .replace("<createDate>", Instant.now().toString()))
                 projectId = (query.execute() as List<QueryAnswer>).get(0).get("p").asEntity().id.toString()
                 WebLauncher.metrics.counter("CreateProject").inc()
@@ -243,10 +243,10 @@ class GraknImporter extends AbstractVerticle {
                         def cacheInfoContext = cacheInfoTimer.time()
                         def fut1 = Future.future()
                         cacheFutures.add(fut1)
-                        redis.incrementCachedProjectFileCount(githubRepo, fileCount, fut1.completer())
+                        redis.incrementCachedProjectFileCount(githubRepository, fileCount, fut1.completer())
                         def fut2 = Future.future()
                         cacheFutures.add(fut2)
-                        redis.incrementCachedProjectMethodInstanceCount(githubRepo, methodInstanceCount, fut2.completer())
+                        redis.incrementCachedProjectMethodInstanceCount(githubRepository, methodInstanceCount, fut2.completer())
                         CompositeFuture.all(cacheFutures).setHandler({
                             if (it.failed()) {
                                 handler.handle(Future.failedFuture(it.cause()))
@@ -293,7 +293,7 @@ class GraknImporter extends AbstractVerticle {
     private long importFiles(String projectId, Job job, File filesOutput, Instant timeoutTime, boolean newProject,
                              ImportSessionData importData, List<Future> cacheFutures) {
         long fileCount = 0
-        def githubRepo = job.data.getString("github_repository").toLowerCase()
+        def githubRepository = job.data.getString("github_repository").toLowerCase()
         def tx
 
         logPrintln(job, "Importing files")
@@ -321,7 +321,7 @@ class GraknImporter extends AbstractVerticle {
                             def existingFileId = match.get(0).get("x").asEntity().id.toString()
                             def fut = Future.future()
                             cacheFutures.add(fut)
-                            redis.cacheProjectImportedFile(githubRepo, lineData[1], existingFileId, fut.completer())
+                            redis.cacheProjectImportedFile(githubRepository, lineData[1], existingFileId, fut.completer())
                             importData.importedFiles.put(lineData[1], existingFileId)
                         }
                     }
@@ -341,7 +341,7 @@ class GraknImporter extends AbstractVerticle {
                         //cache imported file
                         def fut = Future.future()
                         cacheFutures.add(fut)
-                        redis.cacheProjectImportedFile(githubRepo, lineData[1], importedFileId, fut.completer())
+                        redis.cacheProjectImportedFile(githubRepository, lineData[1], importedFileId, fut.completer())
                     }
                 }
             }
@@ -357,7 +357,7 @@ class GraknImporter extends AbstractVerticle {
                                    boolean newProject, ImportSessionData importData, List<Future> cacheFutures,
                                    Handler<AsyncResult<Long>> handler) {
         long methodInstanceCount = 0
-        def githubRepo = job.data.getString("github_repository").toLowerCase()
+        def githubRepository = job.data.getString("github_repository").toLowerCase()
         def commitSha1 = job.data.getString("commit")
         def commitDate = job.data.getString("commit_date")
         def tx
@@ -392,7 +392,7 @@ class GraknImporter extends AbstractVerticle {
                             def fut1 = Future.future()
                             def fut2 = Future.future()
                             cacheFutures.addAll(fut1, fut2)
-                            redis.cacheProjectImportedFunction(githubRepo, lineData[1], existingFunctionId, fut1.completer())
+                            redis.cacheProjectImportedFunction(githubRepository, lineData[1], existingFunctionId, fut1.completer())
                             redis.cacheProjectImportedDefinition(existingFileId, existingFunctionId, fut2.completer())
 
                             importData.definedFunctions.put(lineData[1], existingFunctionId)
@@ -460,7 +460,7 @@ class GraknImporter extends AbstractVerticle {
                         def fut1 = Future.future()
                         def fut2 = Future.future()
                         cacheFutures.addAll(fut1, fut2)
-                        redis.cacheProjectImportedFunction(githubRepo, importCode.functionName, importCode.functionId, fut1.completer())
+                        redis.cacheProjectImportedFunction(githubRepository, importCode.functionName, importCode.functionId, fut1.completer())
                         redis.cacheProjectImportedDefinition(importCode.fileId, importCode.functionId, fut2.completer())
                     }
                     tx.commit()
@@ -476,7 +476,7 @@ class GraknImporter extends AbstractVerticle {
     private void importReferences(String projectId, Job job, File functionReferences, Instant timeoutTime,
                                   boolean newProject, ImportSessionData importData, List<Future> cacheFutures,
                                   Handler<AsyncResult> handler) {
-        def githubRepo = job.data.getString("github_repository").toLowerCase()
+        def githubRepository = job.data.getString("github_repository").toLowerCase()
         def commitSha1 = job.data.getString("commit")
         def commitDate = job.data.getString("commit_date")
         def tx
@@ -555,7 +555,7 @@ class GraknImporter extends AbstractVerticle {
                                     def fut1 = Future.future()
                                     def fut2 = Future.future()
                                     cacheFutures.addAll(fut1, fut2)
-                                    redis.cacheProjectImportedFunction(githubRepo, lineData[1], osFunc.functionId, fut1.completer())
+                                    redis.cacheProjectImportedFunction(githubRepository, lineData[1], osFunc.functionId, fut1.completer())
                                     redis.cacheProjectImportedReference(function1Id, function2Id, fut2.completer())
                                 }
                             } else {
