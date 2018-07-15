@@ -660,6 +660,12 @@ class GraknImporter extends AbstractVerticle {
                         } else {
                             //references from functions
                             if (isExternal) {
+                                if (refFunctionId == null || osFunc.functionId == null ||
+                                        importData.definedFunctionInstances.get(refFunctionId) == null) {
+                                    //println "todo: me5" //todo: me
+                                    return
+                                }
+
                                 //internal function references external function
                                 def fut = Future.future()
                                 importFutures.add(fut)
