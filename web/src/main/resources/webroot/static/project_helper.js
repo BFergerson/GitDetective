@@ -127,7 +127,7 @@ function displayMethodReference (method) {
       html('<b>Displaying 10 of ' + method.external_reference_count + '</b>')
   }
 
-  eb.send('GetMethodMethodReferences', {
+  eb.send('GetMethodReferences', {
     'github_repository': method.github_repository,
     'method_id': method.id,
     'offset': 0,
