@@ -121,12 +121,16 @@ class GithubRepositoryCloner extends AbstractVerticle {
         //skip forked projects (queue parent project)
         if (repo.fork) {
             logPrintln(job, "Forked projects not currently supported")
+            if (!config().getBoolean("create_forked_project_parent_jobs")) {
+                job.done()
+                return
+            }
             def parent = repo.parent
             def parentGithubRepository = parent.fullName.toLowerCase()
 
             jobs.getProjectLastQueued(parentGithubRepository, {
                 if (it.failed()) {
-                    it.cause().printStackTrace()
+                    job.done(it.cause())
                     return
                 }
 

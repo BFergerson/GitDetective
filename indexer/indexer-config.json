@@ -11,5 +11,6 @@
   "working_directory": "/opt/gitdetective",
   "builder_thread_count": 5,
   "project_data_flush_ms": 5000,
-  "track_internal_references": false
+  "track_internal_references": false,
+  "create_forked_project_parent_jobs": false
 }
