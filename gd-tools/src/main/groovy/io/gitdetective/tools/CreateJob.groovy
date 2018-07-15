@@ -1,6 +1,5 @@
 package io.gitdetective.tools
 
-import io.gitdetective.indexer.stage.GithubRepositoryCloner
 import io.gitdetective.web.dao.JobsDAO
 import io.gitdetective.web.dao.RedisDAO
 import io.gitdetective.web.work.calculator.GraknCalculator
@@ -39,7 +38,7 @@ class CreateJob extends AbstractVerticle {
         def config = new JsonObject(IOUtils.toString(configFile.newInputStream(), StandardCharsets.UTF_8))
         jobType = args[0].toLowerCase()
         if (jobType == "index") {
-            jobType = GithubRepositoryCloner.INDEX_GITHUB_PROJECT_JOB_TYPE
+            jobType = "IndexGithubProject"
         } else if (jobType == "calculate") {
             jobType = GraknCalculator.GRAKN_CALCULATE_JOB_TYPE
         } else if (jobType == "import") {
