@@ -1,5 +1,10 @@
 package io.gitdetective.web
 
+/**
+ * Services available in Web module
+ *
+ * @author <a href="mailto:brandon.fergerson@codebrig.com">Brandon Fergerson</a>
+ */
 final class WebServices {
 
     static final String GET_PROJECT_REFERENCE_LEADERBOARD = "GetProjectReferenceLeaderboard"
