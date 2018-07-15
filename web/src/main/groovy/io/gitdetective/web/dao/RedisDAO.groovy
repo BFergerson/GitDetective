@@ -488,22 +488,18 @@ class RedisDAO {
     }
 
     void cacheProjectImportedFile(String githubRepository, String filename, String fileId, Handler<AsyncResult> handler) {
-        log.trace("Caching project file: $filename-$fileId")
         redis.publish(NEW_PROJECT_FILE, "$githubRepository|$filename|$fileId", handler)
     }
 
     void cacheProjectImportedFunction(String githubRepository, String functionName, String functionId, Handler<AsyncResult> handler) {
-        log.trace("Caching project function: $functionName-$functionId")
         redis.publish(NEW_PROJECT_FUNCTION, "$githubRepository|$functionName|$functionId", handler)
     }
 
     void cacheProjectImportedDefinition(String fileId, String functionId, Handler<AsyncResult> handler) {
-        log.trace("Caching project imported definition: $fileId-$functionId")
         redis.publish(NEW_DEFINITION, "$fileId-$functionId", handler)
     }
 
     void cacheProjectImportedReference(String fileOrFunctionId, String functionId, Handler<AsyncResult> handler) {
-        log.trace("Caching project imported reference: $fileOrFunctionId-$functionId")
         redis.publish(NEW_REFERENCE, "$fileOrFunctionId-$functionId", handler)
     }
 
