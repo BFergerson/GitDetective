@@ -151,13 +151,11 @@ class GitDetectiveService extends AbstractVerticle {
                     context.stop()
                     return
                 }
-                def allJobs = it.result()
 
                 //order by most recently updated
-                allJobs = allJobs.sort({ it.updated_at }).reverse()
+                def finalAllJobs = new ArrayList<Job>(it.result().sort({ it.updated_at }).reverse())
                 //remove jobs with jobs previous to latest
-                def finalAllJobs = new ArrayList<Job>(allJobs)
-                allJobs.each {
+                it.result().each {
                     def githubRepository = it.data.getString("github_repository")
                     if (it.type == GraknCalculator.GRAKN_CALCULATE_JOB_TYPE) {
                         finalAllJobs.removeIf({
