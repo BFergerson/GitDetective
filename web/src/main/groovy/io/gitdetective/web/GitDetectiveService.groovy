@@ -143,12 +143,8 @@ class GitDetectiveService extends AbstractVerticle {
             def context = timer.time()
             log.debug "Getting active jobs"
 
-            String order = "asc"
-            Long from = 0
-            Long to = 50
-            String state = "active"
-            //get 50 active jobs; return most recent 10
-            kue.jobRangeByState(state, from, to, order).setHandler({
+            //get all active jobs; return most recent 10
+            kue.jobRangeByState("active", 0, Integer.MAX_VALUE, "asc").setHandler({
                 if (it.failed()) {
                     it.cause().printStackTrace()
                     request.reply(it.cause())
