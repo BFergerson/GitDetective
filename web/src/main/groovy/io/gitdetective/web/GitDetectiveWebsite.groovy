@@ -188,8 +188,12 @@ class GitDetectiveWebsite extends AbstractVerticle {
             if (it.failed()) {
                 it.cause().printStackTrace()
             } else {
-                //add pretty job type
                 def activeJobs = it.result().body() as JsonArray
+                //only most recent 10
+                if (activeJobs.size() > 10) {
+                    activeJobs = new JsonArray(activeJobs.take(10))
+                }
+                //add pretty job type
                 for (int i = 0; i < activeJobs.size(); i++) {
                     def job = activeJobs.getJsonObject(i)
                     if (job.getString("type") == GraknCalculator.GRAKN_CALCULATE_JOB_TYPE) {

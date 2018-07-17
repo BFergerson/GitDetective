@@ -143,7 +143,6 @@ class GitDetectiveService extends AbstractVerticle {
             def context = timer.time()
             log.debug "Getting active jobs"
 
-            //get all active jobs; return most recent 10
             kue.jobRangeByState("active", 0, Integer.MAX_VALUE, "asc").setHandler({
                 if (it.failed()) {
                     it.cause().printStackTrace()
@@ -174,10 +173,6 @@ class GitDetectiveService extends AbstractVerticle {
                 JsonArray activeJobs = new JsonArray()
                 //encode jobs
                 finalAllJobs.each { activeJobs.add(new JsonObject(Json.encode(it))) }
-                //only most recent 10
-                if (activeJobs.size() > 10) {
-                    activeJobs = new JsonArray(activeJobs.take(10))
-                }
 
                 log.debug "Got active jobs - Size: " + activeJobs.size()
                 request.reply(activeJobs)
@@ -461,68 +456,93 @@ class GitDetectiveService extends AbstractVerticle {
             def githubRepository = body.getString("github_repository").toLowerCase()
             log.debug "Getting trigger information"
 
-            def futures = new ArrayList<Future>()
-            def canQueueFuture = Future.future()
-            futures.add(canQueueFuture)
-            jobs.getProjectLastQueued(githubRepository, canQueueFuture.completer())
-            def canBuildFuture = Future.future()
-            futures.add(canBuildFuture)
-            redis.getProjectLastBuilt(githubRepository, canBuildFuture.completer())
-            def canRecalculateFuture = Future.future()
-            futures.add(canRecalculateFuture)
-            redis.getProjectLastCalculated(githubRepository, canRecalculateFuture.completer())
-
-            CompositeFuture.all(futures).setHandler({
+            //check if project in any active jobs
+            vertx.eventBus().send(GET_ACTIVE_JOBS, new JsonObject(), {
                 if (it.failed()) {
                     it.cause().printStackTrace()
+                    context.stop()
+                    return
                 } else {
-                    def calcConfig = config().getJsonObject("calculator")
-                    def triggerInformation = new JsonObject()
-                    triggerInformation.put("can_queue", true)
-                    triggerInformation.put("can_build", true)
-                    triggerInformation.put("can_recalculate", true)
-
-                    Optional<Instant> lastQueued = it.result().resultAt(0) as Optional<Instant>
-                    if (lastQueued.isPresent()) {
-                        if (lastQueued.get().plus(24, ChronoUnit.HOURS).isAfter(Instant.now())) {
+                    def activeJobs = it.result().body() as JsonArray
+                    for (int i = 0; i < activeJobs.size(); i++) {
+                        if (activeJobs.getJsonObject(i).getJsonObject("data")
+                                .getString("github_repository") == githubRepository) {
+                            log.debug "Found active job for project: $githubRepository"
+                            def triggerInformation = new JsonObject()
                             triggerInformation.put("can_queue", false)
                             triggerInformation.put("can_build", false)
-                            //todo: remove when things that receive this interpret correctly
-                        }
-                        if (lastQueued.get().plus(calcConfig.getInteger("project_recalculate_wait_time"),
-                                ChronoUnit.HOURS).isAfter(Instant.now())) {
                             triggerInformation.put("can_recalculate", false)
-                            //todo: remove when things that receive this interpret correctly
+                            request.reply(triggerInformation)
+                            context.stop()
+                            return
                         }
-                    } else {
-                        //no queue = no re-calc
-                        triggerInformation.put("can_recalculate", false)
                     }
-                    String lastBuilt = it.result().resultAt(1)
-                    if (lastBuilt != null) {
-                        def lastBuild = Instant.parse(lastBuilt)
-                        if (lastBuild.plus(24, ChronoUnit.HOURS).isAfter(Instant.now())) {
-                            triggerInformation.put("can_build", false)
-                        }
-                    } else {
-                        //no build = no re-calc
-                        triggerInformation.put("can_recalculate", false)
-                    }
-                    String lastCalculated = it.result().resultAt(2)
-                    if (lastCalculated != null) {
-                        def lastCalculation = Instant.parse(lastCalculated)
-                        if (lastCalculation.plus(calcConfig.getInteger("project_recalculate_wait_time"),
-                                ChronoUnit.HOURS).isAfter(Instant.now())) {
-                            triggerInformation.put("can_recalculate", false)
-                        }
-                    } else {
-                        //no initial calc = no re-calc
-                        triggerInformation.put("can_recalculate", false)
-                    }
-
-                    request.reply(triggerInformation)
                 }
-                context.stop()
+
+                //check last queue/build/calc
+                def futures = new ArrayList<Future>()
+                def canQueueFuture = Future.future()
+                futures.add(canQueueFuture)
+                jobs.getProjectLastQueued(githubRepository, canQueueFuture.completer())
+                def canBuildFuture = Future.future()
+                futures.add(canBuildFuture)
+                redis.getProjectLastBuilt(githubRepository, canBuildFuture.completer())
+                def canRecalculateFuture = Future.future()
+                futures.add(canRecalculateFuture)
+                redis.getProjectLastCalculated(githubRepository, canRecalculateFuture.completer())
+
+                CompositeFuture.all(futures).setHandler({
+                    if (it.failed()) {
+                        it.cause().printStackTrace()
+                    } else {
+                        def calcConfig = config().getJsonObject("calculator")
+                        def triggerInformation = new JsonObject()
+                        triggerInformation.put("can_queue", true)
+                        triggerInformation.put("can_build", true)
+                        triggerInformation.put("can_recalculate", true)
+
+                        Optional<Instant> lastQueued = it.result().resultAt(0) as Optional<Instant>
+                        if (lastQueued.isPresent()) {
+                            if (lastQueued.get().plus(24, ChronoUnit.HOURS).isAfter(Instant.now())) {
+                                triggerInformation.put("can_queue", false)
+                                triggerInformation.put("can_build", false)
+                                //todo: remove when things that receive this interpret correctly
+                            }
+                            if (lastQueued.get().plus(calcConfig.getInteger("project_recalculate_wait_time"),
+                                    ChronoUnit.HOURS).isAfter(Instant.now())) {
+                                triggerInformation.put("can_recalculate", false)
+                                //todo: remove when things that receive this interpret correctly
+                            }
+                        } else {
+                            //no queue = no re-calc
+                            triggerInformation.put("can_recalculate", false)
+                        }
+                        String lastBuilt = it.result().resultAt(1)
+                        if (lastBuilt != null) {
+                            def lastBuild = Instant.parse(lastBuilt)
+                            if (lastBuild.plus(24, ChronoUnit.HOURS).isAfter(Instant.now())) {
+                                triggerInformation.put("can_build", false)
+                            }
+                        } else {
+                            //no build = no re-calc
+                            triggerInformation.put("can_recalculate", false)
+                        }
+                        String lastCalculated = it.result().resultAt(2)
+                        if (lastCalculated != null) {
+                            def lastCalculation = Instant.parse(lastCalculated)
+                            if (lastCalculation.plus(calcConfig.getInteger("project_recalculate_wait_time"),
+                                    ChronoUnit.HOURS).isAfter(Instant.now())) {
+                                triggerInformation.put("can_recalculate", false)
+                            }
+                        } else {
+                            //no initial calc = no re-calc
+                            triggerInformation.put("can_recalculate", false)
+                        }
+
+                        request.reply(triggerInformation)
+                    }
+                    context.stop()
+                })
             })
         })
         log.info "GitDetectiveService started"
