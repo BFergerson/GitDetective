@@ -2,6 +2,7 @@ package io.gitdetective.web.dao
 
 import ai.grakn.GraknSession
 import ai.grakn.GraknTxType
+import ai.grakn.concept.ConceptId
 import ai.grakn.graql.QueryBuilder
 import ai.grakn.graql.internal.query.QueryAnswer
 import com.google.common.base.Charsets
@@ -18,6 +19,7 @@ import io.vertx.core.logging.LoggerFactory
 
 import java.util.concurrent.TimeUnit
 
+import static ai.grakn.graql.Graql.var
 import static io.gitdetective.web.WebServices.*
 
 /**
@@ -116,12 +118,16 @@ class GraknDAO {
                                 handler.handle(Future.failedFuture(it.cause()))
                             } else {
                                 def res = it.result().list() as List<Long>
-                                updateMethodDefinitionComputedInstanceOffsets(referencedMethods, res, {
+                                //update project leaderboard
+                                redis.updateProjectReferenceLeaderboard(githubRepository, totalRefCount, {
                                     if (it.failed()) {
                                         handler.handle(Future.failedFuture(it.cause()))
                                     } else {
-                                        //update project leaderboard
-                                        redis.updateProjectReferenceLeaderboard(githubRepository, totalRefCount, {
+                                        def offsetsTimer = WebLauncher.metrics.timer("UpdateMethodComputedOffsets")
+                                        def offsetsContext = offsetsTimer.time()
+                                        updateMethodDefinitionComputedInstanceOffsets(referencedMethods, res, {
+                                            log.info "Updating method computed offsets took: " + asPrettyTime(offsetsContext.stop())
+
                                             if (it.failed()) {
                                                 handler.handle(Future.failedFuture(it.cause()))
                                             } else {
@@ -154,15 +160,16 @@ class GraknDAO {
                 def graql = tx.graql()
                 for (int i = 0; i < methods.size(); i++) {
                     def method = methods.getJsonObject(i)
-                    graql.parse(('match $x id "<id>"; ' +
-                            '$defRel (has_defines_function: $file, is_defines_function: $x) isa defines_function; ' +
+                    def functionDefinitionRel = method.getString("function_definition_rel_id")
+
+                    def query = ('match $defRel id "<id>"; ' +
                             '$defRel has computed_instance_offset $compOffset; $offsetRel ($defRel, $compOffset); ' +
                             'delete $offsetRel;')
-                            .replace("<id>", method.getString("id"))).execute() as List<QueryAnswer>
-                    graql.parse(('match $x id "<id>"; ' +
-                            '$defRel (has_defines_function: $file, is_defines_function: $x) isa defines_function; ' +
-                            'insert $defRel has computed_instance_offset ' + computedInstanceOffsets.get(i) + ';')
-                            .replace("<id>", method.getString("id"))).execute() as List<QueryAnswer>
+                            .replace("<id>", method.getString("id"))
+                    graql.parse(query).execute() as List<QueryAnswer>
+
+                    graql.match(var("x").id(ConceptId.of(functionDefinitionRel)))
+                            .insert(var("x").has("computed_instance_offset", computedInstanceOffsets.get(i))).execute()
                 }
                 tx.commit()
                 blocking.complete(Future.succeededFuture())
@@ -191,6 +198,7 @@ class GraknDAO {
                     def qualifiedName = answer.get("fu_name").asAttribute().getValue() as String
                     def osfId = answer.get("open_fu").asEntity().id.value
                     def functionId = answer.get("real_fu").asEntity().id.value
+                    def defRelId = answer.get("defRel").asRelationship().id.value
                     def function = new JsonObject()
                             .put("qualified_name", qualifiedName)
                             .put("file_location", fileLocation)
@@ -202,6 +210,7 @@ class GraknDAO {
                             .put("method_signature", getMethodSignature(qualifiedName))
                             .put("github_repository", githubRepository)
                             .put("osf_id", osfId)
+                            .put("function_definition_rel_id", defRelId)
                     rtnArray.add(function)
                 }
                 blocking.complete(rtnArray)
