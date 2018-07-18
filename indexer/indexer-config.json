@@ -12,5 +12,11 @@
   "builder_thread_count": 5,
   "project_data_flush_ms": 5000,
   "track_internal_references": false,
-  "create_forked_project_parent_jobs": false
+  "create_forked_project_parent_jobs": false,
+  "index_data_limits": {
+    "files": -1,
+    "functions": -1,
+    "function_definitions": -1,
+    "function_references": -1
+  }
 }

@@ -1,6 +1,7 @@
-package io.gitdetective.indexer.stage
+package io.gitdetective.indexer.stage.extract
 
 import com.google.common.collect.Sets
+import io.gitdetective.indexer.stage.GitDetectiveImportFilter
 import io.vertx.blueprint.kue.queue.Job
 import io.vertx.core.AbstractVerticle
 import io.vertx.core.logging.Logger
@@ -53,20 +54,22 @@ class KytheUsageExtractor extends AbstractVerticle {
                 .make()
 
         vertx.executeBlocking({ future ->
-            def buildDirectory = new File(job.data.getString("build_target")).parentFile.absolutePath
-            def aliasMap = db.hashMap("aliasMap", Serializer.STRING, Serializer.STRING).create()
-            def sourceLocationMap = db.hashMap("sourceLocationMap", Serializer.STRING, Serializer.INT_ARRAY).create()
-            def qualifiedNameMap = db.hashMap("qualifiedNameMap", Serializer.STRING, Serializer.STRING).create()
-            def functionNameSet = db.hashSet("functionNameSet", Serializer.STRING).create()
+            def sourceUsage = new ExtractedSourceCodeUsage()
+            sourceUsage.importFile = importFile
+            sourceUsage.buildDirectory = new File(job.data.getString("build_target")).parentFile.absolutePath
+            sourceUsage.aliasMap = db.hashMap("aliasMap", Serializer.STRING, Serializer.STRING).create()
+            sourceUsage.sourceLocationMap = db.hashMap("sourceLocationMap", Serializer.STRING, Serializer.INT_ARRAY).create()
+            sourceUsage.qualifiedNameMap = db.hashMap("qualifiedNameMap", Serializer.STRING, Serializer.STRING).create()
+            sourceUsage.classToSourceMap = db.hashMap("classToSourceMap", Serializer.STRING, Serializer.STRING).create()
+            sourceUsage.functionNameSet = db.hashSet("functionNameSet", Serializer.STRING).create()
+            sourceUsage.indexDataLimits = config().getJsonObject("index_data_limits")
 
             filesOutput.append("fileLocation|filename|qualifiedName\n")
             functionDefinitions.append("file|name|qualifiedName|startOffset|endOffset\n")
             functionReferences.append("xFunction|yFunction|qualifiedName|startOffset|endOffset|isExternal|isJdk\n")
-            preprocessEntities(job, importFile, buildDirectory, qualifiedNameMap)
-            processEntities(job, importFile, buildDirectory, aliasMap, sourceLocationMap, qualifiedNameMap,
-                    functionNameSet, filesOutput)
-            processRelationships(job, importFile, buildDirectory, aliasMap, sourceLocationMap, qualifiedNameMap,
-                    functionNameSet, functionDefinitions, functionReferences)
+            preprocessEntities(job, sourceUsage)
+            processEntities(job, sourceUsage, filesOutput)
+            processRelationships(job, sourceUsage, functionDefinitions, functionReferences)
             future.complete()
         }, false, { res ->
             db.close()
@@ -84,150 +87,160 @@ class KytheUsageExtractor extends AbstractVerticle {
         })
     }
 
-    private static void preprocessEntities(Job job, File importFile, String buildDirectory,
-                                           Map<String, String> qualifiedNameMap) {
+    private static void preprocessEntities(Job job, ExtractedSourceCodeUsage sourceUsage) {
         logPrintln(job, "Pre-processing entities")
-        importFile.eachLine {
+        sourceUsage.importFile.eachLine {
             String[] row = it.split(" ")
-            String subject = toKytheGithubPath(buildDirectory, row[0].substring(1, row[0].length() - 1))
+            String subject = toKytheGithubPath(sourceUsage.buildDirectory, row[0].substring(1, row[0].length() - 1))
+            if (!subject.contains(".class#") && subject.contains("#")) {
+                sourceUsage.classToSourceMap.put(subject.substring(subject.lastIndexOf("#")), subject)
+            }
 
             String predicate = row[1].substring(1, row[1].length() - 1)
             if (predicate == "/kythe/edge/named") {
-                String object = toKytheGithubPath(buildDirectory, it.substring(it.indexOf(
+                String object = toKytheGithubPath(sourceUsage.buildDirectory, it.substring(it.indexOf(
                         predicate) + predicate.length() + 3, it.length() - 3))
+                if (!object.contains(".class#") && object.contains("#")) {
+                    sourceUsage.classToSourceMap.put(object.substring(object.lastIndexOf("#")), object)
+                }
 
-                qualifiedNameMap.put(subject, URLDecoder.decode(object, "UTF-8"))
+                sourceUsage.qualifiedNameMap.put(subject, URLDecoder.decode(object, "UTF-8"))
             }
         }
     }
 
-    private static void processEntities(Job job, File importFile, String buildDirectory,
-                                        Map<String, String> aliasMap, Map<String, int[]> sourceLocationMap,
-                                        Map<String, String> qualifiedNameMap, Set<String> functionNameSet,
-                                        File filesOutput) {
+    private static void processEntities(Job job, ExtractedSourceCodeUsage sourceUsage, File filesOutput) {
         logPrintln(job, "Processing entities")
-        importFile.eachLine {
+        sourceUsage.importFile.eachLine {
             String[] row = it.split(" ")
             String fullSubjectPath = row[0].substring(1, row[0].length() - 1)
-            String subject = toKytheGithubPath(buildDirectory, fullSubjectPath)
+            String subject = toKytheGithubPath(sourceUsage.buildDirectory, fullSubjectPath)
+            if (subject.contains("#") && sourceUsage.classToSourceMap.containsKey(
+                    subject.substring(subject.lastIndexOf("#")))) {
+                subject = sourceUsage.classToSourceMap.get(subject.substring(subject.lastIndexOf("#")))
+            }
 
             String predicate = row[1].substring(1, row[1].length() - 1)
             if (KYTHE_PARSE_SET.contains(predicate)) {
-                String object = toKytheGithubPath(buildDirectory, it.substring(it.indexOf(
+                String object = toKytheGithubPath(sourceUsage.buildDirectory, it.substring(it.indexOf(
                         predicate) + predicate.length() + 3, it.length() - 3))
+                if (object.contains("#") && sourceUsage.classToSourceMap.containsKey(
+                        object.substring(object.lastIndexOf("#")))) {
+                    object = sourceUsage.classToSourceMap.get(object.substring(object.lastIndexOf("#")))
+                }
 
-                processRecordEntity(fullSubjectPath, subject, predicate, object, aliasMap, sourceLocationMap,
-                        qualifiedNameMap, functionNameSet, filesOutput)
+                processRecordEntity(fullSubjectPath, subject, predicate, object, sourceUsage, filesOutput)
             }
         }
     }
 
-    private static void processRelationships(Job job, File importFile, String buildDirectory,
-                                             Map<String, String> aliasMap, Map<String, int[]> sourceLocationMap,
-                                             Map<String, String> qualifiedNameMap, Set<String> functionNameSet,
+    private static void processRelationships(Job job, ExtractedSourceCodeUsage sourceUsage,
                                              File definesOutput, File refcallsOutput) {
         logPrintln(job, "Processing relationships")
-        importFile.eachLine {
+        sourceUsage.importFile.eachLine {
             String[] row = it.split(" ")
             String fullSubjectPath = row[0].substring(1, row[0].length() - 1)
-            String subject = toKytheGithubPath(buildDirectory, fullSubjectPath)
+            String subject = toKytheGithubPath(sourceUsage.buildDirectory, fullSubjectPath)
 
             String predicate = row[1].substring(1, row[1].length() - 1)
             if (KYTHE_PARSE_SET.contains(predicate)) {
-                String object = toKytheGithubPath(buildDirectory, it.substring(it.indexOf(
+                String object = toKytheGithubPath(sourceUsage.buildDirectory, it.substring(it.indexOf(
                         predicate) + predicate.length() + 3, it.length() - 3))
 
-                processRecordRelationship(subject, predicate, object, aliasMap, sourceLocationMap,
-                        qualifiedNameMap, functionNameSet, definesOutput, refcallsOutput)
+                processRecordRelationship(subject, predicate, object, sourceUsage, definesOutput, refcallsOutput)
             }
         }
     }
 
     private static void processRecordEntity(String fullSubjectPath, String subject, String predicate, String object,
-                                            Map<String, String> aliasMap, Map<String, int[]> sourceLocationMap,
-                                            Map<String, String> qualifiedNameMap, Set<String> functionNameSet,
-                                            File filesOutput) {
+                                            ExtractedSourceCodeUsage sourceUsage, File filesOutput) {
         if (predicate == "/kythe/node/kind") {
             if (object == "file" || object == "function") {
                 if (!isJDK(subject)) {
                     if (object == "file") {
-                        String fileLocation = fullSubjectPath.substring(fullSubjectPath.indexOf("path=") + 5)
-                        filesOutput.append("$fileLocation|$subject|" + qualifiedNameMap.get(subject) + "\n")
+                        def fileLimit = sourceUsage.indexDataLimits.getInteger("files")
+                        if (fileLimit == -1 || sourceUsage.fileCount++ < fileLimit) {
+                            String fileLocation = fullSubjectPath.substring(fullSubjectPath.indexOf("path=") + 5)
+                            filesOutput.append("$fileLocation|$subject|" + sourceUsage.qualifiedNameMap.get(subject) + "\n")
+                        }
                     }
                     if (object == "function") {
-                        functionNameSet.add(subject)
+                        sourceUsage.functionNameSet.add(subject)
                     }
-                    aliasMap.put(subject, subject)
+                    sourceUsage.aliasMap.put(subject, subject)
                 }
             }
         } else if (predicate == "/kythe/edge/childof") {
-            if (functionNameSet.contains(object)) {
-                aliasMap.put(subject, object)
+            if (sourceUsage.functionNameSet.contains(object)) {
+                sourceUsage.aliasMap.put(subject, object)
             } else {
-                aliasMap.putIfAbsent(subject, object)
+                sourceUsage.aliasMap.putIfAbsent(subject, object)
             }
         } else if (predicate == "/kythe/loc/start") {
-            if (sourceLocationMap.containsKey(subject)) {
-                sourceLocationMap.put(subject, [Integer.parseInt(object), sourceLocationMap.get(subject)[1]] as int[])
+            if (sourceUsage.sourceLocationMap.containsKey(subject)) {
+                sourceUsage.sourceLocationMap.put(subject,
+                        [Integer.parseInt(object), sourceUsage.sourceLocationMap.get(subject)[1]] as int[])
             } else {
-                sourceLocationMap.put(subject, [Integer.parseInt(object), -1] as int[])
+                sourceUsage.sourceLocationMap.put(subject, [Integer.parseInt(object), -1] as int[])
             }
         } else if (predicate == "/kythe/loc/end") {
-            if (sourceLocationMap.containsKey(subject)) {
-                sourceLocationMap.put(subject, [sourceLocationMap.get(subject)[0], Integer.parseInt(object)] as int[])
+            if (sourceUsage.sourceLocationMap.containsKey(subject)) {
+                sourceUsage.sourceLocationMap.put(subject,
+                        [sourceUsage.sourceLocationMap.get(subject)[0], Integer.parseInt(object)] as int[])
             } else {
-                sourceLocationMap.put(subject, [-1, Integer.parseInt(object)] as int[])
+                sourceUsage.sourceLocationMap.put(subject, [-1, Integer.parseInt(object)] as int[])
             }
         }
     }
 
     private static void processRecordRelationship(String subject, String predicate, String object,
-                                                  Map<String, String> aliasMap, Map<String, int[]> sourceLocationMap,
-                                                  Map<String, String> qualifiedNameMap, Set<String> functionNameSet,
+                                                  ExtractedSourceCodeUsage sourceUsage,
                                                   File functionDefinitions, File functionReferences) {
-        if (!sourceLocationMap.containsKey(subject)) {
+        if (!sourceUsage.sourceLocationMap.containsKey(subject)) {
             return
         }
-        def location = sourceLocationMap.get(subject)
+        def location = sourceUsage.sourceLocationMap.get(subject)
 
-        if (predicate == "/kythe/edge/ref/call") {
-            if (!functionNameSet.contains(subject)) {
-                subject = aliasMap.getOrDefault(subject, subject)
-                while (subject != aliasMap.getOrDefault(subject, subject) && !functionNameSet.contains(subject)) {
-                    subject = aliasMap.getOrDefault(subject, subject)
-                }
+        if (predicate == "/kythe/edge/defines") {
+            subject = sourceUsage.aliasMap.getOrDefault(subject, subject)
+            while (subject != sourceUsage.aliasMap.getOrDefault(subject, subject)) {
+                subject = sourceUsage.aliasMap.getOrDefault(subject, subject)
             }
-            if (!functionNameSet.contains(object)) {
-                object = aliasMap.getOrDefault(object, object)
-                while (object != aliasMap.getOrDefault(object, object) && !functionNameSet.contains(object)) {
-                    object = aliasMap.getOrDefault(object, object)
-                }
+            object = sourceUsage.aliasMap.getOrDefault(object, object)
+            while (object != sourceUsage.aliasMap.getOrDefault(object, object)) {
+                object = sourceUsage.aliasMap.getOrDefault(object, object)
             }
 
-            def qualifiedName = qualifiedNameMap.get(object)
-            if (qualifiedName == null || !qualifiedName.endsWith(")")) {
-                return //todo: understand why these exists and how to process
-            } else if (isJDK(subject) || isJDK(object)) {
-                return //no jdk
-            }
-            functionReferences.append("$subject|$object|$qualifiedName|" + location[0] + "|" + location[1] + "\n")
-        } else if (predicate == "/kythe/edge/defines") {
-            subject = aliasMap.getOrDefault(subject, subject)
-            while (subject != aliasMap.getOrDefault(subject, subject)) {
-                subject = aliasMap.getOrDefault(subject, subject)
-            }
-            object = aliasMap.getOrDefault(object, object)
-            while (object != aliasMap.getOrDefault(object, object)) {
-                object = aliasMap.getOrDefault(object, object)
-            }
-
-            def qualifiedName = qualifiedNameMap.get(object)
+            def qualifiedName = sourceUsage.qualifiedNameMap.get(object)
             if (qualifiedName == null || !qualifiedName.endsWith(")")) {
                 return //todo: understand why these exists and how to process
             } else if (isJDK(subject) || isJDK(object)) {
                 return //no jdk
             }
             functionDefinitions.append("$subject|$object|$qualifiedName|" + location[0] + "|" + location[1] + "\n")
+        } else if (predicate == "/kythe/edge/ref/call") {
+            if (!sourceUsage.functionNameSet.contains(subject)) {
+                subject = sourceUsage.aliasMap.getOrDefault(subject, subject)
+                while (subject != sourceUsage.aliasMap.getOrDefault(subject, subject)
+                        && !sourceUsage.functionNameSet.contains(subject)) {
+                    subject = sourceUsage.aliasMap.getOrDefault(subject, subject)
+                }
+            }
+            if (!sourceUsage.functionNameSet.contains(object)) {
+                object = sourceUsage.aliasMap.getOrDefault(object, object)
+                while (object != sourceUsage.aliasMap.getOrDefault(object, object)
+                        && !sourceUsage.functionNameSet.contains(object)) {
+                    object = sourceUsage.aliasMap.getOrDefault(object, object)
+                }
+            }
+
+            def qualifiedName = sourceUsage.qualifiedNameMap.get(object)
+            if (qualifiedName == null || !qualifiedName.endsWith(")")) {
+                return //todo: understand why these exists and how to process
+            } else if (isJDK(subject) || isJDK(object)) {
+                return //no jdk
+            }
+            functionReferences.append("$subject|$object|$qualifiedName|" + location[0] + "|" + location[1] + "\n")
         }
     }
 
@@ -248,7 +261,6 @@ class KytheUsageExtractor extends AbstractVerticle {
         fullPath = fullPath.replace("path=src/main/java/", "")
         fullPath = fullPath.replace("path=$buildDirectory/src/main/java/", "")
         fullPath = fullPath.replace("path=$buildDirectory/src/", "")
-        fullPath = fullPath.replace(".class#", ".java#")
         if (fullPath.contains("/src/")) {
             def lang = "java" //todo: other languages
             fullPath = "kythe://github?lang=$lang?" + fullPath.substring(fullPath.indexOf("/src/") + 5)

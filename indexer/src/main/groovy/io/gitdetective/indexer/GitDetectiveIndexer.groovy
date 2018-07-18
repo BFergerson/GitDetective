@@ -4,6 +4,7 @@ import com.codahale.metrics.MetricRegistry
 import io.gitdetective.GitDetectiveVersion
 import io.gitdetective.indexer.cache.ProjectDataCache
 import io.gitdetective.indexer.stage.*
+import io.gitdetective.indexer.stage.extract.KytheUsageExtractor
 import io.gitdetective.indexer.support.KytheMavenBuilder
 import io.gitdetective.web.dao.JobsDAO
 import io.gitdetective.web.dao.RedisDAO

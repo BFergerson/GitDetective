@@ -69,10 +69,16 @@ class KytheIndexAugment extends AbstractVerticle {
         def neededFunctions = new HashSet<String>()
         def futures = new ArrayList<Future>()
 
-        def functionDefinitions = new File(outputDirectory, "functions_definition.txt")
         int lineNumber = 0
+        def defLimit = config().getJsonObject("index_data_limits").getInteger("function_definitions")
+        def functionDefinitions = new File(outputDirectory, "functions_definition.txt")
         readyFunctionDefinitions.each {
-            functionDefinitions.append(it)
+            if (defLimit == -1 || (lineNumber - 1) < defLimit) {
+                functionDefinitions.append(it)
+            } else {
+                return //hit definition limit
+            }
+
             lineNumber++
             if (lineNumber > 1) {
                 def lineData = it.split("\\|")
@@ -93,11 +99,16 @@ class KytheIndexAugment extends AbstractVerticle {
             functionDefinitions.append("\n")
         }
 
-        def functionReferences = new File(outputDirectory, "functions_reference.txt")
         lineNumber = 0
+        def refCount = 0
+        def refLimit = config().getJsonObject("index_data_limits").getInteger("function_references")
+        def functionReferences = new File(outputDirectory, "functions_reference.txt")
         partialFunctionReferences.each {
             lineNumber++
             if (lineNumber > 1) {
+                if ((refLimit != -1 && refCount >= refLimit)) {
+                    return //hit reference limit
+                }
                 def lineData = it.split("\\|")
                 def xFunctionName = lineData[0]
                 def yFunctionName = lineData[1]
@@ -105,6 +116,7 @@ class KytheIndexAugment extends AbstractVerticle {
                 if (internalReference && !trackInternalReferences) {
                     return //skip internal reference
                 } else {
+                    refCount++
                     functionReferences.append(it)
                 }
 
@@ -148,8 +160,12 @@ class KytheIndexAugment extends AbstractVerticle {
                 job.done(it.cause())
             } else {
                 logPrintln(job, "Defining open source functions")
+                def osfLimit = config().getJsonObject("index_data_limits").getInteger("functions")
+                def osfCount = 0
                 neededFunctions.each {
-                    osFunctionsOutput.append("$it\n")
+                    if (osfCount++ < osfLimit) {
+                        osFunctionsOutput.append("$it\n")
+                    }
                 }
 
                 db.close()

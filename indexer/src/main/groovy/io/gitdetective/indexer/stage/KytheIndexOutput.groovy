@@ -1,5 +1,6 @@
 package io.gitdetective.indexer.stage
 
+import io.gitdetective.indexer.stage.extract.KytheUsageExtractor
 import io.vertx.blueprint.kue.queue.Job
 import io.vertx.core.AbstractVerticle
 import io.vertx.core.logging.Logger

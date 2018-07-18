@@ -1,7 +1,7 @@
 package io.gitdetective.indexer.stage
 
-import io.gitdetective.indexer.support.KytheMavenBuilder
 import io.gitdetective.web.dao.JobsDAO
+import io.gitdetective.indexer.support.KytheMavenBuilder
 import io.gitdetective.web.dao.RedisDAO
 import io.vertx.blueprint.kue.Kue
 import io.vertx.blueprint.kue.queue.Job
