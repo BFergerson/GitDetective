@@ -292,8 +292,8 @@ class RedisDAO {
     void setProjectLastIndexedCommitInformation(String githubRepository, String commitSha1, Instant commitDate,
                                                 Handler<AsyncResult> handler) {
         def ob = new JsonObject()
-                .put("commit", commitSha1)
-                .put("commit_date", commitDate)
+                .put("commit", Objects.requireNonNull(commitSha1))
+                .put("commit_date", Objects.requireNonNull(commitDate))
         redis.set("gitdetective:project:$githubRepository:project_last_indexed_commit_information", ob.encode(), handler)
     }
 
