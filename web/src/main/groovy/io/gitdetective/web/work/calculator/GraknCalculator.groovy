@@ -91,7 +91,7 @@ class GraknCalculator extends AbstractVerticle {
         def githubRepository = job.data.getString("github_repository").toLowerCase()
         def buildSkipped = job.data.getBoolean("build_skipped")
         if (buildSkipped == null) {
-            buildSkipped = false
+            buildSkipped = job.data.getBoolean("is_recalculation", false)
         }
         log.info "Calculating references for project: " + githubRepository + " - Build skipped: " + buildSkipped
 
