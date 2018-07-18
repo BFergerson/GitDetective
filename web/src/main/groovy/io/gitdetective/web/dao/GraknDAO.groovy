@@ -163,13 +163,11 @@ class GraknDAO {
                 for (int i = 0; i < methods.size(); i++) {
                     def method = methods.getJsonObject(i)
                     def functionDefinitionRel = method.getString("function_definition_rel_id")
-
                     def query = ('match $defRel id "<id>"; ' +
                             '$defRel has computed_instance_offset $compOffset; $offsetRel ($defRel, $compOffset); ' +
                             'delete $offsetRel;')
                             .replace("<id>", method.getString("id"))
                     graql.parse(query).execute() as List<QueryAnswer>
-
                     graql.match(var("x").id(ConceptId.of(functionDefinitionRel)))
                             .insert(var("x").has("computed_instance_offset", computedInstanceOffsets.get(i))).execute()
                 }
