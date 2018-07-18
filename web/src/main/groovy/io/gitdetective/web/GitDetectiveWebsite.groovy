@@ -86,11 +86,11 @@ class GitDetectiveWebsite extends AbstractVerticle {
             updateDatabaseStatistics(false)
             log.info "Updated database statistics"
         })
-        //update job processing stats every minute
-        vertx.setPeriodic(TimeUnit.MINUTES.toMillis(1), {
-            updateJobProcessingStatistics()
-            log.info "Updated job processing statistics"
-        })
+//        //update job processing stats every minute
+//        vertx.setPeriodic(TimeUnit.MINUTES.toMillis(1), {
+//            updateJobProcessingStatistics()
+//            log.info "Updated job processing statistics"
+//        })
         log.info "GitDetectiveWebsite started"
     }
 
@@ -186,7 +186,7 @@ class GitDetectiveWebsite extends AbstractVerticle {
         def handler = future.completer()
         vertx.eventBus().send(GET_ACTIVE_JOBS, new JsonObject(), {
             if (it.failed()) {
-                it.cause().printStackTrace()
+                ctx.fail(it.cause())
             } else {
                 def activeJobs = it.result().body() as JsonArray
                 //only most recent 10
@@ -217,7 +217,7 @@ class GitDetectiveWebsite extends AbstractVerticle {
         def handler = future.completer()
         vertx.eventBus().send(GET_PROJECT_REFERENCE_LEADERBOARD, new JsonObject(), {
             if (it.failed()) {
-                it.cause().printStackTrace()
+                ctx.fail(it.cause())
             } else {
                 def referenceLeaderboard = it.result().body() as JsonArray
 
@@ -292,7 +292,7 @@ class GitDetectiveWebsite extends AbstractVerticle {
         def handler = future.completer()
         vertx.eventBus().send(GET_LATEST_JOB_LOG, githubRepository, {
             if (it.failed()) {
-                it.cause().printStackTrace()
+                ctx.fail(it.cause())
             } else {
                 def jobLog = it.result().body() as JsonObject
                 ctx.put("latest_job_log", jobLog.getJsonArray("logs"))
@@ -309,7 +309,7 @@ class GitDetectiveWebsite extends AbstractVerticle {
         def handler = future.completer()
         vertx.eventBus().send(GET_PROJECT_FILE_COUNT, githubRepository, {
             if (it.failed()) {
-                it.cause().printStackTrace()
+                ctx.fail(it.cause())
             } else {
                 ctx.put("project_file_count", it.result().body())
             }
@@ -323,7 +323,7 @@ class GitDetectiveWebsite extends AbstractVerticle {
         def handler = future.completer()
         vertx.eventBus().send(GET_PROJECT_METHOD_INSTANCE_COUNT, githubRepository, {
             if (it.failed()) {
-                it.cause().printStackTrace()
+                ctx.fail(it.cause())
             } else {
                 ctx.put("project_method_version_count", it.result().body())
             }
@@ -337,7 +337,7 @@ class GitDetectiveWebsite extends AbstractVerticle {
         def handler = future.completer()
         vertx.eventBus().send(GET_PROJECT_MOST_REFERENCED_METHODS, githubRepository, {
             if (it.failed()) {
-                it.cause().printStackTrace()
+                ctx.fail(it.cause())
             } else {
                 ctx.put("project_most_referenced_methods", it.result().body())
             }
@@ -351,7 +351,7 @@ class GitDetectiveWebsite extends AbstractVerticle {
         def handler = future.completer()
         vertx.eventBus().send(GET_PROJECT_FIRST_INDEXED, githubRepository, {
             if (it.failed()) {
-                it.cause().printStackTrace()
+                ctx.fail(it.cause())
             } else {
                 ctx.put("project_first_indexed", it.result().body())
             }
@@ -365,7 +365,7 @@ class GitDetectiveWebsite extends AbstractVerticle {
         def handler = future.completer()
         vertx.eventBus().send(GET_PROJECT_LAST_INDEXED, githubRepository, {
             if (it.failed()) {
-                it.cause().printStackTrace()
+                ctx.fail(it.cause())
             } else {
                 ctx.put("project_last_indexed", it.result().body())
             }
@@ -379,7 +379,7 @@ class GitDetectiveWebsite extends AbstractVerticle {
         def handler = future.completer()
         vertx.eventBus().send(GET_PROJECT_LAST_INDEXED_COMMIT_INFORMATION, githubRepository, {
             if (it.failed()) {
-                it.cause().printStackTrace()
+                ctx.fail(it.cause())
             } else {
                 def commitInformation = it.result().body() as JsonObject
                 if (commitInformation != null) {
@@ -397,7 +397,7 @@ class GitDetectiveWebsite extends AbstractVerticle {
         def handler = future.completer()
         vertx.eventBus().send(GET_PROJECT_LAST_CALCULATED, githubRepository, {
             if (it.failed()) {
-                it.cause().printStackTrace()
+                ctx.fail(it.cause())
             } else {
                 ctx.put("project_last_calculated", it.result().body())
             }
