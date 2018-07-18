@@ -17,6 +17,7 @@ import io.vertx.core.json.JsonObject
 import io.vertx.core.logging.Logger
 import io.vertx.core.logging.LoggerFactory
 
+import java.time.Instant
 import java.util.concurrent.TimeUnit
 
 import static ai.grakn.graql.Graql.var
@@ -70,7 +71,8 @@ class GraknDAO {
         def match = query.execute() as List<QueryAnswer>
         if (match.isEmpty()) {
             match = graql.parse(CREATE_OPEN_SOURCE_FUNCTION
-                    .replace("<name>", functionName)).execute() as List<QueryAnswer>
+                    .replace("<name>", functionName)
+                    .replace("<createDate>", Instant.now().toString())).execute() as List<QueryAnswer>
             created = true
         }
         def functionId = match.get(0).get("func").asEntity().id.toString()

@@ -5,7 +5,6 @@ match
 insert
 $y isa function-instance
     has instance_offset <instanceOffset>
-    has create_date "<createDate>"
     has commit_date "<commitDate>"
     has qualified_name "<qualifiedName>"
     has commit_sha1 "<commitSha1>";

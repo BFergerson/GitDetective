@@ -1,4 +1,6 @@
-insert $func isa function has function_name "<name>";
+insert $func isa function
+    has create_date "<createDate>"
+    has function_name "<name>";
 $funcDefs isa function-definitions;
     (has_function_definitions: $func, is_function_definitions: $funcDefs) isa function_definitions;
 $funcRefs isa function-references;

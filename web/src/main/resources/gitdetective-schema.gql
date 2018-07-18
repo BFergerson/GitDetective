@@ -1,12 +1,12 @@
 define
 
 ##########---------- Entities ----------##########
-node is-abstract sub entity
-    has create_date;
-project sub node
+project sub entity
+    has create_date
     has project_name
     plays has_defines_file;
-file sub node
+file sub entity
+    has create_date
     has file_name
     has subkind
     has file_location
@@ -15,11 +15,12 @@ file sub node
     plays has_defines_function
     plays has_ref
     plays has_ref_call;
-function sub node
+function sub entity
+    has create_date
     has function_name
     plays has_function_references
     plays has_function_definitions;
-function-instance sub function
+function-instance sub entity
     has subkind
     has qualified_name
     has commit_sha1
@@ -32,10 +33,10 @@ function-instance sub function
     plays is_ref_call
     plays has_ref
     plays has_ref_call;
-function-definitions sub node
+function-definitions sub entity
     plays is_function_definitions
     plays has_function_definition;
-function-references sub node
+function-references sub entity
     plays is_function_references
     plays has_function_reference;
 
