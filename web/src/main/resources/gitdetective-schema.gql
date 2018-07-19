@@ -46,7 +46,7 @@ create_date sub attribute datatype string;
 commit_date sub attribute datatype string;
 subkind sub attribute datatype string;
 file_location sub attribute datatype string;
-qualified_name sub attribute datatype string;
+qualified_name sub name datatype string;
 commit_sha1 sub attribute datatype string;
 is_jdk sub attribute datatype boolean;
 project_name sub name datatype string;
