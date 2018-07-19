@@ -1,0 +1,515 @@
+/*
+ * Copyright 2014 Google Inc. All rights reserved.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *   http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+syntax = "proto3";
+
+package kythe.proto;
+
+option java_package = "com.google.devtools.kythe.proto";
+option java_multiple_files = true;
+
+import "kythe/proto/common.proto";
+
+// This file defines a cross-reference service interface, based on Kythe data.
+//
+// Tickets are Kythe URIs (http://www.kythe.io/docs/kythe-uri-spec.html).
+
+// XRefService provides fast read-only access to Kythe cross-reference
+// relationships.  "Cross-references" generally include non-transitive
+// (single-step) relations like usage of a declaration, instantiation of a
+// type, invocation of a function, direct inheritance or overrides, and so
+// forth.  Some transitive relations can be converted into cross-references by
+// precomputing a flattened representation of a transitive relation.
+//
+// Key design principles:
+//  - All requests must be satisfied "quickly", e.g., in time proportional to
+//    the size of the returned set.
+//
+//  - The client should be able to batch related requests.
+//
+//  - The client specifies exactly what facts should be returned.
+//
+service XRefService {
+  // Decorations returns an index of the nodes and edges associated with a
+  // particular file node.
+  rpc Decorations(DecorationsRequest) returns (DecorationsReply) {}
+
+  // CrossReferences returns the global references, definitions, declarations,
+  // callers, and related nodes of a set of requested nodes.
+  rpc CrossReferences(CrossReferencesRequest) returns (CrossReferencesReply) {}
+
+  // Documentation takes a set of tickets for semantic objects and returns
+  // documentation about them, including generated signatures and
+  // user-provided text. The documentation may refer to tickets for other
+  // nodes in the graph.
+  rpc Documentation(DocumentationRequest) returns (DocumentationReply) {}
+}
+
+// A Location represents a single span of zero or more contiguous bytes of a
+// file or buffer.  An empty LOCATION denotes the entirety of the referenced
+// file or buffer.
+//
+message Location {
+  // The ticket of the file this location belongs to.  If the location
+  // represents a memory buffer, the ticket should be omitted.
+  string ticket = 1;
+
+  enum Kind {
+    // The entire file; the start and end fields are ignored.
+    FILE = 0;
+
+    // The point or span of file subtended by start and end.
+    SPAN = 1;
+  }
+
+  // What kind of location this is.
+  Kind kind = 2;
+
+  // If kind == SPAN, this is the represented span within the file.
+  common.Span span = 5;
+
+  // A location is _valid_ if 0 ≤ span.start.byte_offset ≤ span.end.byte_offset.
+  // If a valid location has span.start.byte_offset = span.end.byte_offset, it
+  // denotes a single point; otherwise it denotes the half-closed interval
+  // [start.offset, end.offset).
+  //
+  // When kind = FILE, span should be unset or set to zero values.
+
+  reserved 3, 4;
+}
+
+// Which types of snippets to return from a given CrossReferences or Decorations
+// RPC.
+// TODO(schroederc): extend snippet kinds to be (none, indexer-default, or
+// always line-based) instead of (none, all).
+enum SnippetsKind {
+  // Return no snippets.
+  NONE = 0;
+  // Return the default snippet for each item that has one.
+  DEFAULT = 1;
+}
+
+message DecorationsRequest {
+  // The location of the file to fetch decorations for.  The ticket of location
+  // must be non-empty.  It is an error in any case if location is invalid.
+  Location location = 1;
+
+  enum SpanKind {
+    // If the location is a SPAN, only decorations contained within the
+    // specified window of the file are returned.  This is the default behavior.
+    WITHIN_SPAN = 0;
+
+    // If the location is a SPAN, any decorations that surround it are returned.
+    AROUND_SPAN = 1;
+  }
+
+  // How to treat SPAN locations.
+  SpanKind span_kind = 10;
+
+  // If dirty_buffer is non-empty, the results will be adjusted (patched) to
+  // account for the regions of the specified file differing from the contents
+  // of the dirty buffer.
+  bytes dirty_buffer = 2;
+
+  // If true, return the encoded source text for the selected window.  Source
+  // text is not affected by patching.
+  bool source_text = 3;
+
+  // If true, return reference edges whose source nodes are located in the
+  // selected window.  References are affected by patching.
+  bool references = 4;
+
+  // If true, return definition locations, if possible, for each returned
+  // reference target in the DecorationsReply.
+  bool target_definitions = 6;
+
+  // A collection of filter globs that specify which facts (by name) should be
+  // returned for each node.  If filter is empty or unset, no node facts are
+  // returned.  The filter applies to ALL referenced nodes.  See EdgesRequest
+  // (graph.proto) for the format of the filter globs.
+  repeated string filter = 5;
+
+  // If true, for every defines/binding Reference in the reply, a NodeInfo
+  // will be provided for each node that Reference extends or overrides.
+  // Furthermore, if definition_locations is true, the response's
+  // definition_locations field will include (where possible) the locations of
+  // the definitions of the nodes that are extended or overridden.
+  bool extends_overrides = 7;
+
+  // If true, return diagnostics for the given file.
+  bool diagnostics = 8;
+
+  // What kind of snippets to return (or none).
+  SnippetsKind snippets = 9;
+}
+
+message DecorationsReply {
+  // The normalized location for which decorations are returned.
+  Location location = 1;
+
+  // The encoded source text for the selected window.
+  bytes source_text = 2;
+  string encoding = 3;
+
+  // Represents a reference edge source ---KIND---> target.  Each source is an
+  // anchor within the requested source location.
+  message Reference {
+    string target_ticket = 2;
+    string kind = 3;
+
+    // Anchor ticket of the target's definition.  Populated only if
+    // target_definitions is true in the DecorationsRequest and the target has
+    // a single unambiguous definition.  For each ticket, an Anchor will be
+    // populated in the top-level definition_locations map.
+    string target_definition = 4;
+
+    // The reference's span within the source file.
+    common.Span span = 5;
+
+    reserved 1, 10, 11;
+  }
+
+  message Override {
+    // What kind of override this is.
+    enum Kind {
+      OVERRIDES  = 0;
+      EXTENDS    = 1;
+    }
+
+    // The target of the override.
+    string target = 1;
+    // Anchor ticket of the override target's definition.  Populated only if
+    // target_definitions is true in the DecorationsRequest and the target has
+    // a single unambiguous definition.  For each ticket, an Anchor will be
+    // populated in the top-level definition_locations map.
+    string target_definition = 5;
+
+    // The kind of override.
+    Kind kind = 2;
+
+    // A display name for the object at ticket.
+    kythe.proto.common.MarkedSource marked_source = 4;
+
+    reserved 3;
+  }
+
+  message Overrides {
+    repeated Override override = 1;
+  }
+
+  // The reference edges located in the specified window. Sorted in the order
+  // of their position in the file (first by start offset, then by end offset).
+  repeated Reference reference = 4;
+
+  // If requested, a list of diagnostics applying to the requested file location.
+  repeated common.Diagnostic diagnostic = 5;
+
+  // This field will contain one entry, keyed by ticket, for each distinct node
+  // referenced by a reference edge that has at least 1 non-filtered fact.
+  map<string, common.NodeInfo> nodes = 15;
+
+  // Each anchor cited as a target definition in the references/overrides.  The
+  // map is keyed by each anchor's ticket.
+  map<string, Anchor> definition_locations = 16;
+
+  // Maps from semantic nodes on the right-hand side of defines/binding
+  // references to the list of their overrides.
+  map<string, Overrides> extends_overrides = 17;
+}
+
+message CrossReferencesRequest {
+  // The tickets of nodes for which to return cross-references.
+  // The server must report an error if this field is empty.
+  // The server may limit the number of tickets per request to ensure an
+  // efficient implementation.
+  repeated string ticket = 1;
+
+  enum DefinitionKind {
+    // No definitions will be populated in the CrossReferencesReply.
+    NO_DEFINITIONS = 0;
+
+    // All known definition anchors reached by the "/kythe/edge/defines" edge
+    // kind (or its variants) will be populated in the CrossReferencesReply.
+    ALL_DEFINITIONS = 1;
+
+    // Only definition anchors reached by the "/kythe/edge/defines" edge kind
+    // will be populated in the CrossReferencesReply.
+    FULL_DEFINITIONS = 2;
+
+    // Only definition anchors reached by the "/kythe/edge/defines/binding" edge
+    // kind will be populated in the CrossReferencesReply.
+    BINDING_DEFINITIONS = 3;
+  }
+
+  // Determines what kind of definition anchors, if any, should be returned in
+  // the response.  See the documentation for each DefinitionKind for more
+  // information.
+  DefinitionKind definition_kind = 2;
+
+  enum DeclarationKind {
+    // No declarations will be populated in the CrossDeclarationsReply.
+    NO_DECLARATIONS = 0;
+    // When the source node is incomplete, all known declaration anchors reached
+    // by the "/kythe/edge/defines" edge kind (or its variants) will be
+    // populated in the CrossDeclarationsReply.
+    ALL_DECLARATIONS = 1;
+  }
+
+  // Determines what kind of declaration anchors, if any, should be returned in
+  // the response.  See the documentation for each DeclarationKind for more
+  // information.
+  DeclarationKind declaration_kind = 7;
+
+  enum ReferenceKind {
+    // No references will be populated in the CrossReferencesReply.
+    NO_REFERENCES = 0;
+    // Only callgraph-related references as described in
+    // http://www.kythe.io/docs/schema/callgraph.html
+    CALL_REFERENCES = 1;
+    // All references except those that are related to the callgraph.
+    NON_CALL_REFERENCES = 2;
+    // All known reference anchors reached by the "/kythe/edge/ref" edge kind
+    // (or its variants) will be populated in the CrossReferencesReply.
+    ALL_REFERENCES = 3;
+  }
+
+  // Determines what kind of reference anchors, if any, should be returned in
+  // the response.  See the documentation for each ReferenceKind for more
+  // information.
+  ReferenceKind reference_kind = 3;
+
+  enum CallerKind {
+    // No callgraph information will be populated in the CrossReferencesReply.
+    NO_CALLERS = 0;
+    // Callgraph information will be populated in the CrossReferencesReply.
+    DIRECT_CALLERS = 1;
+    // Callgraph information will be populated in the CrossReferencesReply.
+    // Calls to override-related functions will also be considered.
+    OVERRIDE_CALLERS = 2;
+  }
+
+  // Determines what kind of callgraph information, if any, should be returned
+  // in the response.  See the documentation for each CallerKind for more
+  // information.
+  CallerKind caller_kind = 12;
+
+  // Collection of filter globs that determines which facts will be returned for
+  // the related nodes of each requested node.  If filter is empty or unset, no
+  // node facts or related nodes are returned.  See EdgesRequest (graph.proto)
+  // for the format of the filter globs.
+  repeated string filter = 5;
+
+  // Determines which relation kinds for RelatedNodes should be returned in the
+  // response.  If empty, all known RelatedNodes will be returned that match the
+  // above filter.  Otherwise, only RelatedNodes with one of these requested
+  // relation kinds, and matching the above filter, will be returned in the
+  // response.
+  //
+  // Importantly, this is not a list of node kinds; this is a list of edge kinds
+  // (i.e. values for RelatedNode.relation_kind field).
+  //
+  // N.B.: When requesting related nodes, you must also set the filter,
+  // otherwise no data will be returned for the relationships requested.
+  repeated string related_node_kind = 14;
+
+  // Determines whether each Anchor in the response should have its text field
+  // populated.
+  bool anchor_text = 6;
+
+  // Determines whether each NodeInfo matching the above filters will have its
+  // definition location populated (assuming it has one).
+  bool node_definitions = 8;
+
+  // The cross-references matching a request are organized into logical pages.
+  // The size of each page is a number of distinct cross-references
+  // (definitions, references, documentation, and related nodes).
+  //
+  // If page_token is empty, cross-references will be returned starting at the
+  // beginning of the sequence; otherwise the starting point named by the
+  // page_token will be used.  Legal values of page_token are returned by the
+  // server in the next_page_token field of the CrossReferencesReply.  A page
+  // token should be treated as an opaque value by the client, and is valid only
+  // relative to a particular CrossReferencesRequest.  If an invalid page token
+  // is requested, the server will return an error.
+  //
+  // If page_size > 0, at most that number of cross-references will be returned
+  // by the service for this request (see ReferenceSet and CrossReferencesReply
+  // below).  If page_size = 0, the default, the server will assume a reasonable
+  // default page size.  The server will return an error if page_size < 0.
+  //
+  // The server is allowed to return fewer cross-references than the requested
+  // page_size, even if more are available, save that it must return at least 1
+  // edge if any are available at all.
+  int32 page_size = 10;
+  string page_token = 11;
+
+  // What kind of snippets to return (or none).
+  SnippetsKind snippets = 13;
+
+  reserved 4;
+  reserved 100;
+}
+
+// TODO(schroederc): eliminate duplicate serving.ExpandedAnchor message defintion
+
+message Anchor {
+  // Ticket of the anchor node
+  string ticket = 1;
+  // Edge kind describing the anchor's relationship with its referenced node
+  string kind = 2;
+
+  // Parent ticket of the anchor; this is the file containing the anchor
+  string parent = 3;
+
+  // Span of the anchor within its parent's text
+  common.Span span = 10;
+  // The anchor's spanning text within the anchor parent's text
+  string text = 6;
+
+  // User-readable snippet of the anchor parent's text at the location of this
+  // anchor
+  string snippet = 7;
+  // Span of the anchor's snippet within its parent's text
+  common.Span snippet_span = 11;
+
+  reserved 4, 5, 8, 9;
+}
+
+message Printable {
+  // Raw text that can be displayed to the user (but may also contain
+  // markup that can be interpreted, like Doxygen comments). Links are
+  // marked using []. \ is an escape character (where possible escape
+  // sequences are \[, \], and \\).
+  string raw_text = 1;
+  // Annotations for spans in raw_text. The ith Link corresponds to the span
+  // starting at the ith [.
+  repeated kythe.proto.common.Link link = 2;
+}
+
+message CrossReferencesReply {
+  message RelatedNode {
+    // Ticket of the node
+    string ticket = 1;
+    // Edge kind describing the node's relation
+    string relation_kind = 2;
+    // Optional ordinal for edges of the same relation_kind.
+    int32 ordinal = 3;
+  }
+
+  message RelatedAnchor {
+    // The anchor covering the related object.
+    Anchor anchor = 1;
+    // A name for the related object.
+    kythe.proto.common.MarkedSource marked_source = 5;
+    // Specific locations, usually within the related object, that caused
+    // the relationship to exist. This field is relevant to caller sets.
+    repeated Anchor site = 3;
+    // The relevant semantic object. Populated for callers.
+    string ticket = 4;
+
+    reserved 2;
+  }
+
+  message CrossReferenceSet {
+    string ticket = 1;
+
+    // A name for the given node.
+    kythe.proto.common.MarkedSource marked_source = 8;
+
+    // The set of definitions for the given node.
+    repeated RelatedAnchor definition = 2;
+    // The set of declarations for the given node.
+    repeated RelatedAnchor declaration = 5;
+    // The set of simple references for the given node.
+    repeated RelatedAnchor reference = 3;
+    // The set of callers for the given node.
+    repeated RelatedAnchor caller = 6;
+
+    // The set of related nodes to the given node.
+    repeated RelatedNode related_node = 10;
+
+    reserved 4, 7;
+  }
+
+  message Total {
+    int64 definitions = 1;
+    int64 declarations = 2;
+    int64 references = 3;
+    int64 documentation = 4;
+    int64 callers = 5;
+
+    map<string, int64> related_nodes_by_relation = 6;
+  }
+  // Total number of cross-references on all pages matching requested filters.
+  Total total = 5;
+
+  // A map from ticket to cross-references for each ticket specified in the
+  // request message.
+  map<string, CrossReferenceSet> cross_references = 1;
+
+  // A map from ticket to the facts provided based on the requested filters,
+  // for each of the tickets provided in the request and their related nodes.
+  map<string, common.NodeInfo> nodes = 2;
+
+  // A map from the ticket of each definition mentioned in the nodes map, to
+  // its corresponding anchor. This map is only populated if the request set
+  // the node_definitions field true.
+  map<string, Anchor> definition_locations = 3;
+
+  // If there are additional pages of cross-references after the ones returned
+  // in this reply, next_page_token is the page token that may be passed to
+  // fetch the next page in sequence after this one.  If there are no further
+  // cross-references, this field will be empty.
+  string next_page_token = 10;
+}
+
+message DocumentationRequest {
+  // Semantic tickets about which documentation is sought.
+  repeated string ticket = 1;
+
+  // A collection of filter globs that specify which facts (by name) should be
+  // returned for each node.  If filter is empty or unset, no node facts are
+  // returned. The filter applies to ALL documented and linked nodes.
+  // See EdgesRequest (graph.proto) for the format of the filter globs.
+  repeated string filter = 2;
+
+  // If set, this DocumentationRequest will return documents for the requested
+  // tickets as well as their immediate semantic descendants.
+  bool include_children = 3;
+}
+
+message DocumentationReply {
+  message Document {
+    // The ticket to which this Document refers.
+    string ticket = 1;
+    // Documentation that can be displayed to the user.
+    Printable text = 2;
+    // A structured summary of the (qualified) identity of the documented node.
+    kythe.proto.common.MarkedSource marked_source = 8;
+
+    // The children of this Document. This relationship may be distinct from
+    // the `childof` relationship.
+    repeated Document children = 9;
+
+    reserved 3, 4, 5, 6, 7;
+  }
+  repeated Document document = 1;
+  // The facts left from the requested filters of the documented node facts.
+  map<string, common.NodeInfo> nodes = 2;
+  // Map from the definition anchor tickets referred to in each NodeInfo to
+  // their corresponding Anchor data.
+  map<string, Anchor> definition_locations = 3;
+}

@@ -3,8 +3,12 @@ package io.gitdetective.indexer
 import com.codahale.metrics.MetricRegistry
 import io.gitdetective.GitDetectiveVersion
 import io.gitdetective.indexer.cache.ProjectDataCache
-import io.gitdetective.indexer.stage.*
+import io.gitdetective.indexer.stage.GitDetectiveImportFilter
+import io.gitdetective.indexer.stage.GithubRepositoryCloner
+import io.gitdetective.indexer.stage.KytheIndexAugment
+import io.gitdetective.indexer.stage.KytheIndexOutput
 import io.gitdetective.indexer.stage.extract.KytheUsageExtractor
+import io.gitdetective.indexer.support.KytheGradleBuilder
 import io.gitdetective.indexer.support.KytheMavenBuilder
 import io.gitdetective.web.dao.JobsDAO
 import io.gitdetective.web.dao.RedisDAO
@@ -95,6 +99,7 @@ class GitDetectiveIndexer extends AbstractVerticle {
 
             //project builders
             vertx.deployVerticle(new KytheMavenBuilder(), deployOptions)
+            vertx.deployVerticle(new KytheGradleBuilder(), deployOptions)
         })
     }
 

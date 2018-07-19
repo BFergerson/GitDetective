@@ -45,7 +45,6 @@ class GitDetectiveImportFilter extends AbstractVerticle {
 
     private void doFilter(Job job) {
         logPrintln(job, "Filtering already imported data")
-
         def githubRepository = job.data.getString("github_repository")
         def outputDirectory = job.data.getString("output_directory")
         def readyFunctionDefinitions = new File(outputDirectory, "functions_definition_raw.txt")

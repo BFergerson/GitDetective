@@ -17,9 +17,9 @@ class KytheIndexOutput extends AbstractVerticle {
 
     public static final String KYTHE_INDEX_OUTPUT = "KytheIndexOutput"
     private final static Logger log = LoggerFactory.getLogger(KytheIndexOutput.class)
-    private static final File javaIndexer = new File("opt/kythe-v0.0.26/indexers/java_indexer.jar")
-    private static final File dedupStreamTool = new File("opt/kythe-v0.0.26/tools/dedup_stream")
-    private static final File triplesTool = new File("opt/kythe-v0.0.26/tools/triples")
+    private static final File javaIndexer = new File("opt/kythe-v0.0.28/indexers/java_indexer.jar")
+    private static final File dedupStreamTool = new File("opt/kythe-v0.0.28/tools/dedup_stream")
+    private static final File triplesTool = new File("opt/kythe-v0.0.28/tools/triples")
 
     @Override
     void start() throws Exception {
@@ -57,7 +57,7 @@ class KytheIndexOutput extends AbstractVerticle {
 
     private static void processKytheIndexFile(File importFile, File outputFile) {
         ProcessBuilder pb = new ProcessBuilder("/bin/sh", "-c",
-                "java -jar " + javaIndexer.absolutePath + " " + importFile.absolutePath + " | "
+                "java -Xbootclasspath/p:" + javaIndexer.absolutePath + " com.google.devtools.kythe.analyzers.java.JavaIndexer " + importFile.absolutePath + " | "
                         + dedupStreamTool.absolutePath + " | " + triplesTool.absolutePath +
                         " >> " + outputFile.absolutePath)
         pb.inheritIO()

@@ -26,8 +26,8 @@ class KytheMavenBuilder extends AbstractVerticle {
     public static final String BUILDER_ADDRESS = "KytheMavenBuilder"
     private final static Logger log = LoggerFactory.getLogger(KytheMavenBuilder.class)
     private static final File repoDir = new File("/tmp/.m2")
-    private static final File javacWrapper = new File("opt/kythe-v0.0.26/extractors/javac-wrapper.sh")
-    private static final File javacExtractor = new File("opt/kythe-v0.0.26/extractors/javac_extractor.jar")
+    private static final File javacWrapper = new File("opt/kythe-v0.0.28/extractors/javac-wrapper.sh")
+    private static final File javacExtractor = new File("opt/kythe-v0.0.28/extractors/javac_extractor.jar")
     private static final File mavenHome = new File("opt/builders/apache-maven-3.5.3")
 
     @Override

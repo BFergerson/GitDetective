@@ -1,6 +1,9 @@
 package io.gitdetective.indexer.stage.extract
 
 import com.google.common.collect.Sets
+import com.google.devtools.kythe.proto.MarkedSource
+import com.google.protobuf.ByteString
+import groovy.json.StringEscapeUtils
 import io.gitdetective.indexer.stage.GitDetectiveImportFilter
 import io.vertx.blueprint.kue.queue.Job
 import io.vertx.core.AbstractVerticle
@@ -90,21 +93,85 @@ class KytheUsageExtractor extends AbstractVerticle {
     private static void preprocessEntities(Job job, ExtractedSourceCodeUsage sourceUsage) {
         logPrintln(job, "Pre-processing entities")
         sourceUsage.importFile.eachLine {
-            String[] row = it.split(" ")
-            String subject = toKytheGithubPath(sourceUsage.buildDirectory, row[0].substring(1, row[0].length() - 1))
+            String[] row = ((it =~ '\"(.+)\" \"(.+)\" \"(.+)\"')[0] as String[]).drop(1)
+            String subject = toKytheGithubPath(sourceUsage.buildDirectory, row[0])
             if (!subject.contains(".class#") && subject.contains("#")) {
                 sourceUsage.classToSourceMap.put(subject.substring(subject.lastIndexOf("#")), subject)
             }
 
-            String predicate = row[1].substring(1, row[1].length() - 1)
+            String predicate = row[1]
             if (predicate == "/kythe/edge/named") {
-                String object = toKytheGithubPath(sourceUsage.buildDirectory, it.substring(it.indexOf(
-                        predicate) + predicate.length() + 3, it.length() - 3))
+                String object = toKytheGithubPath(sourceUsage.buildDirectory, row[2])
                 if (!object.contains(".class#") && object.contains("#")) {
                     sourceUsage.classToSourceMap.put(object.substring(object.lastIndexOf("#")), object)
                 }
 
                 sourceUsage.qualifiedNameMap.put(subject, URLDecoder.decode(object, "UTF-8"))
+            } else if (predicate == "/kythe/code") {
+                try {
+                    MarkedSource.parseFrom(ByteString.copyFromUtf8(StringEscapeUtils.unescapeJava(row[2])).toByteArray())
+                } catch (all) {
+                    log.error "Couldn't parse: " + row[2]
+                    return
+                    /*
+MarkedSource.parseFrom(ByteString.copyFromUtf8(
+row[2].replaceAll(/\\u(....)/) {
+    return Integer.parseInt(it[1], 16) as char
+}
+)).toByteArray()
+                     */
+                }
+                def markedSource = MarkedSource.parseFrom(ByteString.copyFromUtf8(
+                        StringEscapeUtils.unescapeJava(row[2])).toByteArray())
+                if (markedSource.childCount == 0) {
+                    return //nothing to do
+                }
+
+                def hasInitializer = false
+                def context = ""
+                def identifier = ""
+                def functionArgs = ""
+                for (int i = 0; i < markedSource.childCount; i++) {
+                    def child = markedSource.getChild(i)
+                    if (child.kind == MarkedSource.Kind.CONTEXT) {
+                        for (int z = 0; z < child.childCount; z++) {
+                            def grandChild = child.getChild(z)
+                            context += grandChild.preText
+
+                            if ((z + 1) < child.childCount || child.addFinalListToken) {
+                                context += child.postChildText
+                            }
+                        }
+                    } else if (child.kind == MarkedSource.Kind.IDENTIFIER) {
+                        identifier = child.preText
+                    } else if (child.kind == MarkedSource.Kind.PARAMETER_LOOKUP_BY_PARAM) {
+                        functionArgs += child.preText
+                        for (int z = 0; z < child.childCount; z++) {
+                            def grandChild = child.getChild(z)
+                            functionArgs += grandChild.preText
+
+                            if ((z + 1) < child.childCount || child.addFinalListToken) {
+                                functionArgs += child.postChildText
+                            }
+                        }
+                        functionArgs += child.postText
+                    } else if (child.kind == MarkedSource.Kind.INITIALIZER) {
+                        hasInitializer = true
+                    }
+                }
+                if (hasInitializer) {
+                    return //need function definitions not function calls
+                }
+
+                if (functionArgs.isEmpty()) {
+                    //class
+                    def qualifiedName = context + identifier
+                    sourceUsage.qualifiedNameMap.put(subject, URLDecoder.decode(qualifiedName, "UTF-8"))
+                } else {
+                    //function
+                    def qualifiedName = context + identifier + functionArgs
+                    sourceUsage.qualifiedNameMap.put(subject, URLDecoder.decode(qualifiedName, "UTF-8"))
+                }
             }
         }
     }
@@ -112,23 +179,21 @@ class KytheUsageExtractor extends AbstractVerticle {
     private static void processEntities(Job job, ExtractedSourceCodeUsage sourceUsage, File filesOutput) {
         logPrintln(job, "Processing entities")
         sourceUsage.importFile.eachLine {
-            String[] row = it.split(" ")
-            String fullSubjectPath = row[0].substring(1, row[0].length() - 1)
+            String[] row = ((it =~ '\"(.+)\" \"(.+)\" \"(.+)\"')[0] as String[]).drop(1)
+            String fullSubjectPath = row[0]
             String subject = toKytheGithubPath(sourceUsage.buildDirectory, fullSubjectPath)
             if (subject.contains("#") && sourceUsage.classToSourceMap.containsKey(
                     subject.substring(subject.lastIndexOf("#")))) {
                 subject = sourceUsage.classToSourceMap.get(subject.substring(subject.lastIndexOf("#")))
             }
 
-            String predicate = row[1].substring(1, row[1].length() - 1)
+            String predicate = row[1]
             if (KYTHE_PARSE_SET.contains(predicate)) {
-                String object = toKytheGithubPath(sourceUsage.buildDirectory, it.substring(it.indexOf(
-                        predicate) + predicate.length() + 3, it.length() - 3))
+                String object = toKytheGithubPath(sourceUsage.buildDirectory, row[2])
                 if (object.contains("#") && sourceUsage.classToSourceMap.containsKey(
                         object.substring(object.lastIndexOf("#")))) {
                     object = sourceUsage.classToSourceMap.get(object.substring(object.lastIndexOf("#")))
                 }
-
                 processRecordEntity(fullSubjectPath, subject, predicate, object, sourceUsage, filesOutput)
             }
         }
@@ -138,15 +203,21 @@ class KytheUsageExtractor extends AbstractVerticle {
                                              File definesOutput, File refcallsOutput) {
         logPrintln(job, "Processing relationships")
         sourceUsage.importFile.eachLine {
-            String[] row = it.split(" ")
-            String fullSubjectPath = row[0].substring(1, row[0].length() - 1)
+            String[] row = ((it =~ '\"(.+)\" \"(.+)\" \"(.+)\"')[0] as String[]).drop(1)
+            String fullSubjectPath = row[0]
             String subject = toKytheGithubPath(sourceUsage.buildDirectory, fullSubjectPath)
+            if (subject.contains("#") && sourceUsage.classToSourceMap.containsKey(
+                    subject.substring(subject.lastIndexOf("#")))) {
+                subject = sourceUsage.classToSourceMap.get(subject.substring(subject.lastIndexOf("#")))
+            }
 
-            String predicate = row[1].substring(1, row[1].length() - 1)
+            String predicate = row[1]
             if (KYTHE_PARSE_SET.contains(predicate)) {
-                String object = toKytheGithubPath(sourceUsage.buildDirectory, it.substring(it.indexOf(
-                        predicate) + predicate.length() + 3, it.length() - 3))
-
+                String object = toKytheGithubPath(sourceUsage.buildDirectory, row[2])
+                if (object.contains("#") && sourceUsage.classToSourceMap.containsKey(
+                        object.substring(object.lastIndexOf("#")))) {
+                    object = sourceUsage.classToSourceMap.get(object.substring(object.lastIndexOf("#")))
+                }
                 processRecordRelationship(subject, predicate, object, sourceUsage, definesOutput, refcallsOutput)
             }
         }
@@ -212,10 +283,10 @@ class KytheUsageExtractor extends AbstractVerticle {
             }
 
             def qualifiedName = sourceUsage.qualifiedNameMap.get(object)
-            if (qualifiedName == null || !qualifiedName.endsWith(")")) {
-                return //todo: understand why these exists and how to process
-            } else if (isJDK(subject) || isJDK(object)) {
+            if (isJDK(subject) || isJDK(object)) {
                 return //no jdk
+            } else if (qualifiedName == null || !qualifiedName.endsWith(")")) {
+                return //todo: understand why these exists and how to process
             }
             functionDefinitions.append("$subject|$object|$qualifiedName|" + location[0] + "|" + location[1] + "\n")
         } else if (predicate == "/kythe/edge/ref/call") {
@@ -235,10 +306,10 @@ class KytheUsageExtractor extends AbstractVerticle {
             }
 
             def qualifiedName = sourceUsage.qualifiedNameMap.get(object)
-            if (qualifiedName == null || !qualifiedName.endsWith(")")) {
-                return //todo: understand why these exists and how to process
-            } else if (isJDK(subject) || isJDK(object)) {
+            if (isJDK(subject) || isJDK(object)) {
                 return //no jdk
+            } else if (qualifiedName == null || !qualifiedName.endsWith(")")) {
+                return //todo: understand why these exists and how to process
             }
             functionReferences.append("$subject|$object|$qualifiedName|" + location[0] + "|" + location[1] + "\n")
         }
@@ -276,7 +347,8 @@ class KytheUsageExtractor extends AbstractVerticle {
         return kythePath.startsWith("kythe://jdk") ||
                 kythePath.startsWith("kythe://github?lang=java?java/") ||
                 kythePath.startsWith("kythe://github?lang=java?javax/") ||
-                kythePath.startsWith("kythe://github?lang=java?sun/")
+                kythePath.startsWith("kythe://github?lang=java?sun/") ||
+                kythePath.startsWith("kythe://github?lang=java?com/sun/")
     }
 
 }
