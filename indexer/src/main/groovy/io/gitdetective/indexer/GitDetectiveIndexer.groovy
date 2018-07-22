@@ -60,8 +60,7 @@ class GitDetectiveIndexer extends AbstractVerticle {
                 System.exit(-1)
             }
 
-            def kueRedis = new RedisDAO(RedisHelper.client(vertx, kueOptions.config))
-            vertx.deployVerticle(new GitDetectiveIndexer(kue, kueRedis), deployOptions, {
+            vertx.deployVerticle(new GitDetectiveIndexer(kue), deployOptions, {
                 if (it.failed()) {
                     it.cause().printStackTrace()
                     System.exit(-1)
@@ -71,22 +70,25 @@ class GitDetectiveIndexer extends AbstractVerticle {
     }
 
     private final Kue kue
-    private final RedisDAO kueRedis
 
-    GitDetectiveIndexer(Kue kue, RedisDAO kueRedis) {
+    GitDetectiveIndexer(Kue kue) {
         this.kue = kue
-        this.kueRedis = kueRedis
     }
 
     @Override
     void start() throws Exception {
         vertx.eventBus().registerDefaultCodec(Job.class, messageCodec(Job.class))
-        def redis = new RedisDAO(RedisHelper.client(vertx, config()))
-        def jobs = new JobsDAO(kue, kueRedis)
+        def writableRedisConfig = config().copy()
+        if (config().getJsonObject("writable_redis") != null) {
+            writableRedisConfig = config().getJsonObject("writable_redis")
+        }
+        def writableRedis = new RedisDAO(RedisHelper.client(vertx, writableRedisConfig))
+        def readableRedis = new RedisDAO(RedisHelper.client(vertx, config()))
+        def jobs = new JobsDAO(kue, writableRedis)
         def deployOptions = new DeploymentOptions()
         deployOptions.config = config()
 
-        def projectCache = new ProjectDataCache(redis)
+        def projectCache = new ProjectDataCache(readableRedis)
         vertx.deployVerticle(projectCache, deployOptions, {
             if (it.failed()) {
                 it.cause().printStackTrace()
@@ -94,11 +96,11 @@ class GitDetectiveIndexer extends AbstractVerticle {
             }
 
             //core
-            vertx.deployVerticle(new GithubRepositoryCloner(kue, jobs, kueRedis), deployOptions)
+            vertx.deployVerticle(new GithubRepositoryCloner(kue, jobs, writableRedis), deployOptions)
             vertx.deployVerticle(new KytheIndexOutput(), deployOptions)
             vertx.deployVerticle(new KytheUsageExtractor(), deployOptions)
             vertx.deployVerticle(new GitDetectiveImportFilter(projectCache), deployOptions)
-            vertx.deployVerticle(new KytheIndexAugment(redis), deployOptions)
+            vertx.deployVerticle(new KytheIndexAugment(readableRedis), deployOptions)
 
             //project builders
             vertx.deployVerticle(new KytheMavenBuilder(), deployOptions)
