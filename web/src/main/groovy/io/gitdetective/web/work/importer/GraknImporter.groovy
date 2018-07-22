@@ -790,6 +790,7 @@ class GraknImporter extends AbstractVerticle {
             log.debug "Downloading index results from SFTP"
 
             //try to connect 3 times (todo: use retryer?)
+            def exception = null
             boolean connected = false
             def sftpChannel = null
             for (int i = 0; i < 3; i++) {
@@ -800,6 +801,7 @@ class GraknImporter extends AbstractVerticle {
                     connected = true
                 } catch (JSchException ex) {
                     Thread.sleep(1000)
+                    exception = ex
                 }
                 if (connected) break
             }
@@ -807,8 +809,8 @@ class GraknImporter extends AbstractVerticle {
                 sftpChannel.get(remoteIndexResultsZip.absolutePath, indexResultsZip.absolutePath)
                 //todo: delete remote zip
                 sftpChannel.exit()
-            } else {
-                throw new IOException("Unable to download index result from remote SFTP server")
+            } else if (exception != null) {
+                throw exception
             }
         }
 
