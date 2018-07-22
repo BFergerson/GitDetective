@@ -133,7 +133,7 @@ class GraknDAO {
                             def query = ('match $fu id "<id>"; ' +
                                     '$fu has calculated_reference_rounds $calcRefRounds; $refRoundsRel ($fu, $calcRefRounds); ' +
                                     'delete $refRoundsRel;')
-                                    .replace("<id>", method.getString("id"))
+                                    .replace("<id>", functionId)
                             graql.parse(query).execute() as List<QueryAnswer>
                             graql.match(var("x").id(ConceptId.of(functionId)))
                                     .insert(var("x")

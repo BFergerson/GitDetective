@@ -115,6 +115,7 @@ class RedisDAO {
                                             Handler<AsyncResult> handler) {
         def methodDupe = method.copy()
         methodDupe.remove("commit_sha1") //don't care about which commit method came from
+        methodDupe.remove("calculated_reference_rounds") //or which round it came from
         redis.zadd("gitdetective:project:$githubRepository:method_reference_leaderboard", referenceCount,
                 methodDupe.encode(), {
             if (it.failed()) {
