@@ -503,8 +503,32 @@ class RedisDAO {
         redis.publish(NEW_REFERENCE, "$fileOrFunctionId-$functionId", handler)
     }
 
-    void incrementOpenSourceFunctionReferenceCount(String functionId, Handler<AsyncResult<Long>> handler) {
-        redis.incr("gitdetective:counts:osf:reference:function:$functionId", handler)
+    void incrementFunctionReferenceImportRound(String functionId, Handler<AsyncResult<Long>> handler) {
+        redis.incr("gitdetective:counts:osf:reference:function:$functionId", {
+            if (it.failed()) {
+                handler.handle(Future.failedFuture(it.cause()))
+            } else {
+                if (it.result() == null) {
+                    handler.handle(Future.succeededFuture(0))
+                } else {
+                    handler.handle(Future.succeededFuture(Long.valueOf(it.result())))
+                }
+            }
+        })
+    }
+
+    void getFunctionReferenceImportRound(String functionId, Handler<AsyncResult<Long>> handler) {
+        redis.get("gitdetective:counts:osf:reference:function:$functionId", {
+            if (it.failed()) {
+                handler.handle(Future.failedFuture(it.cause()))
+            } else {
+                if (it.result() == null) {
+                    handler.handle(Future.succeededFuture(0))
+                } else {
+                    handler.handle(Future.succeededFuture(Long.valueOf(it.result())))
+                }
+            }
+        })
     }
 
     RedisClient getClient() {

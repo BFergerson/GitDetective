@@ -121,59 +121,93 @@ class GraknCalculator extends AbstractVerticle {
     }
 
     private void performCalculations(Job job, String githubRepository, boolean indexed, Handler<AsyncResult> handler) {
-        def calcConfig = config().getJsonObject("calculator")
-        def futures = new ArrayList<Future>()
-
-        //method references
-        if (calcConfig.getBoolean("project_most_referenced_methods"))
-            futures.add(getProjectMostExternalReferencedMethods(job))
-
         def timer = new Timer()
         def context = timer.time()
-        CompositeFuture.all(futures).setHandler({
-            WebLauncher.metrics.counter("GraknComputeTime").inc(context.stop())
+
+        logPrintln(job, "Calculating project most referenced methods")
+        //get new externally references methods (save calc_import_round)
+        grakn.getProjectNewExternalReferences(githubRepository, {
             if (it.failed()) {
                 handler.handle(Future.failedFuture(it.cause()))
-                return
-            }
-
-            logPrintln(job, "Successfully calculated references")
-            if (indexed) {
-                redis.getProjectFirstIndexed(githubRepository, {
+            } else {
+                //iterate methods and update calculated_import_round
+                def myMethods = it.result()
+                grakn.incrementFunctionComputedReferenceRounds(myMethods, {
                     if (it.failed()) {
                         handler.handle(Future.failedFuture(it.cause()))
-                        return
+                    } else {
+                        //re-run each method with prev calc import round
+                        grakn.getMethodNewExternalReferences(myMethods, {
+                            if (it.failed()) {
+                                handler.handle(Future.failedFuture(it.cause()))
+                            } else {
+                                //update cache
+                                def cacheFutures = new ArrayList<Future>()
+                                def refMethods = it.result()
+                                def totalNewRefCount = 0
+                                for (int i = 0; i < refMethods.size(); i++) {
+                                    def method = myMethods.getJsonObject(i)
+                                    def methodRefs = refMethods.getJsonArray(i)
+                                    totalNewRefCount += methodRefs.size()
+
+                                    def fut = Future.future()
+                                    cacheFutures.add(fut)
+                                    redis.cacheMethodReferences(githubRepository, method, methodRefs, fut.completer())
+                                }
+
+                                CompositeFuture.all(cacheFutures).setHandler({
+                                    if (it.failed()) {
+                                        handler.handle(Future.failedFuture(it.cause()))
+                                    } else {
+                                        //update project leaderboard
+                                        redis.updateProjectReferenceLeaderboard(githubRepository, totalNewRefCount, {
+                                            if (it.failed()) {
+                                                handler.handle(Future.failedFuture(it.cause()))
+                                            } else {
+                                                long computeTime = context.stop()
+                                                logPrintln(job, "Most referenced methods took: " + asPrettyTime(computeTime))
+                                                WebLauncher.metrics.counter("GraknComputeTime").inc(computeTime)
+                                                finalizeCalculations(job, indexed, githubRepository, handler)
+                                            }
+                                        })
+                                    }
+                                })
+                            }
+                        })
                     }
-
-                    def moreFutures = new ArrayList<Future>()
-                    if (it.result() == null) {
-                        def fut = Future.future()
-                        moreFutures.add(fut)
-                        redis.setProjectFirstIndexed(githubRepository, Instant.now(), fut.completer())
-                    }
-
-                    def fut2 = Future.future()
-                    moreFutures.add(fut2)
-                    redis.setProjectLastIndexed(githubRepository, Instant.now(), fut2.completer())
-                    def fut3 = Future.future()
-                    moreFutures.add(fut3)
-                    redis.setProjectLastIndexedCommitInformation(githubRepository,
-                            job.data.getString("commit"), job.data.getInstant("commit_date"), fut3.completer())
-                    def fut4 = Future.future()
-                    moreFutures.add(fut4)
-                    redis.setProjectLastCalculated(githubRepository, Instant.now(), fut4.completer())
-
-                    CompositeFuture.all(moreFutures).setHandler({
-                        if (it.failed()) {
-                            handler.handle(Future.failedFuture(it.cause()))
-                        } else {
-                            logPrintln(job, "Cached calculated references")
-                            handler.handle(Future.succeededFuture())
-                        }
-                    })
                 })
-            } else {
-                redis.setProjectLastCalculated(githubRepository, Instant.now(), {
+            }
+        })
+    }
+
+    private void finalizeCalculations(Job job, boolean indexed, String githubRepository, Handler<AsyncResult> handler) {
+        logPrintln(job, "Successfully calculated references")
+        if (indexed) {
+            redis.getProjectFirstIndexed(githubRepository, {
+                if (it.failed()) {
+                    handler.handle(Future.failedFuture(it.cause()))
+                    return
+                }
+
+                def futures = new ArrayList<Future>()
+                if (it.result() == null) {
+                    def fut = Future.future()
+                    futures.add(fut)
+                    redis.setProjectFirstIndexed(githubRepository, Instant.now(), fut.completer())
+                }
+
+                def fut2 = Future.future()
+                futures.add(fut2)
+                redis.setProjectLastIndexed(githubRepository, Instant.now(), fut2.completer())
+                def fut3 = Future.future()
+                futures.add(fut3)
+                redis.setProjectLastIndexedCommitInformation(githubRepository,
+                        job.data.getString("commit"), job.data.getInstant("commit_date"), fut3.completer())
+                def fut4 = Future.future()
+                futures.add(fut4)
+                redis.setProjectLastCalculated(githubRepository, Instant.now(), fut4.completer())
+
+                CompositeFuture.all(futures).setHandler({
                     if (it.failed()) {
                         handler.handle(Future.failedFuture(it.cause()))
                     } else {
@@ -181,27 +215,17 @@ class GraknCalculator extends AbstractVerticle {
                         handler.handle(Future.succeededFuture())
                     }
                 })
-            }
-        })
-    }
-
-    private Future getProjectMostExternalReferencedMethods(Job job) {
-        def timer = WebLauncher.metrics.timer("CalculateProjectMostExternalReferencedMethods")
-        def context = timer.time()
-        logPrintln(job, "Calculating project most referenced methods")
-        def githubRepository = job.data.getString("github_repository").toLowerCase()
-
-        def future = Future.future()
-        grakn.getProjectMostExternalReferencedMethods(githubRepository, {
-            if (it.failed()) {
-                it.cause().printStackTrace()
-                future.fail(it.cause())
-            } else {
-                logPrintln(job, "Most referenced methods took: " + asPrettyTime(context.stop()))
-                future.complete()
-            }
-        })
-        return future
+            })
+        } else {
+            redis.setProjectLastCalculated(githubRepository, Instant.now(), {
+                if (it.failed()) {
+                    handler.handle(Future.failedFuture(it.cause()))
+                } else {
+                    logPrintln(job, "Cached calculated references")
+                    handler.handle(Future.succeededFuture())
+                }
+            })
+        }
     }
 
 }
