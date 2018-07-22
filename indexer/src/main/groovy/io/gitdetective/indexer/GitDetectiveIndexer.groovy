@@ -3,7 +3,10 @@ package io.gitdetective.indexer
 import com.codahale.metrics.MetricRegistry
 import io.gitdetective.GitDetectiveVersion
 import io.gitdetective.indexer.cache.ProjectDataCache
-import io.gitdetective.indexer.stage.*
+import io.gitdetective.indexer.stage.GitDetectiveImportFilter
+import io.gitdetective.indexer.stage.GithubRepositoryCloner
+import io.gitdetective.indexer.stage.KytheIndexAugment
+import io.gitdetective.indexer.stage.KytheIndexOutput
 import io.gitdetective.indexer.stage.extract.KytheUsageExtractor
 import io.gitdetective.indexer.support.KytheMavenBuilder
 import io.gitdetective.web.dao.JobsDAO
@@ -56,7 +59,9 @@ class GitDetectiveIndexer extends AbstractVerticle {
                 it.cause().printStackTrace()
                 System.exit(-1)
             }
-            vertx.deployVerticle(new GitDetectiveIndexer(kue), deployOptions, {
+
+            def kueRedis = new RedisDAO(RedisHelper.client(vertx, kueOptions.config))
+            vertx.deployVerticle(new GitDetectiveIndexer(kue, kueRedis), deployOptions, {
                 if (it.failed()) {
                     it.cause().printStackTrace()
                     System.exit(-1)
@@ -66,16 +71,18 @@ class GitDetectiveIndexer extends AbstractVerticle {
     }
 
     private final Kue kue
+    private final RedisDAO kueRedis
 
-    GitDetectiveIndexer(Kue kue) {
+    GitDetectiveIndexer(Kue kue, RedisDAO kueRedis) {
         this.kue = kue
+        this.kueRedis = kueRedis
     }
 
     @Override
     void start() throws Exception {
         vertx.eventBus().registerDefaultCodec(Job.class, messageCodec(Job.class))
         def redis = new RedisDAO(RedisHelper.client(vertx, config()))
-        def jobs = new JobsDAO(kue, redis)
+        def jobs = new JobsDAO(kue, kueRedis)
         def deployOptions = new DeploymentOptions()
         deployOptions.config = config()
 
@@ -87,7 +94,7 @@ class GitDetectiveIndexer extends AbstractVerticle {
             }
 
             //core
-            vertx.deployVerticle(new GithubRepositoryCloner(kue, jobs, redis), deployOptions)
+            vertx.deployVerticle(new GithubRepositoryCloner(kue, jobs, kueRedis), deployOptions)
             vertx.deployVerticle(new KytheIndexOutput(), deployOptions)
             vertx.deployVerticle(new KytheUsageExtractor(), deployOptions)
             vertx.deployVerticle(new GitDetectiveImportFilter(projectCache), deployOptions)

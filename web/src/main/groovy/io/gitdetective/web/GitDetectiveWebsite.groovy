@@ -1,5 +1,7 @@
 package io.gitdetective.web
 
+import com.google.common.cache.Cache
+import com.google.common.cache.CacheBuilder
 import com.google.common.collect.Lists
 import io.gitdetective.GitDetectiveVersion
 import io.gitdetective.web.dao.JobsDAO
@@ -42,6 +44,8 @@ class GitDetectiveWebsite extends AbstractVerticle {
     private final JobsDAO jobs
     private final RedisDAO redis
     private final Router router
+    private final Cache<String, Boolean> autoBuildCache = CacheBuilder.newBuilder()
+            .expireAfterWrite(1, TimeUnit.MINUTES).build()
 
     GitDetectiveWebsite(JobsDAO jobs, RedisDAO redis, Router router) {
         this.jobs = jobs
@@ -237,6 +241,8 @@ class GitDetectiveWebsite extends AbstractVerticle {
     private void handleProjectPage(RoutingContext ctx) {
         def username = ctx.pathParam("githubUsername")
         def project = ctx.pathParam("githubProject")
+        def githubRepository = "$username/$project"
+
         if (!isValidGithubString(username) || !isValidGithubString(project)) {
             //invalid github username/project
             ctx.response().putHeader("location", "/")
@@ -245,7 +251,7 @@ class GitDetectiveWebsite extends AbstractVerticle {
         } else {
             ctx.put("github_username", username)
             ctx.put("github_project", project)
-            ctx.put("github_repository", "$username/$project")
+            ctx.put("github_repository", githubRepository)
         }
         ctx.put("gitdetective_url", config().getString("gitdetective_url"))
         ctx.put("gitdetective_eventbus_url", config().getString("gitdetective_url") + "backend/services/eventbus")
@@ -253,16 +259,16 @@ class GitDetectiveWebsite extends AbstractVerticle {
 
         //load and send page data
         log.info "Displaying project page: $username/$project"
-        def githubRepository = new JsonObject().put("github_repository", "$username/$project")
+        def repo = new JsonObject().put("github_repository", "$username/$project")
         CompositeFuture.all(Lists.asList(
-                getLatestBuildLog(ctx, githubRepository),
-                getProjectFileCount(ctx, githubRepository),
-                getProjectMethodVersionCount(ctx, githubRepository),
-                getProjectFirstIndexed(ctx, githubRepository),
-                getProjectLastIndexed(ctx, githubRepository),
-                getProjectLastIndexedCommitInformation(ctx, githubRepository),
-                getProjectLastCalculated(ctx, githubRepository),
-                getProjectMostReferencedMethods(ctx, githubRepository)
+                getLatestBuildLog(ctx, repo),
+                getProjectFileCount(ctx, repo),
+                getProjectMethodVersionCount(ctx, repo),
+                getProjectFirstIndexed(ctx, repo),
+                getProjectLastIndexed(ctx, repo),
+                getProjectLastIndexedCommitInformation(ctx, repo),
+                getProjectLastCalculated(ctx, repo),
+                getProjectMostReferencedMethods(ctx, repo)
         )).setHandler({
             HandlebarsTemplateEngine engine = HandlebarsTemplateEngine.create()
             engine.render(ctx, "webroot/project.hbs", { res ->
@@ -275,16 +281,22 @@ class GitDetectiveWebsite extends AbstractVerticle {
         })
 
         //schedule build/recalculate if can
-        vertx.eventBus().send(GET_TRIGGER_INFORMATION, githubRepository, {
-            def triggerInformation = it.result().body() as JsonObject
-            if (triggerInformation.getBoolean("can_build")) {
-                log.info "Auto-building: " + githubRepository.getString("github_repository")
-                vertx.eventBus().send(CREATE_JOB, githubRepository)
-            } else if (triggerInformation.getBoolean("can_recalculate")) {
-                log.info "Auto-recalculating: " + githubRepository.getString("github_repository")
-                vertx.eventBus().send(TRIGGER_RECALCULATION, githubRepository)
-            }
-        })
+        def autoBuilt = autoBuildCache.getIfPresent(githubRepository)
+        if (autoBuilt == null) {
+            log.debug "Checking repository: $githubRepository"
+            autoBuildCache.put(githubRepository, true)
+
+            vertx.eventBus().send(GET_TRIGGER_INFORMATION, repo, {
+                def triggerInformation = it.result().body() as JsonObject
+                if (triggerInformation.getBoolean("can_build")) {
+                    log.info "Auto-building: " + repo.getString("github_repository")
+                    vertx.eventBus().send(CREATE_JOB, repo)
+                } else if (triggerInformation.getBoolean("can_recalculate")) {
+                    log.info "Auto-recalculating: " + repo.getString("github_repository")
+                    vertx.eventBus().send(TRIGGER_RECALCULATION, repo)
+                }
+            })
+        }
     }
 
     private Future getLatestBuildLog(RoutingContext ctx, JsonObject githubRepository) {
