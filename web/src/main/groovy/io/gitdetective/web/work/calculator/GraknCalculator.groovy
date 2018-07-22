@@ -130,7 +130,7 @@ class GraknCalculator extends AbstractVerticle {
             if (it.failed()) {
                 handler.handle(Future.failedFuture(it.cause()))
             } else {
-                logPrintln(job, "Getting new external references took: " + asPrettyTime(context.stop()))
+                logPrintln(job, "Getting project external references took: " + asPrettyTime(context.stop()))
 
                 //iterate methods and update calculated_import_round
                 def myMethods = it.result()
@@ -138,13 +138,15 @@ class GraknCalculator extends AbstractVerticle {
                     if (it.failed()) {
                         handler.handle(Future.failedFuture(it.cause()))
                     } else {
-                        logPrintln(job, "Incrementing computed reference rounds took: " + asPrettyTime(context.stop()))
+                        logPrintln(job, "Incrementing reference rounds took: " + asPrettyTime(context.stop()))
 
                         //re-run each method with prev calc import round
                         grakn.getMethodNewExternalReferences(myMethods, {
                             if (it.failed()) {
                                 handler.handle(Future.failedFuture(it.cause()))
                             } else {
+                                logPrintln(job, "Getting method external references took: " + asPrettyTime(context.stop()))
+
                                 //update cache
                                 def cacheFutures = new ArrayList<Future>()
                                 def refMethods = it.result()
