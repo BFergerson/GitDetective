@@ -1,12 +1,12 @@
 define
 
 ##########---------- Entities ----------##########
-node is-abstract sub entity
-    has create_date;
-project sub node
+project sub entity
+    has create_date
     has project_name
     plays has_defines_file;
-file sub node
+file sub entity
+    has create_date
     has file_name
     has subkind
     has file_location
@@ -15,16 +15,18 @@ file sub node
     plays has_defines_function
     plays has_ref
     plays has_ref_call;
-function sub node
+function sub entity
+    has create_date
     has function_name
+    has calculated_reference_rounds
     plays has_function_references
     plays has_function_definitions;
-function-instance sub function
+function-instance sub entity
     has subkind
     has qualified_name
     has commit_sha1
     has commit_date
-    has instance_offset
+    has import_round
     plays is_function_definition
     plays is_function_reference
     plays is_defines_function
@@ -32,10 +34,10 @@ function-instance sub function
     plays is_ref_call
     plays has_ref
     plays has_ref_call;
-function-definitions sub node
+function-definitions sub entity
     plays is_function_definitions
     plays has_function_definition;
-function-references sub node
+function-references sub entity
     plays is_function_references
     plays has_function_reference;
 
@@ -45,7 +47,7 @@ create_date sub attribute datatype string;
 commit_date sub attribute datatype string;
 subkind sub attribute datatype string;
 file_location sub attribute datatype string;
-qualified_name sub attribute datatype string;
+qualified_name sub name datatype string;
 commit_sha1 sub attribute datatype string;
 is_jdk sub attribute datatype boolean;
 project_name sub name datatype string;
@@ -53,8 +55,8 @@ function_name sub name datatype string;
 file_name sub name datatype string;
 start_offset sub attribute datatype long;
 end_offset sub attribute datatype long;
-instance_offset sub attribute datatype long;
-computed_instance_offset sub attribute datatype long;
+import_round sub attribute datatype long;
+calculated_reference_rounds sub attribute datatype long;
 
 ##########---------- Relationships ----------##########
 #todo: can make parent relationship with create_date, start_offset, end_offset
@@ -72,7 +74,6 @@ has_defines_file sub has_defines;
 is_defines_file sub is_defines;
 
 defines_function sub defines
-    has computed_instance_offset
     relates has_defines_function, relates is_defines_function;
 has_defines_function sub has_defines;
 is_defines_function sub is_defines;

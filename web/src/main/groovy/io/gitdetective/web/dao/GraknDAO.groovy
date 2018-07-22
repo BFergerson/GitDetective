@@ -2,6 +2,7 @@ package io.gitdetective.web.dao
 
 import ai.grakn.GraknSession
 import ai.grakn.GraknTxType
+import ai.grakn.concept.ConceptId
 import ai.grakn.graql.QueryBuilder
 import ai.grakn.graql.internal.query.QueryAnswer
 import com.google.common.base.Charsets
@@ -16,9 +17,11 @@ import io.vertx.core.json.JsonObject
 import io.vertx.core.logging.Logger
 import io.vertx.core.logging.LoggerFactory
 
+import java.time.Instant
 import java.util.concurrent.TimeUnit
 
-import static io.gitdetective.web.Utils.*
+import static ai.grakn.graql.Graql.var
+import static io.gitdetective.web.WebServices.*
 
 /**
  * @author <a href="mailto:brandon.fergerson@codebrig.com">Brandon Fergerson</a>
@@ -54,7 +57,7 @@ class GraknDAO {
                                                      Handler<AsyncResult> handler) {
         def osfFunction = osfCache.getIfPresent(functionName)
         if (osfFunction != null) {
-            log.trace("Returned cached open source function")
+            log.trace "Returned cached open source function"
             handler.handle(Future.succeededFuture())
             return osfFunction
         } else {
@@ -68,7 +71,8 @@ class GraknDAO {
         def match = query.execute() as List<QueryAnswer>
         if (match.isEmpty()) {
             match = graql.parse(CREATE_OPEN_SOURCE_FUNCTION
-                    .replace("<name>", functionName)).execute() as List<QueryAnswer>
+                    .replace("<name>", functionName)
+                    .replace("<createDate>", Instant.now().toString())).execute() as List<QueryAnswer>
             created = true
         }
         def functionId = match.get(0).get("func").asEntity().id.toString()
@@ -80,107 +84,81 @@ class GraknDAO {
         if (created) {
             redis.cacheOpenSourceFunction(functionName, osfFunction, handler)
             WebLauncher.metrics.counter("ImportMethod").inc()
-            log.debug "Created open source function: $functionName"
+            log.trace "Created open source function: $functionName"
         } else {
             handler.handle(Future.succeededFuture())
         }
         return osfFunction
     }
 
-    void getProjectMostExternalReferencedMethods(String githubRepo, Handler<AsyncResult<JsonArray>> handler) {
-        getProjectNewExternalReferences(githubRepo, {
+    void incrementFunctionComputedReferenceRounds(JsonArray functionInstances, Handler<AsyncResult> handler) {
+        if (functionInstances.isEmpty()) {
+            handler.handle(Future.succeededFuture())
+            return
+        }
+        log.info "Updating " + functionInstances.size() + " function instances calculated reference rounds"
+
+        //increment computed reference rounds
+        def futures = new ArrayList<Future>()
+        def updatedReferenceRounds = new JsonArray()
+        for (int i = 0; i < functionInstances.size(); i++) {
+            def method = functionInstances.getJsonObject(i)
+            def functionId = method.getString("osf_id")
+
+            def fut = Future.future()
+            futures.add(fut)
+            redis.incrementFunctionReferenceImportRound(functionId, {
+                if (it.failed()) {
+                    fut.fail(it.cause())
+                } else {
+                    updatedReferenceRounds.add(it.result())
+                    fut.complete()
+                }
+            })
+        }
+
+        //update function computed reference rounds
+        CompositeFuture.all(futures).setHandler({
             if (it.failed()) {
                 handler.handle(Future.failedFuture(it.cause()))
             } else {
-                def referencedMethods = it.result()
-                getMethodNewExternalReferences(referencedMethods, {
-                    if (it.failed()) {
-                        handler.handle(Future.failedFuture(it.cause()))
-                    } else {
-                        //update cache
-                        def cacheFutures = new ArrayList<Future>()
-                        def refMethods = it.result()
-                        def totalRefCount = 0
-                        for (int i = 0; i < refMethods.size(); i++) {
-                            def method = referencedMethods.getJsonObject(i)
-                            def methodRefs = refMethods.getJsonArray(i)
-                            totalRefCount += methodRefs.size()
-
-                            def fut = Future.future()
-                            cacheFutures.add(fut)
-                            redis.cacheMethodMethodReferences(githubRepo, method, methodRefs, fut.completer())
+                vertx.executeBlocking({ blocking ->
+                    def tx = null
+                    try {
+                        tx = session.open(GraknTxType.BATCH)
+                        def graql = tx.graql()
+                        for (int i = 0; i < functionInstances.size(); i++) {
+                            def method = functionInstances.getJsonObject(i)
+                            def functionId = method.getString("osf_id")
+                            def query = ('match $fu id "<id>"; ' +
+                                    '$fu has calculated_reference_rounds $calcRefRounds; $refRoundsRel ($fu, $calcRefRounds); ' +
+                                    'delete $refRoundsRel;')
+                                    .replace("<id>", functionId)
+                            graql.parse(query).execute() as List<QueryAnswer>
+                            graql.match(var("x").id(ConceptId.of(functionId)))
+                                    .insert(var("x")
+                                    .has("calculated_reference_rounds", updatedReferenceRounds.getLong(i))).execute()
                         }
-
-                        CompositeFuture.all(cacheFutures).setHandler({
-                            if (it.failed()) {
-                                handler.handle(Future.failedFuture(it.cause()))
-                            } else {
-                                def res = it.result().list() as List<Long>
-                                updateMethodDefinitionComputedInstanceOffsets(referencedMethods, res, {
-                                    if (it.failed()) {
-                                        handler.handle(Future.failedFuture(it.cause()))
-                                    } else {
-                                        //update project leaderboard
-                                        redis.updateProjectReferenceLeaderboard(githubRepo, totalRefCount, {
-                                            if (it.failed()) {
-                                                handler.handle(Future.failedFuture(it.cause()))
-                                            } else {
-                                                //return from cache
-                                                redis.getProjectMostExternalReferencedMethods(githubRepo, 10, handler)
-                                            }
-                                        })
-                                    }
-                                })
-                            }
-                        })
+                        tx.commit()
+                        blocking.complete(Future.succeededFuture())
+                    } catch (all) {
+                        blocking.fail(all)
+                    } finally {
+                        tx?.close()
                     }
-                })
+                }, false, handler)
             }
         })
     }
 
-    private void updateMethodDefinitionComputedInstanceOffsets(JsonArray methods, List<Long> computedInstanceOffsets,
-                                                               Handler<AsyncResult> handler) {
-        if (methods.isEmpty()) {
-            handler.handle(Future.succeededFuture())
-            return
-        }
-
+    void getProjectNewExternalReferences(String githubRepository, Handler<AsyncResult<JsonArray>> handler) {
         vertx.executeBlocking({ blocking ->
-            def tx = null
-            try {
-                tx = session.open(GraknTxType.BATCH)
-                def graql = tx.graql()
-                for (int i = 0; i < methods.size(); i++) {
-                    def method = methods.getJsonObject(i)
-                    graql.parse(('match $x id "<id>"; ' +
-                            '$defRel (has_defines_function: $file, is_defines_function: $x) isa defines_function; ' +
-                            '$defRel has computed_instance_offset $compOffset; $offsetRel ($defRel, $compOffset); ' +
-                            'delete $offsetRel;')
-                            .replace("<id>", method.getString("id"))).execute() as List<QueryAnswer>
-                    graql.parse(('match $x id "<id>"; ' +
-                            '$defRel (has_defines_function: $file, is_defines_function: $x) isa defines_function; ' +
-                            'insert $defRel has computed_instance_offset ' + computedInstanceOffsets.get(i) + ';')
-                            .replace("<id>", method.getString("id"))).execute() as List<QueryAnswer>
-                }
-                tx.commit()
-                blocking.complete(Future.succeededFuture())
-            } catch (all) {
-                blocking.fail(all)
-            } finally {
-                tx?.close()
-            }
-        }, false, handler)
-    }
-
-    void getProjectNewExternalReferences(String githubRepo, Handler<AsyncResult<JsonArray>> handler) {
-        vertx.executeBlocking({ future ->
             def tx = null
             try {
                 tx = session.open(GraknTxType.READ)
                 def graql = tx.graql()
                 def query = graql.parse(GET_PROJECT_NEW_EXTERNAL_REFERENCES
-                        .replace("<githubRepo>", githubRepo))
+                        .replace("<githubRepo>", githubRepository))
 
                 def rtnArray = new JsonArray()
                 def result = query.execute() as List<QueryAnswer>
@@ -190,6 +168,7 @@ class GraknDAO {
                     def qualifiedName = answer.get("fu_name").asAttribute().getValue() as String
                     def osfId = answer.get("open_fu").asEntity().id.value
                     def functionId = answer.get("real_fu").asEntity().id.value
+                    def calculatedReferenceRounds = answer.get("calcRefRounds").asAttribute().value as long
                     def function = new JsonObject()
                             .put("qualified_name", qualifiedName)
                             .put("file_location", fileLocation)
@@ -199,13 +178,14 @@ class GraknDAO {
                             .put("class_name", getQualifiedClassName(qualifiedName))
                             .put("short_method_signature", getShortMethodSignature(qualifiedName))
                             .put("method_signature", getMethodSignature(qualifiedName))
-                            .put("github_repo", githubRepo.toLowerCase())
+                            .put("github_repository", githubRepository)
                             .put("osf_id", osfId)
+                            .put("calculated_reference_rounds", calculatedReferenceRounds)
                     rtnArray.add(function)
                 }
-                future.complete(rtnArray)
+                blocking.complete(rtnArray)
             } catch (all) {
-                future.fail(all)
+                blocking.fail(all)
             } finally {
                 tx?.close()
             }
@@ -227,6 +207,7 @@ class GraknDAO {
                 for (int i = 0; i < methods.size(); i++) {
                     def method = methods.getJsonObject(i)
                     def result = graql.parse(GET_METHOD_NEW_EXTERNAL_REFERENCES
+                            .replace("<calcRefRounds>", method.getLong("calculated_reference_rounds") as String)
                             .replace("<id>", method.getString("id"))).execute() as List<QueryAnswer>
 
                     def methodRefs = new JsonArray()
@@ -235,7 +216,7 @@ class GraknDAO {
                         def commitSha1 = answer.get("commit_sha1").asAttribute().getValue() as String
                         def qualifiedName = answer.get("fu_name").asAttribute().getValue() as String
                         def fileOrFunctionId = answer.get("fu_ref").asEntity().id.value
-                        def projectName = answer.get("p_name").asAttribute().value
+                        def githubRepository = answer.get("p_name").asAttribute().value
                         if (qualifiedName.contains("(")) {
                             //function ref
                             def function = new JsonObject()
@@ -247,7 +228,7 @@ class GraknDAO {
                                     .put("class_name", getQualifiedClassName(qualifiedName))
                                     .put("short_method_signature", getShortMethodSignature(qualifiedName))
                                     .put("method_signature", getMethodSignature(qualifiedName))
-                                    .put("github_repo", projectName)
+                                    .put("github_repository", githubRepository)
                                     .put("is_function", true)
                             methodRefs.add(function)
                         } else {
@@ -258,7 +239,7 @@ class GraknDAO {
                                     .put("commit_sha1", commitSha1)
                                     .put("id", fileOrFunctionId)
                                     .put("short_class_name", getFilename(fileLocation))
-                                    .put("github_repo", projectName)
+                                    .put("github_repository", githubRepository)
                                     .put("is_file", true)
                             methodRefs.add(file)
                         }

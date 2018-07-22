@@ -6,8 +6,7 @@ import io.reactivex.Observable
 import io.reactivex.ObservableEmitter
 import io.reactivex.ObservableOnSubscribe
 import io.vertx.blueprint.kue.queue.Job
-import io.vertx.core.AbstractVerticle
-import io.vertx.core.Handler
+import io.vertx.core.*
 import io.vertx.core.json.JsonObject
 import io.vertx.core.logging.Logger
 import io.vertx.core.logging.LoggerFactory
@@ -27,6 +26,7 @@ import java.util.zip.GZIPInputStream
  */
 class GHArchiveSync extends AbstractVerticle {
 
+    public final static String STANDALONE_MODE = "GHArchiveStandaloneMode"
     private final static Logger log = LoggerFactory.getLogger(GHArchiveSync.class)
     private final JobsDAO jobs
     private final RedisDAO redis
@@ -38,13 +38,44 @@ class GHArchiveSync extends AbstractVerticle {
 
     @Override
     void start() throws Exception {
-        syncGithubArchive()
+        if (!config().getBoolean("gh_sync_standalone_mode", false)) {
+            syncGithubArchive()
 
-        vertx.setPeriodic(TimeUnit.HOURS.toMillis(1), new Handler<Long>() {
-            void handle(Long aLong) {
-                syncGithubArchive()
-            }
-        })
+            vertx.setPeriodic(TimeUnit.HOURS.toMillis(1), new Handler<Long>() {
+                void handle(Long aLong) {
+                    syncGithubArchive()
+                }
+            })
+        } else {
+            vertx.eventBus().consumer(STANDALONE_MODE, { standalone ->
+                def syncRequest = standalone.body() as JsonObject
+                def fromDate = LocalDate.parse(syncRequest.getString("from_date"))
+                def toDate = LocalDate.parse(syncRequest.getString("to_date"))
+
+                def futures = new ArrayList<Future>()
+                while (fromDate.isEqual(toDate) || fromDate.isBefore(toDate)) {
+                    for (int i = 0; i < 23; i++) {
+                        def archiveFile = fromDate.toString() + "-$i"
+                        def dlFile = downloadArchive(archiveFile)
+                        if (dlFile != null) {
+                            def fut = Future.future()
+                            futures.add(fut)
+                            processArchive(dlFile, archiveFile, fut.completer())
+                        }
+                    }
+                    fromDate = fromDate.plusDays(1)
+                }
+
+                CompositeFuture.all(futures).setHandler({
+                    if (it.failed()) {
+                        it.cause().printStackTrace()
+                        standalone.fail(-1, it.cause().message)
+                    } else {
+                        standalone.reply(true)
+                    }
+                })
+            })
+        }
     }
 
     private void syncGithubArchive() {
@@ -86,13 +117,15 @@ class GHArchiveSync extends AbstractVerticle {
                         it.cause().printStackTrace()
                     }
 
-                    processArchive(dlFile, nextStr)
+                    processArchive(dlFile, nextStr, {
+                        //do nothing
+                    })
                 })
             }
         })
     }
 
-    private void processArchive(File dlFile, String archiveFile) {
+    private void processArchive(File dlFile, String archiveFile, Handler<AsyncResult> handler) {
         def tempDir = config().getString("temp_directory")
         def jsonFile = new File(tempDir, archiveFile + ".json")
         gunzip(dlFile, jsonFile)
@@ -137,12 +170,12 @@ class GHArchiveSync extends AbstractVerticle {
         }
         Observable.concat(Observable.fromIterable(observables)).subscribe(
                 {}, { it.printStackTrace() },
-                { log.info "Jobs created: " + jobsCreated.get() }
+                { log.info "Jobs created: " + jobsCreated.get(); handler.handle(Future.succeededFuture()) }
         )
     }
 
     private File downloadArchive(String archiveFile) {
-        log.debug "Downloading GitHub archive file: " + archiveFile
+        log.info "Downloading GHArchive file: " + archiveFile
         def tempDir = config().getString("temp_directory")
         def url = "http://data.gharchive.org/" + archiveFile + ".json.gz"
         def dlFile = new File(tempDir, archiveFile + ".json.gz")
@@ -151,17 +184,16 @@ class GHArchiveSync extends AbstractVerticle {
 
         try {
             def file = dlFile.newOutputStream()
-            def httpcon = (HttpURLConnection) new URL(url).openConnection()
-            httpcon.addRequestProperty("User-Agent", "Mozilla/4.0")
-            file << httpcon.getInputStream()
+            def httpConn = (HttpURLConnection) new URL(url).openConnection()
+            httpConn.addRequestProperty("User-Agent", "Mozilla/4.0")
+            file << httpConn.getInputStream()
             file.close()
         } catch (all) {
-            all.printStackTrace()
             log.error "$archiveFile archive file not available yet"
             return null
         }
 
-        log.info "Downloaded archive data"
+        log.info "Downloaded archive file: $archiveFile"
         return dlFile
     }
 

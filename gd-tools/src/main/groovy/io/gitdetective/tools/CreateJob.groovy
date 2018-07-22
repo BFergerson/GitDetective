@@ -1,6 +1,5 @@
 package io.gitdetective.tools
 
-import io.gitdetective.indexer.stage.GithubRepositoryCloner
 import io.gitdetective.web.dao.JobsDAO
 import io.gitdetective.web.dao.RedisDAO
 import io.gitdetective.web.work.calculator.GraknCalculator
@@ -14,10 +13,11 @@ import io.vertx.core.DeploymentOptions
 import io.vertx.core.Vertx
 import io.vertx.core.VertxOptions
 import io.vertx.core.json.JsonObject
+import org.apache.commons.io.IOUtils
+
+import java.nio.charset.StandardCharsets
 
 /**
- * todo: description
- *
  * @author <a href="mailto:brandon.fergerson@codebrig.com">Brandon Fergerson</a>
  */
 class CreateJob extends AbstractVerticle {
@@ -28,19 +28,17 @@ class CreateJob extends AbstractVerticle {
     static boolean skipBuild = false
 
     static void main(String[] args) {
-        if (args.length < 3) {
+        def configFile = new File("web-config.json")
+        if (!configFile.exists()) {
+            throw new IllegalStateException("Missing web-config.json")
+        } else if (args.length < 2) {
             throw new IllegalArgumentException("Invalid arguments: " + args.toArrayString())
         }
 
-        def config
-        if (args[0].toLowerCase() == "local") {
-            config = new JsonObject().put("redis.host", "localhost").put("redis.port", 6379)
-        } else {
-            throw new IllegalArgumentException("Invalid environment: " + args[0])
-        }
-        jobType = args[1].toLowerCase()
+        def config = new JsonObject(IOUtils.toString(configFile.newInputStream(), StandardCharsets.UTF_8))
+        jobType = args[0].toLowerCase()
         if (jobType == "index") {
-            jobType = GithubRepositoryCloner.INDEX_GITHUB_PROJECT_JOB_TYPE
+            jobType = "IndexGithubProject"
         } else if (jobType == "calculate") {
             jobType = GraknCalculator.GRAKN_CALCULATE_JOB_TYPE
         } else if (jobType == "import") {
@@ -49,12 +47,12 @@ class CreateJob extends AbstractVerticle {
             throw new IllegalArgumentException("Invalid job type: " + jobType)
         }
 
-        projectName = args[2]
-        if (args.length > 3) {
-            priority = args[3]
+        projectName = args[1]
+        if (args.length > 2) {
+            priority = args[2]
         }
-        if (args.length > 4) {
-            skipBuild = args[4] as boolean
+        if (args.length > 3) {
+            skipBuild = args[3] as boolean
         }
         if (!skipBuild && jobType == GraknCalculator.GRAKN_CALCULATE_JOB_TYPE) {
             skipBuild = true
@@ -64,26 +62,37 @@ class CreateJob extends AbstractVerticle {
         VertxOptions vertxOptions = new VertxOptions()
         vertxOptions.setBlockedThreadCheckInterval(Integer.MAX_VALUE)
         Vertx vertx = Vertx.vertx(vertxOptions)
+        def kueOptions = new DeploymentOptions().setConfig(config)
+        if (config.getJsonObject("jobs_server") != null) {
+            kueOptions.config = config.getJsonObject("jobs_server")
+        }
 
-        vertx.deployVerticle(new KueVerticle(), options, {
+        vertx.deployVerticle(new KueVerticle(), kueOptions, {
             if (it.failed()) {
                 it.cause().printStackTrace()
-                System.exit(-3)
+                System.exit(-1)
             }
-            vertx.deployVerticle(new CreateJob(), options, {
+
+            def kue = Kue.createQueue(vertx, kueOptions.config)
+            vertx.deployVerticle(new CreateJob(kue), options, {
                 if (it.failed()) {
                     it.cause().printStackTrace()
-                    System.exit(-4)
+                    System.exit(-1)
                 }
             })
         })
+    }
+
+    private final Kue kue
+
+    CreateJob(Kue kue) {
+        this.kue = kue
     }
 
     @Override
     void start() throws Exception {
         def redisClient = RedisHelper.client(vertx, config())
         def redis = new RedisDAO(redisClient)
-        def kue = Kue.createQueue(vertx, config())
         def jobs = new JobsDAO(kue, redis)
         def initialMessage = "Admin build job queued"
         if (jobType == "CalculateGithubProject") {
@@ -97,7 +106,7 @@ class CreateJob extends AbstractVerticle {
                 Priority.valueOf(priority.toUpperCase()), {
             if (it.failed()) {
                 it.cause().printStackTrace()
-                System.exit(-5)
+                System.exit(-1)
             }
 
             println "Created job: " + it.result().getId()

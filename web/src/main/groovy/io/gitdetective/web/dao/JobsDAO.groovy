@@ -24,17 +24,17 @@ class JobsDAO {
         this.redis = redis
     }
 
-    void createJob(String jobType, String initialMessage, String githubRepo, Handler<AsyncResult<Job>> handler) {
-        createJob(jobType, initialMessage, githubRepo, Priority.NORMAL, handler)
+    void createJob(String jobType, String initialMessage, String githubRepository, Handler<AsyncResult<Job>> handler) {
+        createJob(jobType, initialMessage, githubRepository, Priority.NORMAL, handler)
     }
 
-    void createJob(String jobType, String initialMessage,
-                   String githubRepo, Priority priority, Handler<AsyncResult<Job>> handler) {
-        createJob(jobType, initialMessage, new JsonObject().put("github_repository", githubRepo), priority, handler)
+    void createJob(String jobType, String initialMessage, String githubRepository, Priority priority,
+                   Handler<AsyncResult<Job>> handler) {
+        createJob(jobType, initialMessage, new JsonObject().put("github_repository", githubRepository), priority, handler)
     }
 
-    void createJob(String jobType, String initialMessage, JsonObject data,
-                   Priority priority, Handler<AsyncResult<Job>> handler) {
+    void createJob(String jobType, String initialMessage, JsonObject data, Priority priority,
+                   Handler<AsyncResult<Job>> handler) {
         kue.createJob(jobType, data)
                 .setMax_attempts(0)
                 .setPriority(priority)
@@ -61,8 +61,8 @@ class JobsDAO {
         })
     }
 
-    void getProjectLatestJob(String githubRepo, Handler<AsyncResult<Optional<Job>>> handler) {
-        redis.getLatestJobId(githubRepo, {
+    void getProjectLatestJob(String githubRepository, Handler<AsyncResult<Optional<Job>>> handler) {
+        redis.getLatestJobId(githubRepository, {
             if (it.failed()) {
                 handler.handle(Future.failedFuture(it.cause()))
             } else {
@@ -94,8 +94,8 @@ class JobsDAO {
         })
     }
 
-    void getProjectLastQueued(String githubRepo, Handler<AsyncResult<Optional<Instant>>> handler) {
-        getProjectLatestJob(githubRepo, {
+    void getProjectLastQueued(String githubRepository, Handler<AsyncResult<Optional<Instant>>> handler) {
+        getProjectLatestJob(githubRepository, {
             if (it.failed()) {
                 handler.handle(Future.failedFuture(it.cause()))
             } else if (it.result().isPresent()) {

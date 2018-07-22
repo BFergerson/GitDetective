@@ -4,5 +4,5 @@ $func isa function; (has_function_references: $func, is_function_references: $fu
 $funcRefs isa function-references id "<yFuncRefsId>";
 $refCalled isa function-instance;
     (has_function_reference: $funcRefs, is_function_reference: $refCalled) isa function_reference;
-$ref (has_ref_call: $file, is_ref_call: $refCalled) isa ref_call;
+(has_ref_call: $file, is_ref_call: $refCalled) isa ref_call;
 get $file, $func;

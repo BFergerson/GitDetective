@@ -5,12 +5,9 @@ import com.codahale.metrics.CsvReporter
 import com.codahale.metrics.MetricRegistry
 import com.codahale.metrics.SharedMetricRegistries
 import io.gitdetective.GitDetectiveVersion
-import io.gitdetective.web.dao.JobsDAO
-import io.gitdetective.web.dao.RedisDAO
 import io.vertx.blueprint.kue.Kue
 import io.vertx.blueprint.kue.queue.Job
 import io.vertx.blueprint.kue.queue.KueVerticle
-import io.vertx.blueprint.kue.util.RedisHelper
 import io.vertx.core.DeploymentOptions
 import io.vertx.core.Vertx
 import io.vertx.core.VertxOptions
@@ -27,10 +24,10 @@ import org.apache.commons.io.IOUtils
 import java.nio.charset.StandardCharsets
 import java.util.concurrent.TimeUnit
 
-import static io.gitdetective.web.Utils.messageCodec
+import static io.gitdetective.web.WebServices.messageCodec
 
 /**
- * Web main entry
+ * Web module main entry
  *
  * @author <a href="mailto:brandon.fergerson@codebrig.com">Brandon Fergerson</a>
  */
@@ -49,6 +46,7 @@ class WebLauncher {
         vertxOptions.maxWorkerExecuteTime = TimeUnit.MINUTES.toNanos(serviceConfig.getInteger("max_worker_time_minutes"))
         vertxOptions.workerPoolSize = serviceConfig.getInteger("worker_pool_size")
         vertxOptions.internalBlockingPoolSize = serviceConfig.getInteger("blocking_pool_size")
+        setupMetricReporters(config.getBoolean("vertx_metrics_enabled"), vertxOptions)
 
         def vertx = Vertx.vertx(vertxOptions)
         vertx.eventBus().registerDefaultCodec(Job.class, messageCodec(Job.class))
@@ -103,32 +101,31 @@ class WebLauncher {
             }
 
             def kue = new Kue(vertx, kueOptions.config)
-            def jobs = new JobsDAO(kue, new RedisDAO(RedisHelper.client(vertx, kueOptions.config)))
-            vertx.deployVerticle(new GitDetectiveService(router, kue, jobs), deployOptions, {
+            vertx.deployVerticle(new GitDetectiveService(router, kue), deployOptions, {
                 if (it.failed()) {
                     it.cause().printStackTrace()
                     System.exit(-1)
                 }
             })
         })
-
-        setupMetricReporters(vertxOptions)
     }
 
-    private static void setupMetricReporters(VertxOptions vertxOptions) {
-        File file = new File("vertx-metrics")
-        file.mkdirs()
-        vertxOptions.metricsOptions = new DropwizardMetricsOptions().setEnabled(true).setRegistryName("vertx-metrics")
-        MetricRegistry registry = SharedMetricRegistries.getOrCreate("vertx-metrics")
-        def reporter = CsvReporter.forRegistry(registry)
-                .convertRatesTo(TimeUnit.SECONDS)
-                .convertDurationsTo(TimeUnit.SECONDS)
-                .build(file)
-        reporter.start(1, TimeUnit.MINUTES)
+    private static void setupMetricReporters(boolean vertxMetricsEnabled, VertxOptions vertxOptions) {
+        if (vertxMetricsEnabled) {
+            File file = new File("vertx-metrics")
+            file.mkdirs()
+            vertxOptions.metricsOptions = new DropwizardMetricsOptions().setEnabled(true).setRegistryName("vertx-metrics")
+            MetricRegistry registry = SharedMetricRegistries.getOrCreate("vertx-metrics")
+            def reporter = CsvReporter.forRegistry(registry)
+                    .convertRatesTo(TimeUnit.SECONDS)
+                    .convertDurationsTo(TimeUnit.SECONDS)
+                    .build(file)
+            reporter.start(1, TimeUnit.MINUTES)
+        }
 
-        reporter = ConsoleReporter.forRegistry(metrics)
-                .convertRatesTo(TimeUnit.SECONDS)
-                .convertDurationsTo(TimeUnit.SECONDS)
+        def reporter = ConsoleReporter.forRegistry(metrics)
+                .convertRatesTo(TimeUnit.MINUTES)
+                .convertDurationsTo(TimeUnit.MINUTES)
                 .build()
         reporter.start(10, TimeUnit.MINUTES)
     }

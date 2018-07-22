@@ -13,8 +13,8 @@ import java.util.concurrent.Executors
 import java.util.concurrent.ScheduledExecutorService
 import java.util.concurrent.TimeUnit
 
-import static io.gitdetective.web.Utils.asPrettyTime
-import static io.gitdetective.web.Utils.logPrintln
+import static io.gitdetective.indexer.IndexerServices.asPrettyTime
+import static io.gitdetective.indexer.IndexerServices.logPrintln
 
 /**
  * Builds Maven projects with Kythe attached

@@ -4,7 +4,7 @@ eb.onopen = function () {
 
   var canTriggerBuild = false
   var canTriggerRecalculation = false
-  eb.send('GetTriggerInformation', {'github_repo': githubRepository},
+  eb.send('GetTriggerInformation', {'github_repository': githubRepository},
     function (error, message) {
       if (error == null) {
         canTriggerBuild = message.body.can_build
@@ -26,7 +26,7 @@ eb.onopen = function () {
     $('#trigger_build_button').click(function () {
       if (canTriggerBuild) {
         canTriggerBuild = false
-        eb.send('CreateJob', {'github_repo': githubRepository},
+        eb.send('CreateJob', {'github_repository': githubRepository},
           function (error, message) {
             if (error == null) {
               $('#latest_job_log').text('')
@@ -44,7 +44,7 @@ eb.onopen = function () {
     $('#trigger_recalculate_button').click(function () {
       if (canTriggerRecalculation) {
         canTriggerRecalculation = false
-        eb.send('TriggerRecalculation', {'github_repo': githubRepository},
+        eb.send('TriggerRecalculation', {'github_repository': githubRepository},
           function (error, message) {
             if (error == null) {
               $('#latest_job_log').text('')
@@ -62,7 +62,7 @@ eb.onopen = function () {
 
   function triggerJobLogTimer (githubRepository) {
     //immediate run
-    eb.send('GetLatestJobLog', {'github_repo': githubRepository},
+    eb.send('GetLatestJobLog', {'github_repository': githubRepository},
       function (error, message) {
         if (error == null) {
           displayLatestJobLog(message.body)
@@ -75,7 +75,7 @@ eb.onopen = function () {
     //timer
     setInterval(function () {
       console.log('Started job log timer')
-      eb.send('GetLatestJobLog', {'github_repo': githubRepository},
+      eb.send('GetLatestJobLog', {'github_repository': githubRepository},
         function (error, message) {
           if (error == null) {
             displayLatestJobLog(message.body)
@@ -127,8 +127,8 @@ function displayMethodReference (method) {
       html('<b>Displaying 10 of ' + method.external_reference_count + '</b>')
   }
 
-  eb.send('GetMethodMethodReferences', {
-    'github_repo': method.github_repo,
+  eb.send('GetMethodExternalReferences', {
+    'github_repository': method.github_repository,
     'method_id': method.id,
     'offset': 0,
   }, function (error, message) {
@@ -137,7 +137,7 @@ function displayMethodReference (method) {
       var mostReferencedMethods = message.body
       for (var i = 0; i < mostReferencedMethods.length; i++) {
         var methodOrFile = mostReferencedMethods[i]
-        var codeLocation = 'https://github.com/' + methodOrFile.github_repo +
+        var codeLocation = 'https://github.com/' + methodOrFile.github_repository +
           '/blob/' + methodOrFile.commit_sha1 + '/' + methodOrFile.file_location
 
         //table entry
@@ -148,9 +148,9 @@ function displayMethodReference (method) {
             + methodOrFile.short_method_signature.toHtmlEntities() +
             '</div></td>'
           rowHtml += '<td><button onclick=\'location.href="' + gitdetectiveUrl +
-            methodOrFile.github_repo +
+            methodOrFile.github_repository +
             '";\' type="button" class="btn waves-effect waves-light btn-outline-primary">' +
-            methodOrFile.github_repo +
+            methodOrFile.github_repository +
             '</button></td>'
           rowHtml += '<td><a target="_blank" href="' + codeLocation + '">' +
             '<button type="button" class="btn waves-effect waves-light btn-outline-primary">Code location</button>' +
@@ -160,9 +160,9 @@ function displayMethodReference (method) {
             '</h6> <div style="max-width: 450px; word-wrap:break-word;" class="text-muted">'
             + methodOrFile.file_location + '</div></td>'
           rowHtml += '<td><button onclick=\'location.href="' + gitdetectiveUrl +
-            methodOrFile.github_repo +
+            methodOrFile.github_repository +
             '";\' type="button" class="btn waves-effect waves-light btn-outline-primary">' +
-            methodOrFile.github_repo +
+            methodOrFile.github_repository +
             '</button></td>'
           rowHtml += '<td><a target="_blank" href="' + codeLocation + '">' +
             '<button type="button" class="btn waves-effect waves-light btn-outline-primary">Code location</button>' +

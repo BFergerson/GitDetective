@@ -1,7 +1,7 @@
 package io.gitdetective.indexer.stage
 
-import io.gitdetective.indexer.support.KytheMavenBuilder
 import io.gitdetective.web.dao.JobsDAO
+import io.gitdetective.indexer.support.KytheMavenBuilder
 import io.gitdetective.web.dao.RedisDAO
 import io.vertx.blueprint.kue.Kue
 import io.vertx.blueprint.kue.queue.Job
@@ -21,7 +21,7 @@ import java.time.Instant
 import java.time.temporal.ChronoUnit
 import java.util.concurrent.TimeUnit
 
-import static io.gitdetective.web.Utils.logPrintln
+import static io.gitdetective.indexer.IndexerServices.logPrintln
 
 /**
  * Determines if project should be indexed.
@@ -56,10 +56,10 @@ class GithubRepositoryCloner extends AbstractVerticle {
             log.error "Indexer job error: " + it.body()
         })
         kue.processBlocking(INDEX_GITHUB_PROJECT_JOB_TYPE, config().getInteger("builder_thread_count"), { job ->
-            def githubRepo = job.data.getString("github_repository").toLowerCase()
+            def githubRepository = job.data.getString("github_repository").toLowerCase()
 
             //skip build if already done in last 24 hours
-            redis.getProjectLastBuilt(githubRepo, {
+            redis.getProjectLastBuilt(githubRepository, {
                 if (it.failed()) {
                     it.cause().printStackTrace()
                 } else {
@@ -81,7 +81,7 @@ class GithubRepositoryCloner extends AbstractVerticle {
                         } else {
                             vertx.executeBlocking({
                                 try {
-                                    downloadAndExtractProject(job, githubRepo)
+                                    downloadAndExtractProject(job, githubRepository)
                                     it.complete()
                                 } catch (GHFileNotFoundException ex) {
                                     logPrintln(job, "Could not locate project on GitHub")
@@ -121,12 +121,16 @@ class GithubRepositoryCloner extends AbstractVerticle {
         //skip forked projects (queue parent project)
         if (repo.fork) {
             logPrintln(job, "Forked projects not currently supported")
+            if (!config().getBoolean("create_forked_project_parent_jobs")) {
+                job.done()
+                return
+            }
             def parent = repo.parent
             def parentGithubRepository = parent.fullName.toLowerCase()
 
             jobs.getProjectLastQueued(parentGithubRepository, {
                 if (it.failed()) {
-                    it.cause().printStackTrace()
+                    job.done(it.cause())
                     return
                 }
 
@@ -213,6 +217,7 @@ class GithubRepositoryCloner extends AbstractVerticle {
                 def gitdetectiveHost = config().getString("gitdetective_service.host")
                 def gitdetectivePort = config().getInteger("gitdetective_service.port")
                 def clientOptions = new WebClientOptions()
+                clientOptions.setVerifyHost(false) //todo: why is this needed now?
                 clientOptions.setTrustAll(true)
                 def client = WebClient.create(vertx, clientOptions)
 

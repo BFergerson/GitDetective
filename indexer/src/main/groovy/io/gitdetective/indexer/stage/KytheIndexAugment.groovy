@@ -19,7 +19,7 @@ import org.mapdb.Serializer
 import java.util.zip.ZipEntry
 import java.util.zip.ZipOutputStream
 
-import static io.gitdetective.web.Utils.logPrintln
+import static io.gitdetective.indexer.IndexerServices.logPrintln
 
 /**
  * Pre-computes definition/reference counts
@@ -32,6 +32,7 @@ class KytheIndexAugment extends AbstractVerticle {
     public static final String KYTHE_INDEX_AUGMENT = "KytheIndexAugment"
     private final static Logger log = LoggerFactory.getLogger(KytheIndexAugment.class)
     private final RedisDAO redis
+    private boolean trackInternalReferences
 
     KytheIndexAugment(RedisDAO redis) {
         this.redis = redis
@@ -39,6 +40,7 @@ class KytheIndexAugment extends AbstractVerticle {
 
     @Override
     void start() throws Exception {
+        trackInternalReferences = config().getBoolean("track_internal_references")
         vertx.eventBus().consumer(KYTHE_INDEX_AUGMENT, {
             def job = (Job) it.body()
             vertx.executeBlocking({
@@ -67,10 +69,16 @@ class KytheIndexAugment extends AbstractVerticle {
         def neededFunctions = new HashSet<String>()
         def futures = new ArrayList<Future>()
 
-        def functionDefinitions = new File(outputDirectory, "functions_definition.txt")
         int lineNumber = 0
+        def defLimit = config().getJsonObject("index_data_limits").getInteger("function_definitions")
+        def functionDefinitions = new File(outputDirectory, "functions_definition.txt")
         readyFunctionDefinitions.each {
-            functionDefinitions.append(it)
+            if (defLimit == -1 || (lineNumber - 1) < defLimit) {
+                functionDefinitions.append(it)
+            } else {
+                return //hit definition limit
+            }
+
             lineNumber++
             if (lineNumber > 1) {
                 def lineData = it.split("\\|")
@@ -91,17 +99,28 @@ class KytheIndexAugment extends AbstractVerticle {
             functionDefinitions.append("\n")
         }
 
-        def functionReferences = new File(outputDirectory, "functions_reference.txt")
         lineNumber = 0
+        def refCount = 0
+        def refLimit = config().getJsonObject("index_data_limits").getInteger("function_references")
+        def functionReferences = new File(outputDirectory, "functions_reference.txt")
         partialFunctionReferences.each {
-            functionReferences.append(it)
             lineNumber++
             if (lineNumber > 1) {
+                if ((refLimit != -1 && refCount >= refLimit)) {
+                    return //hit reference limit
+                }
                 def lineData = it.split("\\|")
                 def xFunctionName = lineData[0]
                 def yFunctionName = lineData[1]
+                boolean internalReference = definedFunctions.contains(yFunctionName)
+                if (internalReference && !trackInternalReferences) {
+                    return //skip internal reference
+                } else {
+                    refCount++
+                    functionReferences.append(it)
+                }
 
-                if (definedFunctions.contains(yFunctionName)) {
+                if (internalReference) {
                     functionReferences.append("|false")
                 } else {
                     functionReferences.append("|true")
@@ -129,6 +148,8 @@ class KytheIndexAugment extends AbstractVerticle {
                     }
                     fut2.complete()
                 })
+            } else {
+                functionReferences.append(it) //header
             }
             functionReferences.append("\n")
         }
@@ -139,8 +160,12 @@ class KytheIndexAugment extends AbstractVerticle {
                 job.done(it.cause())
             } else {
                 logPrintln(job, "Defining open source functions")
+                def osfLimit = config().getJsonObject("index_data_limits").getInteger("functions")
+                def osfCount = 0
                 neededFunctions.each {
-                    osFunctionsOutput.append("$it\n")
+                    if (osfCount++ < osfLimit || osfLimit == -1) {
+                        osFunctionsOutput.append("$it\n")
+                    }
                 }
 
                 db.close()
