@@ -130,12 +130,16 @@ class GraknCalculator extends AbstractVerticle {
             if (it.failed()) {
                 handler.handle(Future.failedFuture(it.cause()))
             } else {
+                logPrintln(job, "Getting new external references took: " + asPrettyTime(context.stop()))
+
                 //iterate methods and update calculated_import_round
                 def myMethods = it.result()
                 grakn.incrementFunctionComputedReferenceRounds(myMethods, {
                     if (it.failed()) {
                         handler.handle(Future.failedFuture(it.cause()))
                     } else {
+                        logPrintln(job, "Incrementing computed reference rounds took: " + asPrettyTime(context.stop()))
+
                         //re-run each method with prev calc import round
                         grakn.getMethodNewExternalReferences(myMethods, {
                             if (it.failed()) {
@@ -164,9 +168,8 @@ class GraknCalculator extends AbstractVerticle {
                                             if (it.failed()) {
                                                 handler.handle(Future.failedFuture(it.cause()))
                                             } else {
-                                                long computeTime = context.stop()
-                                                logPrintln(job, "Most referenced methods took: " + asPrettyTime(computeTime))
-                                                WebLauncher.metrics.counter("GraknComputeTime").inc(computeTime)
+                                                logPrintln(job, "Most referenced methods took: " + asPrettyTime(context.stop()))
+                                                WebLauncher.metrics.counter("GraknComputeTime").inc(context.stop())
                                                 finalizeCalculations(job, indexed, githubRepository, handler)
                                             }
                                         })
