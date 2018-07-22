@@ -238,7 +238,7 @@ class GithubRepositoryCloner extends AbstractVerticle {
         outputDirectory.deleteDir()
         outputDirectory.mkdirs()
 
-        vertx.executeBlocking({ future ->
+        vertx.executeBlocking({ blocking ->
             logPrintln(job, "Cloning project to local filesystem")
             try {
                 Git.cloneRepository()
@@ -251,14 +251,14 @@ class GithubRepositoryCloner extends AbstractVerticle {
                 File mavenBuildPomFile = new File(outputDirectory, "pom.xml")
                 if (mavenBuildPomFile.exists()) {
                     logPrintln(job, "Project successfully cloned")
-                    future.complete(mavenBuildPomFile)
+                    blocking.complete(mavenBuildPomFile)
                 } else {
                     logPrintln(job, "Failed to find pom.xml")
-                    future.fail("Failed to find pom.xml")
+                    blocking.fail("Failed to find pom.xml")
                 }
             } catch (TransportException e) {
                 logPrintln(job, "Project clone timed out")
-                future.fail("Project clone timed out")
+                blocking.fail("Project clone timed out")
             }
         }, false, { res ->
             if (res.failed()) {
@@ -268,14 +268,7 @@ class GithubRepositoryCloner extends AbstractVerticle {
                 job.data.put("commit_date", latestCommitDate)
                 job.data.put("output_directory", outputDirectory.absolutePath)
                 job.data.put("build_target", (res.result() as File).absolutePath)
-                job.save().setHandler({
-                    if (it.failed()) {
-                        it.cause().printStackTrace()
-                    } else {
-                        job = it.result()
-                        vertx.eventBus().send(KytheMavenBuilder.BUILDER_ADDRESS, job)
-                    }
-                })
+                vertx.eventBus().send(KytheMavenBuilder.BUILDER_ADDRESS, job)
             }
         })
     }

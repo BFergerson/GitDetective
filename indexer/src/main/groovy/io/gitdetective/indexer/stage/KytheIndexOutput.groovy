@@ -38,14 +38,7 @@ class KytheIndexOutput extends AbstractVerticle {
                 logPrintln(job, "Finished processing Kythe .kindex file(s)")
                 if (outputFile.exists()) {
                     job.data.put("import_file", outputFile.absolutePath)
-                    job.save().setHandler({
-                        if (it.failed()) {
-                            it.cause().printStackTrace()
-                        } else {
-                            job = it.result()
-                            vertx.eventBus().send(KytheUsageExtractor.KYTHE_USAGE_EXTRACTOR, job)
-                        }
-                    })
+                    vertx.eventBus().send(KytheUsageExtractor.KYTHE_USAGE_EXTRACTOR, job)
                 } else {
                     logPrintln(job, "Failed to produce Kythe index file")
                     job.done()
