@@ -1,7 +1,7 @@
 package io.gitdetective.indexer.stage
 
-import io.gitdetective.web.dao.JobsDAO
 import io.gitdetective.indexer.support.KytheMavenBuilder
+import io.gitdetective.web.dao.JobsDAO
 import io.gitdetective.web.dao.RedisDAO
 import io.vertx.blueprint.kue.Kue
 import io.vertx.blueprint.kue.queue.Job
@@ -120,10 +120,12 @@ class GithubRepositoryCloner extends AbstractVerticle {
 
         //skip forked projects (queue parent project)
         if (repo.fork) {
-            logPrintln(job, "Forked projects not currently supported")
             if (!config().getBoolean("create_forked_project_parent_jobs")) {
+                logPrintln(job, "Forked projects not currently supported. Skipped build")
                 job.done()
                 return
+            } else {
+                logPrintln(job, "Forked projects not fully supported. Building parent")
             }
             def parent = repo.parent
             def parentGithubRepository = parent.fullName.toLowerCase()
@@ -134,11 +136,14 @@ class GithubRepositoryCloner extends AbstractVerticle {
                     return
                 }
 
+                logPrintln(job, "Checking parent project status")
                 if (it.result().isPresent()) {
                     def lastQueue = it.result().get()
                     if (lastQueue.plus(24, ChronoUnit.HOURS).isAfter(Instant.now())) {
                         //parent project already queued in last 24 hours; ignore
+                        logPrintln(job, "Parent project already queued")
                         job.done()
+                        return
                     }
                 }
 
@@ -147,7 +152,7 @@ class GithubRepositoryCloner extends AbstractVerticle {
                 jobs.createJob(INDEX_GITHUB_PROJECT_JOB_TYPE, "System build job queued",
                         data, job.priority, {
                     if (it.failed()) {
-                        it.cause().printStackTrace()
+                        job.done(it.cause())
                     } else {
                         def parentProjectName = it.result().data.getString("github_repository")
                         log.info "Forked project created job: " + it.result().id + " - Parent: " + parentProjectName
@@ -190,6 +195,7 @@ class GithubRepositoryCloner extends AbstractVerticle {
                     }
 
                     if (skippingBuild) {
+                        job.data.put("build_skipped", true)
                         skipBuild(job)
                     } else {
                         buildMaven(job, githubRepository, repo, latestCommit, latestCommitDate)
@@ -206,32 +212,22 @@ class GithubRepositoryCloner extends AbstractVerticle {
     }
 
     private void skipBuild(Job job) {
-        job.data.put("build_skipped", true)
-        job.save().setHandler({
-            if (it.failed()) {
-                it.cause().printStackTrace()
+        def ssl = config().getBoolean("gitdetective_service.ssl_enabled")
+        def gitdetectiveHost = config().getString("gitdetective_service.host")
+        def gitdetectivePort = config().getInteger("gitdetective_service.port")
+        def clientOptions = new WebClientOptions()
+        clientOptions.setVerifyHost(false) //todo: why is this needed now?
+        clientOptions.setTrustAll(true)
+        def client = WebClient.create(vertx, clientOptions)
+
+        client.post(gitdetectivePort, gitdetectiveHost, "/jobs/transfer").ssl(ssl).sendJson(job, {
+            if (it.succeeded()) {
+                job.done()
             } else {
-                job = it.result()
-
-                def ssl = config().getBoolean("gitdetective_service.ssl_enabled")
-                def gitdetectiveHost = config().getString("gitdetective_service.host")
-                def gitdetectivePort = config().getInteger("gitdetective_service.port")
-                def clientOptions = new WebClientOptions()
-                clientOptions.setVerifyHost(false) //todo: why is this needed now?
-                clientOptions.setTrustAll(true)
-                def client = WebClient.create(vertx, clientOptions)
-
-                client.post(gitdetectivePort, gitdetectiveHost, "/jobs/transfer").ssl(ssl).sendJson(job, {
-                    if (it.succeeded()) {
-                        job.done()
-                    } else {
-                        it.cause().printStackTrace()
-                        logPrintln(job, "Failed to send project to importer")
-                        job.done(it.cause())
-                    }
-                    client.close()
-                })
+                logPrintln(job, "Failed to send project to importer")
+                job.done(it.cause())
             }
+            client.close()
         })
     }
 
