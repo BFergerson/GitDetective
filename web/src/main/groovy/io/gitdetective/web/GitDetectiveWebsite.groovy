@@ -209,7 +209,7 @@ class GitDetectiveWebsite extends AbstractVerticle {
                     }
                 }
 
-                ctx.put("active_jobs", it.result().body())
+                ctx.put("active_jobs", activeJobs)
             }
             handler.handle(Future.succeededFuture())
         })
