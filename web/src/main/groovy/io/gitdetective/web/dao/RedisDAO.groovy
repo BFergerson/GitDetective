@@ -115,6 +115,7 @@ class RedisDAO {
                                             Handler<AsyncResult> handler) {
         def methodDupe = method.copy()
         methodDupe.remove("commit_sha1") //don't care about which commit method came from
+        methodDupe.remove("calculated_reference_rounds") //or which round it came from
         redis.zadd("gitdetective:project:$githubRepository:method_reference_leaderboard", referenceCount,
                 methodDupe.encode(), {
             if (it.failed()) {
@@ -292,8 +293,8 @@ class RedisDAO {
     void setProjectLastIndexedCommitInformation(String githubRepository, String commitSha1, Instant commitDate,
                                                 Handler<AsyncResult> handler) {
         def ob = new JsonObject()
-                .put("commit", commitSha1)
-                .put("commit_date", commitDate)
+                .put("commit", Objects.requireNonNull(commitSha1))
+                .put("commit_date", Objects.requireNonNull(commitDate))
         redis.set("gitdetective:project:$githubRepository:project_last_indexed_commit_information", ob.encode(), handler)
     }
 
@@ -503,8 +504,32 @@ class RedisDAO {
         redis.publish(NEW_REFERENCE, "$fileOrFunctionId-$functionId", handler)
     }
 
-    void incrementOpenSourceFunctionReferenceCount(String functionId, Handler<AsyncResult<Long>> handler) {
-        redis.incr("gitdetective:counts:osf:reference:function:$functionId", handler)
+    void incrementFunctionReferenceImportRound(String functionId, Handler<AsyncResult<Long>> handler) {
+        redis.incr("gitdetective:counts:osf:reference:function:$functionId", {
+            if (it.failed()) {
+                handler.handle(Future.failedFuture(it.cause()))
+            } else {
+                if (it.result() == null) {
+                    handler.handle(Future.succeededFuture(0))
+                } else {
+                    handler.handle(Future.succeededFuture(Long.valueOf(it.result())))
+                }
+            }
+        })
+    }
+
+    void getFunctionReferenceImportRound(String functionId, Handler<AsyncResult<Long>> handler) {
+        redis.get("gitdetective:counts:osf:reference:function:$functionId", {
+            if (it.failed()) {
+                handler.handle(Future.failedFuture(it.cause()))
+            } else {
+                if (it.result() == null) {
+                    handler.handle(Future.succeededFuture(0))
+                } else {
+                    handler.handle(Future.succeededFuture(Long.valueOf(it.result())))
+                }
+            }
+        })
     }
 
     RedisClient getClient() {

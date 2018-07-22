@@ -95,6 +95,13 @@ class KytheUsageExtractor extends AbstractVerticle {
             if (!subject.contains(".class#") && subject.contains("#")) {
                 sourceUsage.classToSourceMap.put(subject.substring(subject.lastIndexOf("#")), subject)
             }
+            if (subject.contains("#")) {
+                if (sourceUsage.classToSourceMap.containsKey(subject.substring(subject.lastIndexOf("#")))) {
+                    subject = sourceUsage.classToSourceMap.get(subject.substring(subject.lastIndexOf("#")))
+                } else if (subject.contains(".class#")) {
+                    subject = subject.replace(".class#", ".java#")
+                }
+            }
 
             String predicate = row[1].substring(1, row[1].length() - 1)
             if (predicate == "/kythe/edge/named") {
@@ -102,6 +109,13 @@ class KytheUsageExtractor extends AbstractVerticle {
                         predicate) + predicate.length() + 3, it.length() - 3))
                 if (!object.contains(".class#") && object.contains("#")) {
                     sourceUsage.classToSourceMap.put(object.substring(object.lastIndexOf("#")), object)
+                }
+                if (object.contains("#")) {
+                    if (sourceUsage.classToSourceMap.containsKey(object.substring(object.lastIndexOf("#")))) {
+                        object = sourceUsage.classToSourceMap.get(object.substring(object.lastIndexOf("#")))
+                    } else if (object.contains(".class#")) {
+                        object = object.replace(".class#", ".java#")
+                    }
                 }
 
                 sourceUsage.qualifiedNameMap.put(subject, URLDecoder.decode(object, "UTF-8"))
@@ -115,18 +129,24 @@ class KytheUsageExtractor extends AbstractVerticle {
             String[] row = it.split(" ")
             String fullSubjectPath = row[0].substring(1, row[0].length() - 1)
             String subject = toKytheGithubPath(sourceUsage.buildDirectory, fullSubjectPath)
-            if (subject.contains("#") && sourceUsage.classToSourceMap.containsKey(
-                    subject.substring(subject.lastIndexOf("#")))) {
-                subject = sourceUsage.classToSourceMap.get(subject.substring(subject.lastIndexOf("#")))
+            if (subject.contains("#")) {
+                if (sourceUsage.classToSourceMap.containsKey(subject.substring(subject.lastIndexOf("#")))) {
+                    subject = sourceUsage.classToSourceMap.get(subject.substring(subject.lastIndexOf("#")))
+                } else if (subject.contains(".class#")) {
+                    subject = subject.replace(".class#", ".java#")
+                }
             }
 
             String predicate = row[1].substring(1, row[1].length() - 1)
             if (KYTHE_PARSE_SET.contains(predicate)) {
                 String object = toKytheGithubPath(sourceUsage.buildDirectory, it.substring(it.indexOf(
                         predicate) + predicate.length() + 3, it.length() - 3))
-                if (object.contains("#") && sourceUsage.classToSourceMap.containsKey(
-                        object.substring(object.lastIndexOf("#")))) {
-                    object = sourceUsage.classToSourceMap.get(object.substring(object.lastIndexOf("#")))
+                if (object.contains("#")) {
+                    if (sourceUsage.classToSourceMap.containsKey(object.substring(object.lastIndexOf("#")))) {
+                        object = sourceUsage.classToSourceMap.get(object.substring(object.lastIndexOf("#")))
+                    } else if (object.contains(".class#")) {
+                        object = object.replace(".class#", ".java#")
+                    }
                 }
 
                 processRecordEntity(fullSubjectPath, subject, predicate, object, sourceUsage, filesOutput)
@@ -141,11 +161,25 @@ class KytheUsageExtractor extends AbstractVerticle {
             String[] row = it.split(" ")
             String fullSubjectPath = row[0].substring(1, row[0].length() - 1)
             String subject = toKytheGithubPath(sourceUsage.buildDirectory, fullSubjectPath)
+            if (subject.contains("#")) {
+                if (sourceUsage.classToSourceMap.containsKey(subject.substring(subject.lastIndexOf("#")))) {
+                    subject = sourceUsage.classToSourceMap.get(subject.substring(subject.lastIndexOf("#")))
+                } else if (subject.contains(".class#")) {
+                    subject = subject.replace(".class#", ".java#")
+                }
+            }
 
             String predicate = row[1].substring(1, row[1].length() - 1)
             if (KYTHE_PARSE_SET.contains(predicate)) {
                 String object = toKytheGithubPath(sourceUsage.buildDirectory, it.substring(it.indexOf(
                         predicate) + predicate.length() + 3, it.length() - 3))
+                if (object.contains("#")) {
+                    if (sourceUsage.classToSourceMap.containsKey(object.substring(object.lastIndexOf("#")))) {
+                        object = sourceUsage.classToSourceMap.get(object.substring(object.lastIndexOf("#")))
+                    } else if (object.contains(".class#")) {
+                        object = object.replace(".class#", ".java#")
+                    }
+                }
 
                 processRecordRelationship(subject, predicate, object, sourceUsage, definesOutput, refcallsOutput)
             }

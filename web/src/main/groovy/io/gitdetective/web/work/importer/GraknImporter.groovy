@@ -616,12 +616,12 @@ class GraknImporter extends AbstractVerticle {
                                 importFutures.add(fut)
                                 importCode.fileId = fileId
                                 importCode.referenceFunctionId = osFunc.functionId
-                                redis.incrementOpenSourceFunctionReferenceCount(importCode.referenceFunctionId, {
+                                redis.getFunctionReferenceImportRound(importCode.referenceFunctionId, {
                                     if (it.failed()) {
                                         fut.fail(it.cause())
                                     } else {
                                         importCode.insertQuery = graql.parse(IMPORT_EXTERNAL_REFERENCED_FUNCTION_BY_FILE
-                                                .replace("<instanceOffset>", it.result().toString())
+                                                .replace("<importRound>", it.result().toString())
                                                 .replace("<xFileId>", importCode.fileId)
                                                 .replace("<projectId>", projectId)
                                                 .replace("<funcRefsId>", osFunc.functionReferencesId)
@@ -672,12 +672,12 @@ class GraknImporter extends AbstractVerticle {
                                 importCode.functionId = refFunctionId
                                 importCode.functionInstanceId = importData.definedFunctionInstances.get(refFunctionId)
                                 importCode.referenceFunctionId = osFunc.functionId
-                                redis.incrementOpenSourceFunctionReferenceCount(importCode.referenceFunctionId, {
+                                redis.getFunctionReferenceImportRound(importCode.referenceFunctionId, {
                                     if (it.failed()) {
                                         fut.fail(it.cause())
                                     } else {
                                         importCode.insertQuery = graql.parse(IMPORT_EXTERNAL_REFERENCED_FUNCTIONS
-                                                .replace("<instanceOffset>", it.result().toString())
+                                                .replace("<importRound>", it.result().toString())
                                                 .replace("<xFuncInstanceId>", importCode.functionInstanceId)
                                                 .replace("<projectId>", projectId)
                                                 .replace("<funcRefsId>", osFunc.functionReferencesId)

@@ -13,6 +13,8 @@ class GDTools {
             System.exit(-1)
         } else if (args[0].toLowerCase() == "getprojects") {
             GetProjects.main(args.drop(1))
+        } else if (args[0].toLowerCase() == "findprojects") {
+            FindProjects.main(args.drop(1))
         } else if (args[0].toLowerCase() == "createjob") {
             CreateJob.main(args.drop(1))
         } else if (args[0].toLowerCase() == "createjobs") {

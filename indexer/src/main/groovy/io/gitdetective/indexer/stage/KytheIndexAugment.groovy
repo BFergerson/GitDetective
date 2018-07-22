@@ -163,7 +163,7 @@ class KytheIndexAugment extends AbstractVerticle {
                 def osfLimit = config().getJsonObject("index_data_limits").getInteger("functions")
                 def osfCount = 0
                 neededFunctions.each {
-                    if (osfCount++ < osfLimit) {
+                    if (osfCount++ < osfLimit || osfLimit == -1) {
                         osFunctionsOutput.append("$it\n")
                     }
                 }
