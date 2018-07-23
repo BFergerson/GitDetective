@@ -34,7 +34,6 @@ import java.util.zip.ZipFile
 import static io.gitdetective.web.WebServices.asPrettyTime
 import static io.gitdetective.web.WebServices.logPrintln
 
-
 /**
  * Import augmented and filtered/funnelled Kythe compilation data into Grakn
  *
@@ -75,7 +74,6 @@ class GraknImporter extends AbstractVerticle {
     private final GraknDAO grakn
     private final String uploadsDirectory
     private GraknSession graknSession
-    private Session remoteSFTPSession
 
     GraknImporter(Kue kue, RedisDAO redis, GraknDAO grakn, String uploadsDirectory) {
         this.kue = kue
@@ -86,18 +84,6 @@ class GraknImporter extends AbstractVerticle {
 
     @Override
     void start() throws Exception {
-        String uploadsHost = config().getString("uploads.host")
-        if (uploadsHost != null) {
-            log.info "Connecting to remote SFTP server"
-            String uploadsUsername = config().getString("uploads.username")
-            String uploadsPassword = config().getString("uploads.password")
-            remoteSFTPSession = new JSch().getSession(uploadsUsername, uploadsHost, 22)
-            remoteSFTPSession.setConfig("StrictHostKeyChecking", "no")
-            remoteSFTPSession.setPassword(uploadsPassword)
-            remoteSFTPSession.connect()
-            log.info "Connected to remote SFTP server"
-        }
-
         String graknHost = config().getString("grakn.host")
         int graknPort = config().getInteger("grakn.port")
         String graknKeyspace = config().getString("grakn.keyspace")
@@ -787,30 +773,42 @@ class GraknImporter extends AbstractVerticle {
 
         String uploadsHost = config().getString("uploads.host")
         if (uploadsHost != null) {
-            log.debug "Downloading index results from SFTP"
+            log.info "Connecting to remote SFTP server"
+            String uploadsUsername = config().getString("uploads.username")
+            String uploadsPassword = config().getString("uploads.password")
+            def remoteSFTPSession = new JSch().getSession(uploadsUsername, uploadsHost, 22)
+            remoteSFTPSession.setConfig("StrictHostKeyChecking", "no")
+            remoteSFTPSession.setPassword(uploadsPassword)
+            remoteSFTPSession.connect()
+            log.info "Connected to remote SFTP server"
 
-            //try to connect 3 times (todo: use retryer?)
-            def exception = null
-            boolean connected = false
-            def sftpChannel = null
-            for (int i = 0; i < 3; i++) {
-                try {
-                    def channel = remoteSFTPSession.openChannel("sftp")
-                    channel.connect()
-                    sftpChannel = (ChannelSftp) channel
-                    connected = true
-                } catch (JSchException ex) {
-                    Thread.sleep(1000)
-                    exception = ex
+            try {
+                log.debug "Downloading index results from SFTP"
+                //try to connect 3 times (todo: use retryer?)
+                def exception = null
+                boolean connected = false
+                def sftpChannel = null
+                for (int i = 0; i < 3; i++) {
+                    try {
+                        def channel = remoteSFTPSession.openChannel("sftp")
+                        channel.connect()
+                        sftpChannel = (ChannelSftp) channel
+                        connected = true
+                    } catch (JSchException ex) {
+                        Thread.sleep(1000)
+                        exception = ex
+                    }
+                    if (connected) break
                 }
-                if (connected) break
-            }
-            if (connected) {
-                sftpChannel.get(remoteIndexResultsZip.absolutePath, indexResultsZip.absolutePath)
-                //todo: delete remote zip
-                sftpChannel.exit()
-            } else if (exception != null) {
-                throw exception
+                if (connected) {
+                    sftpChannel.get(remoteIndexResultsZip.absolutePath, indexResultsZip.absolutePath)
+                    //todo: delete remote zip
+                    sftpChannel.exit()
+                } else if (exception != null) {
+                    throw exception
+                }
+            } finally {
+                remoteSFTPSession.disconnect()
             }
         }
 
