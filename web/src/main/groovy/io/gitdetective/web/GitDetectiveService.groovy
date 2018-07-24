@@ -307,12 +307,11 @@ class GitDetectiveService extends AbstractVerticle {
             def timer = WebLauncher.metrics.timer(GET_METHOD_EXTERNAL_REFERENCES)
             def context = timer.time()
             def body = (JsonObject) request.body()
-            def githubRepository = body.getString("github_repository").toLowerCase()
             def methodId = body.getString("method_id")
             def offset = body.getInteger("offset")
             log.debug "Getting method external references"
 
-            redis.getMethodExternalReferences(githubRepository, methodId, offset, 10, {
+            redis.getMethodExternalReferences(methodId, offset, 10, {
                 if (it.failed()) {
                     it.cause().printStackTrace()
                     request.reply(it.cause())

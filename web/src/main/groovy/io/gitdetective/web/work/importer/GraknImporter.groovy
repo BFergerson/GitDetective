@@ -144,8 +144,7 @@ class GraknImporter extends AbstractVerticle {
                 if (it.failed()) {
                     handler.handle(Future.failedFuture(it.cause()))
                 } else {
-                    logPrintln(job, "Finished importing project")
-                    handler.handle(Future.succeededFuture())
+                    finalizeImport(job, githubRepository, handler)
                 }
             })
         } catch (ImportTimeoutException e) {
@@ -436,7 +435,7 @@ class GraknImporter extends AbstractVerticle {
                         cacheFutures.addAll(fut1, fut2, fut3)
                         redis.cacheProjectImportedFunction(githubRepository, importCode.functionName, importCode.functionId, fut1.completer())
                         redis.cacheProjectImportedDefinition(importCode.fileId, importCode.functionId, fut2.completer())
-                        redis.addFunctionOwner(importCode.functionId, githubRepository, fut3.completer())
+                        redis.addFunctionOwner(importCode.functionId, importCode.functionQualifiedName, githubRepository, fut3.completer())
                     }
                     tx.commit()
                 } finally {
@@ -762,6 +761,39 @@ class GraknImporter extends AbstractVerticle {
                 logPrintln(job, "Importing function references took: " + asPrettyTime(importReferencesContext.stop()))
                 handler.handle(Future.succeededFuture())
             }
+        })
+    }
+
+    private void finalizeImport(Job job, String githubRepository, Handler<AsyncResult> handler) {
+        redis.getProjectFirstIndexed(githubRepository, {
+            if (it.failed()) {
+                handler.handle(Future.failedFuture(it.cause()))
+                return
+            }
+
+            def futures = new ArrayList<Future>()
+            if (it.result() == null) {
+                def fut = Future.future()
+                futures.add(fut)
+                redis.setProjectFirstIndexed(githubRepository, Instant.now(), fut.completer())
+            }
+
+            def fut2 = Future.future()
+            futures.add(fut2)
+            redis.setProjectLastIndexed(githubRepository, Instant.now(), fut2.completer())
+            def fut3 = Future.future()
+            futures.add(fut3)
+            redis.setProjectLastIndexedCommitInformation(githubRepository,
+                    job.data.getString("commit"), job.data.getInstant("commit_date"), fut3.completer())
+
+            CompositeFuture.all(futures).setHandler({
+                if (it.failed()) {
+                    handler.handle(Future.failedFuture(it.cause()))
+                } else {
+                    logPrintln(job, "Finished importing project")
+                    handler.handle(Future.succeededFuture())
+                }
+            })
         })
     }
 

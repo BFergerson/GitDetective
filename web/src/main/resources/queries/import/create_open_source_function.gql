@@ -1,5 +1,4 @@
 insert $func isa function
-    has calculated_reference_rounds 0
     has create_date "<createDate>"
     has function_name "<name>";
 $funcDefs isa function-definitions;
