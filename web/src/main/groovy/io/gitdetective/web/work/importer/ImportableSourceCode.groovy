@@ -10,11 +10,15 @@ import groovy.transform.Canonical
 class ImportableSourceCode {
     Query insertQuery
     String filename
+    String fileLocation
     String fileId
+    String fileQualifiedName
     String functionName
+    String functionQualifiedName
     String functionId
     String functionInstanceId
     String referenceFunctionId
+    String referenceFunctionName
     String referenceFunctionInstanceId
     boolean isFileReferencing
     boolean isExternalReference

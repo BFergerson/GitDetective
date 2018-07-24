@@ -9,8 +9,6 @@ import io.vertx.core.AbstractVerticle
 import io.vertx.core.json.JsonObject
 import io.vertx.core.logging.Logger
 import io.vertx.core.logging.LoggerFactory
-import io.vertx.ext.web.client.WebClient
-import io.vertx.ext.web.client.WebClientOptions
 import org.eclipse.jgit.api.Git
 import org.eclipse.jgit.api.errors.TransportException
 import org.kohsuke.github.GHFileNotFoundException
@@ -77,7 +75,7 @@ class GithubRepositoryCloner extends AbstractVerticle {
                         }
 
                         if (skippingDownload) {
-                            skipBuild(job)
+                            job.done()
                         } else {
                             vertx.executeBlocking({
                                 try {
@@ -180,7 +178,7 @@ class GithubRepositoryCloner extends AbstractVerticle {
             //skip build if last built commit is same as current commit
             redis.getProjectLastIndexedCommitInformation(githubRepository, {
                 if (it.failed()) {
-                    it.cause().printStackTrace()
+                    job.done(it.cause())
                 } else {
                     boolean skippingBuild = false
                     def result = it.result() as String
@@ -195,10 +193,9 @@ class GithubRepositoryCloner extends AbstractVerticle {
                     }
 
                     if (skippingBuild) {
-                        job.data.put("build_skipped", true)
-                        skipBuild(job)
+                        job.done()
                     } else {
-                        buildMaven(job, githubRepository, repo, latestCommit, latestCommitDate)
+                        buildMaven(job, githubRepository, latestCommit, latestCommitDate)
                         redis.setProjectLastBuilt(githubRepository, Instant.now(), {
                             //nothing
                         })
@@ -211,28 +208,7 @@ class GithubRepositoryCloner extends AbstractVerticle {
         }
     }
 
-    private void skipBuild(Job job) {
-        def ssl = config().getBoolean("gitdetective_service.ssl_enabled")
-        def gitdetectiveHost = config().getString("gitdetective_service.host")
-        def gitdetectivePort = config().getInteger("gitdetective_service.port")
-        def clientOptions = new WebClientOptions()
-        clientOptions.setVerifyHost(false) //todo: why is this needed now?
-        clientOptions.setTrustAll(true)
-        def client = WebClient.create(vertx, clientOptions)
-
-        client.post(gitdetectivePort, gitdetectiveHost, "/jobs/transfer").ssl(ssl).sendJson(job, {
-            if (it.succeeded()) {
-                job.done()
-            } else {
-                logPrintln(job, "Failed to send project to importer")
-                job.done(it.cause())
-            }
-            client.close()
-        })
-    }
-
-    private void buildMaven(Job job, String githubRepository, GHRepository repo,
-                            String latestCommit, Instant latestCommitDate) {
+    private void buildMaven(Job job, String githubRepository, String latestCommit, Instant latestCommitDate) {
         //clean output directory
         def outputDirectory = new File(config().getString("temp_directory"), UUID.randomUUID().toString())
         outputDirectory.deleteDir()

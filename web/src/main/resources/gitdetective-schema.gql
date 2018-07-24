@@ -18,7 +18,6 @@ file sub entity
 function sub entity
     has create_date
     has function_name
-    has calculated_reference_rounds
     plays has_function_references
     plays has_function_definitions;
 function-instance sub entity
@@ -26,7 +25,6 @@ function-instance sub entity
     has qualified_name
     has commit_sha1
     has commit_date
-    has import_round
     plays is_function_definition
     plays is_function_reference
     plays is_defines_function
@@ -55,8 +53,6 @@ function_name sub name datatype string;
 file_name sub name datatype string;
 start_offset sub attribute datatype long;
 end_offset sub attribute datatype long;
-import_round sub attribute datatype long;
-calculated_reference_rounds sub attribute datatype long;
 
 ##########---------- Relationships ----------##########
 #todo: can make parent relationship with create_date, start_offset, end_offset

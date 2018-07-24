@@ -24,10 +24,8 @@ final class WebServices {
     static final String GET_PROJECT_FIRST_INDEXED = "GetProjectFirstIndexed"
     static final String GET_PROJECT_LAST_INDEXED = "GetProjectLastIndexed"
     static final String GET_PROJECT_LAST_INDEXED_COMMIT_INFORMATION = "GetProjectLastIndexedCommitInformation"
-    static final String GET_PROJECT_LAST_CALCULATED = "GetProjectLastCalculated"
     static final String GET_ACTIVE_JOBS = "GetActiveJobs"
     static final String CREATE_JOB = "CreateJob"
-    static final String TRIGGER_RECALCULATION = "TriggerRecalculation"
     static final String GET_METHOD_EXTERNAL_REFERENCES = "GetMethodExternalReferences"
     private final static Logger log = LoggerFactory.getLogger(WebServices.class)
 

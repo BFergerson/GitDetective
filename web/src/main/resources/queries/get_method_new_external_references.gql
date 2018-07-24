@@ -7,8 +7,7 @@ $open_fu isa function;
 	(has_function_definitions: $open_fu, is_function_definitions: $fu_defs) isa function_definitions;
 	(has_function_references: $open_fu, is_function_references: $fu_refs) isa function_references;
 $fu_ref isa function-instance
-    has commit_sha1 $commit_sha1
-    has import_round <calcRefRounds>;
+    has commit_sha1 $commit_sha1;
     (has_function_reference: $fu_refs, is_function_reference: $fu_ref) isa function_reference;
 $fu_ref_caller has qualified_name $fu_name;
     (has_ref_call: $fu_ref_caller, is_ref_call: $fu_ref) isa ref_call;
