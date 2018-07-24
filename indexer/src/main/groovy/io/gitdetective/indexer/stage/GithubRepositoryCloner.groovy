@@ -235,21 +235,23 @@ class GithubRepositoryCloner extends AbstractVerticle {
                         .setTimeout(TimeUnit.MINUTES.toSeconds(CLONE_TIMEOUT_LIMIT_MINUTES) as int)
                         .call()
 
-                if (KytheMavenBuilder.BUILDER_ADDRESS == builderAddress) {File mavenBuildPomFile = new File(outputDirectory, "pom.xml")
-                if (mavenBuildPomFile.exists()) {
-                    logPrintln(job, "Project successfully cloned")
-                    blocking.complete(mavenBuildPomFile)
-                } else {
-                    logPrintln(job, "Failed to find pom.xml")
-                    blocking.fail("Failed to find pom.xml")}
+                if (KytheMavenBuilder.BUILDER_ADDRESS == builderAddress) {
+                    File mavenBuildPomFile = new File(outputDirectory, "pom.xml")
+                    if (mavenBuildPomFile.exists()) {
+                        logPrintln(job, "Project successfully cloned")
+                        blocking.complete(mavenBuildPomFile)
+                    } else {
+                        logPrintln(job, "Failed to find pom.xml")
+                        blocking.fail("Failed to find pom.xml")
+                    }
                 } else if (KytheGradleBuilder.BUILDER_ADDRESS == builderAddress) {
                     File gradleBuildFile = new File(outputDirectory, "build.gradle")
                     if (gradleBuildFile.exists()) {
                         logPrintln(job, "Project successfully cloned")
-                        future.complete(gradleBuildFile)
+                        blocking.complete(gradleBuildFile)
                     } else {
                         logPrintln(job, "Failed to find build.gradle")
-                        future.fail("Failed to find build.gradle")
+                        blocking.fail("Failed to find build.gradle")
                     }
                 } else {
                     throw new IllegalArgumentException("Unsupported builder: $builderAddress")
@@ -266,14 +268,7 @@ class GithubRepositoryCloner extends AbstractVerticle {
                 job.data.put("commit_date", latestCommitDate)
                 job.data.put("output_directory", outputDirectory.absolutePath)
                 job.data.put("build_target", (res.result() as File).absolutePath)
-                job.save().setHandler({
-                    if (it.failed()) {
-                        job.done((it.cause()))
-                    } else {
-                        job = it.result()
-                        vertx.eventBus().send(builderAddress, job)
-                    }
-                })
+                vertx.eventBus().send(builderAddress, job)
             }
         })
     }
