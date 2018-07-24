@@ -5,19 +5,10 @@ import io.vertx.blueprint.kue.queue.Job
 import io.vertx.core.AbstractVerticle
 import io.vertx.core.CompositeFuture
 import io.vertx.core.Future
-import io.vertx.core.buffer.Buffer
-import io.vertx.core.file.FileProps
-import io.vertx.core.file.OpenOptions
 import io.vertx.core.logging.Logger
 import io.vertx.core.logging.LoggerFactory
-import io.vertx.ext.web.client.HttpRequest
-import io.vertx.ext.web.client.WebClient
-import io.vertx.ext.web.client.WebClientOptions
 import org.mapdb.DBMaker
 import org.mapdb.Serializer
-
-import java.util.zip.ZipEntry
-import java.util.zip.ZipOutputStream
 
 import static io.gitdetective.indexer.IndexerServices.logPrintln
 
@@ -64,15 +55,15 @@ class KytheIndexAugment extends AbstractVerticle {
         def osFunctionsOutput = new File(outputDirectory, "functions_open-source.txt")
         osFunctionsOutput.append("name|definitionCount|referenceCount\n")
 
-        def readyFunctionDefinitions = new File(outputDirectory, "functions_definition_ready.txt")
-        def partialFunctionReferences = new File(outputDirectory, "functions_reference_ready.txt")
+        def rawFunctionDefinitions = new File(outputDirectory, "functions_definition_raw.txt")
+        def rawFunctionReferences = new File(outputDirectory, "functions_reference_raw.txt")
         def neededFunctions = new HashSet<String>()
         def futures = new ArrayList<Future>()
 
         int lineNumber = 0
         def defLimit = config().getJsonObject("index_data_limits").getInteger("function_definitions")
-        def functionDefinitions = new File(outputDirectory, "functions_definition.txt")
-        readyFunctionDefinitions.each {
+        def functionDefinitions = new File(outputDirectory, "functions_definition_ready.txt")
+        rawFunctionDefinitions.each {
             if (defLimit == -1 || (lineNumber - 1) < defLimit) {
                 functionDefinitions.append(it)
             } else {
@@ -102,16 +93,16 @@ class KytheIndexAugment extends AbstractVerticle {
         lineNumber = 0
         def refCount = 0
         def refLimit = config().getJsonObject("index_data_limits").getInteger("function_references")
-        def functionReferences = new File(outputDirectory, "functions_reference.txt")
-        partialFunctionReferences.each {
+        def functionReferences = new File(outputDirectory, "functions_reference_ready.txt")
+        rawFunctionReferences.each {
             lineNumber++
             if (lineNumber > 1) {
                 if ((refLimit != -1 && refCount >= refLimit)) {
                     return //hit reference limit
                 }
                 def lineData = it.split("\\|")
-                def xFunctionName = lineData[0]
-                def yFunctionName = lineData[1]
+                def xFunctionName = lineData[1]
+                def yFunctionName = lineData[3]
                 boolean internalReference = definedFunctions.contains(yFunctionName)
                 if (internalReference && !trackInternalReferences) {
                     return //skip internal reference
@@ -170,83 +161,10 @@ class KytheIndexAugment extends AbstractVerticle {
 
                 db.close()
                 dbFile.delete()
-                sendToImporter(job)
+                vertx.eventBus().send(GitDetectiveImportFilter.GITDETECTIVE_IMPORT_FILTER, job)
             }
         })
     }
 
-    private void sendToImporter(Job job) {
-        def outputDirectory = job.data.getString("output_directory")
-        def results = new File(outputDirectory, "gitdetective_index_results.zip")
-        def filesOutput = new File(outputDirectory, "files.txt")
-        def osFunctionsOutput = new File(outputDirectory, "functions_open-source.txt")
-        def functionDefinitions = new File(outputDirectory, "functions_definition.txt")
-        def functionReferences = new File(outputDirectory, "functions_reference.txt")
-        FileOutputStream fos = new FileOutputStream(results.absolutePath)
-        ZipOutputStream zos = new ZipOutputStream(fos)
-        addToZipFile(filesOutput, zos)
-        addToZipFile(osFunctionsOutput, zos)
-        addToZipFile(functionDefinitions, zos)
-        addToZipFile(functionReferences, zos)
-        zos.close()
-        fos.close()
-
-        logPrintln(job, "Sending index results to importer")
-        def ssl = config().getBoolean("gitdetective_service.ssl_enabled")
-        def gitdetectiveHost = config().getString("gitdetective_service.host")
-        def gitdetectivePort = config().getInteger("gitdetective_service.port")
-        def fs = vertx.fileSystem()
-        def clientOptions = new WebClientOptions()
-        clientOptions.setVerifyHost(false) //todo: why is this needed now?
-        clientOptions.setTrustAll(true)
-        def client = WebClient.create(vertx, clientOptions)
-
-        fs.props(results.absolutePath, { ares ->
-            FileProps props = ares.result()
-            long size = props.size()
-
-            HttpRequest<Buffer> req = client.post(gitdetectivePort, gitdetectiveHost, "/indexes").ssl(ssl)
-            req.putHeader("content-length", "" + size)
-            fs.open(results.absolutePath, new OpenOptions(), { ares2 ->
-                req.sendStream(ares2.result(), { ar ->
-                    //clean index results folder
-                    new File(job.data.getString("output_directory")).deleteDir()
-
-                    if (ar.succeeded()) {
-                        job.data.put("import_index_file_id", ar.result().bodyAsString())
-                        client.post(gitdetectivePort, gitdetectiveHost, "/jobs/transfer").ssl(ssl).sendJson(job, {
-                            if (it.succeeded()) {
-                                job.done()
-                            } else {
-                                it.cause().printStackTrace()
-                                logPrintln(job, "Failed to send project to importer")
-                                job.done(it.cause())
-                            }
-                            client.close()
-                        })
-                    } else {
-                        ar.cause().printStackTrace()
-                        logPrintln(job, "Failed to send project to importer")
-                        job.done(ar.cause())
-                        client.close()
-                    }
-                })
-            })
-        })
-    }
-
-    private static void addToZipFile(File file, ZipOutputStream zos) throws FileNotFoundException, IOException {
-        FileInputStream fis = new FileInputStream(file)
-        ZipEntry zipEntry = new ZipEntry(file.getName())
-        zos.putNextEntry(zipEntry)
-
-        byte[] bytes = new byte[1024]
-        int length
-        while ((length = fis.read(bytes)) >= 0) {
-            zos.write(bytes, 0, length)
-        }
-        zos.closeEntry()
-        fis.close()
-    }
 
 }

@@ -16,6 +16,10 @@ class ExtractedSourceCodeUsage {
     final Map<String, String> bindings = Maps.newConcurrentMap()
     final Map<String, ExtractedNode> extractedNodes = Maps.newConcurrentMap()
     Map<String, String> paramToTypeMap
+    Map<String, String> fileLocations
+    Map<String, String> qualifiedNameMap
+    Map<String, String> classToSourceMap
+    Map<String, String> aliasMap
     Map<String, int[]> sourceLocationMap
     Set<String> functionNameSet
     long fileCount

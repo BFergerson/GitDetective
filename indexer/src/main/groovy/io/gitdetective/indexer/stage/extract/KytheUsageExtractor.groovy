@@ -6,6 +6,7 @@ import com.google.devtools.kythe.util.KytheURI
 import com.google.protobuf.ByteString
 import groovy.json.StringEscapeUtils
 import io.gitdetective.indexer.stage.GitDetectiveImportFilter
+import io.gitdetective.indexer.stage.KytheIndexAugment
 import io.vertx.blueprint.kue.queue.Job
 import io.vertx.core.AbstractVerticle
 import io.vertx.core.logging.Logger
@@ -63,6 +64,8 @@ class KytheUsageExtractor extends AbstractVerticle {
             def sourceUsage = new ExtractedSourceCodeUsage()
             sourceUsage.importFile = importFile
             sourceUsage.buildDirectory = new File(job.data.getString("build_target")).parentFile.absolutePath
+            sourceUsage.fileLocations = db.hashMap("fileLocations", Serializer.STRING, Serializer.STRING).create()
+            sourceUsage.aliasMap = db.hashMap("aliasMap", Serializer.STRING, Serializer.STRING).create()
             sourceUsage.paramToTypeMap = db.hashMap("paramToType", Serializer.STRING, Serializer.STRING).create()
             sourceUsage.sourceLocationMap = db.hashMap("sourceLocationMap", Serializer.STRING, Serializer.INT_ARRAY).create()
             sourceUsage.functionNameSet = db.hashSet("functionNameSet", Serializer.STRING).create()
@@ -70,7 +73,7 @@ class KytheUsageExtractor extends AbstractVerticle {
 
             filesOutput.append("fileLocation|filename|qualifiedName\n")
             functionDefinitions.append("file|name|qualifiedName|startOffset|endOffset\n")
-            functionReferences.append("xFunction|yFunction|qualifiedName|startOffset|endOffset|isExternal|isJdk\n")
+            functionReferences.append("fileLocation|xFileOrFunction|xQualifiedName|yFunction|yQualifiedName|startOffset|endOffset|isExternal|isJdk\n")
             preprocessEntities(job, sourceUsage)
             processEntities(job, sourceUsage, filesOutput)
             processRelationships(job, sourceUsage, functionDefinitions, functionReferences)
@@ -84,9 +87,7 @@ class KytheUsageExtractor extends AbstractVerticle {
                 job.done(res.cause())
             } else {
                 job.data.put("index_results_db", dbFile.absolutePath)
-                job.save().setHandler({
-                    vertx.eventBus().send(GitDetectiveImportFilter.GITDETECTIVE_IMPORT_FILTER, it.result())
-                })
+                vertx.eventBus().send(KytheIndexAugment.KYTHE_INDEX_AUGMENT, job)
             }
         })
     }

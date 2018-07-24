@@ -8,5 +8,4 @@ class ImportSessionData {
     final Map<String, String> importedFiles = new HashMap<>()
     final Map<String, String> definedFunctions = new HashMap<>()
     final Map<String, String> definedFunctionInstances = new HashMap<>()
-    final Map<String, String> definedFunctionQualifiedNames = new HashMap<>()
 }

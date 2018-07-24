@@ -188,7 +188,7 @@ class GithubRepositoryCloner extends AbstractVerticle {
             //skip build if last built commit is same as current commit
             redis.getProjectLastIndexedCommitInformation(githubRepository, {
                 if (it.failed()) {
-                    it.cause().printStackTrace()
+                    job.done(it.cause())
                 } else {
                     boolean skippingBuild = false
                     def result = it.result() as String
