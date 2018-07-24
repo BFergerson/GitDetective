@@ -21,14 +21,7 @@
   },
   "importer": {
     "enabled": true,
-    "thread_count": 10,
+    "thread_count": 15,
     "max_worker_time_minutes": 99999999
-  },
-  "calculator": {
-    "enabled": true,
-    "thread_count": 10,
-    "max_worker_time_minutes": 99999999,
-    "project_recalculate_wait_time": 2,
-    "project_most_referenced_methods": true
   }
 }
