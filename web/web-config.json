@@ -21,7 +21,7 @@
   },
   "importer": {
     "enabled": true,
-    "thread_count": 15,
+    "thread_count": 20,
     "max_worker_time_minutes": 99999999
   }
 }
