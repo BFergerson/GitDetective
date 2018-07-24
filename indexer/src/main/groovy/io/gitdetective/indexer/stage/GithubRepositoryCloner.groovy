@@ -178,7 +178,7 @@ class GithubRepositoryCloner extends AbstractVerticle {
             //skip build if last built commit is same as current commit
             redis.getProjectLastIndexedCommitInformation(githubRepository, {
                 if (it.failed()) {
-                    it.cause().printStackTrace()
+                    job.done(it.cause())
                 } else {
                     boolean skippingBuild = false
                     def result = it.result() as String
@@ -195,7 +195,7 @@ class GithubRepositoryCloner extends AbstractVerticle {
                     if (skippingBuild) {
                         job.done()
                     } else {
-                        buildMaven(job, githubRepository, repo, latestCommit, latestCommitDate)
+                        buildMaven(job, githubRepository, latestCommit, latestCommitDate)
                         redis.setProjectLastBuilt(githubRepository, Instant.now(), {
                             //nothing
                         })
@@ -208,8 +208,7 @@ class GithubRepositoryCloner extends AbstractVerticle {
         }
     }
 
-    private void buildMaven(Job job, String githubRepository, GHRepository repo,
-                            String latestCommit, Instant latestCommitDate) {
+    private void buildMaven(Job job, String githubRepository, String latestCommit, Instant latestCommitDate) {
         //clean output directory
         def outputDirectory = new File(config().getString("temp_directory"), UUID.randomUUID().toString())
         outputDirectory.deleteDir()

@@ -110,8 +110,8 @@ class KytheIndexAugment extends AbstractVerticle {
                     return //hit reference limit
                 }
                 def lineData = it.split("\\|")
-                def xFunctionName = lineData[0]
-                def yFunctionName = lineData[1]
+                def xFunctionName = lineData[1]
+                def yFunctionName = lineData[3]
                 boolean internalReference = definedFunctions.contains(yFunctionName)
                 if (internalReference && !trackInternalReferences) {
                     return //skip internal reference

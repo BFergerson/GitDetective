@@ -57,6 +57,7 @@ class KytheUsageExtractor extends AbstractVerticle {
             def sourceUsage = new ExtractedSourceCodeUsage()
             sourceUsage.importFile = importFile
             sourceUsage.buildDirectory = new File(job.data.getString("build_target")).parentFile.absolutePath
+            sourceUsage.fileLocations = db.hashMap("fileLocations", Serializer.STRING, Serializer.STRING).create()
             sourceUsage.aliasMap = db.hashMap("aliasMap", Serializer.STRING, Serializer.STRING).create()
             sourceUsage.sourceLocationMap = db.hashMap("sourceLocationMap", Serializer.STRING, Serializer.INT_ARRAY).create()
             sourceUsage.qualifiedNameMap = db.hashMap("qualifiedNameMap", Serializer.STRING, Serializer.STRING).create()
@@ -66,7 +67,7 @@ class KytheUsageExtractor extends AbstractVerticle {
 
             filesOutput.append("fileLocation|filename|qualifiedName\n")
             functionDefinitions.append("file|name|qualifiedName|startOffset|endOffset\n")
-            functionReferences.append("xFunction|yFunction|qualifiedName|startOffset|endOffset|isExternal|isJdk\n")
+            functionReferences.append("fileLocation|xFileOrFunction|xQualifiedName|yFunction|yQualifiedName|startOffset|endOffset|isExternal|isJdk\n")
             preprocessEntities(job, sourceUsage)
             processEntities(job, sourceUsage, filesOutput)
             processRelationships(job, sourceUsage, functionDefinitions, functionReferences)
@@ -91,7 +92,8 @@ class KytheUsageExtractor extends AbstractVerticle {
         logPrintln(job, "Pre-processing entities")
         sourceUsage.importFile.eachLine {
             String[] row = it.split(" ")
-            String subject = toKytheGithubPath(sourceUsage.buildDirectory, row[0].substring(1, row[0].length() - 1))
+            String fullSubjectPath = row[0].substring(1, row[0].length() - 1)
+            String subject = toKytheGithubPath(sourceUsage.buildDirectory, fullSubjectPath)
             if (!subject.contains(".class#") && subject.contains("#")) {
                 sourceUsage.classToSourceMap.put(subject.substring(subject.lastIndexOf("#")), subject)
             }
@@ -118,7 +120,28 @@ class KytheUsageExtractor extends AbstractVerticle {
                     }
                 }
 
-                sourceUsage.qualifiedNameMap.put(subject, URLDecoder.decode(object, "UTF-8"))
+                def qualifiedName = URLDecoder.decode(object, "UTF-8")
+                qualifiedName = qualifiedName.substring(qualifiedName.indexOf("lang=java?") + 10)
+                sourceUsage.qualifiedNameMap.put(subject, qualifiedName)
+            } else if (predicate == "/kythe/edge/defines") {
+                String object = toKytheGithubPath(sourceUsage.buildDirectory, it.substring(it.indexOf(
+                        predicate) + predicate.length() + 3, it.length() - 3))
+                if (!object.contains(".class#") && object.contains("#")) {
+                    sourceUsage.classToSourceMap.put(object.substring(object.lastIndexOf("#")), object)
+                }
+                if (object.contains("#")) {
+                    if (sourceUsage.classToSourceMap.containsKey(object.substring(object.lastIndexOf("#")))) {
+                        object = sourceUsage.classToSourceMap.get(object.substring(object.lastIndexOf("#")))
+                    } else if (object.contains(".class#")) {
+                        object = object.replace(".class#", ".java#")
+                    }
+                }
+
+                String fileLocation = fullSubjectPath.substring(fullSubjectPath.indexOf("path=") + 5)
+                if (fileLocation.contains("#")) {
+                    fileLocation = fileLocation.substring(0, fileLocation.indexOf("#"))
+                }
+                sourceUsage.fileLocations.put(object, fileLocation)
             }
         }
     }
@@ -268,13 +291,19 @@ class KytheUsageExtractor extends AbstractVerticle {
                 }
             }
 
-            def qualifiedName = sourceUsage.qualifiedNameMap.get(object)
-            if (qualifiedName == null || !qualifiedName.endsWith(")")) {
+            def subjectQualifiedName = sourceUsage.qualifiedNameMap.get(subject)
+            def objectQualifiedName = sourceUsage.qualifiedNameMap.get(object)
+            if (subjectQualifiedName == null || objectQualifiedName == null || !objectQualifiedName.endsWith(")")) {
                 return //todo: understand why these exists and how to process
             } else if (isJDK(subject) || isJDK(object)) {
                 return //no jdk
             }
-            functionReferences.append("$subject|$object|$qualifiedName|" + location[0] + "|" + location[1] + "\n")
+
+            def fileLocation = sourceUsage.fileLocations.get(subject)
+            if (!subject.contains("#")) {
+                fileLocation = subject.substring(subject.indexOf("path=") + 5)
+            }
+            functionReferences.append("$fileLocation|$subject|$subjectQualifiedName|$object|$objectQualifiedName|" + location[0] + "|" + location[1] + "\n")
         }
     }
 

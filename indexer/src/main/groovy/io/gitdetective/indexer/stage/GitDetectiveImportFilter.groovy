@@ -101,12 +101,12 @@ class GitDetectiveImportFilter extends AbstractVerticle {
 
                 //replace everything with ids (if possible)
                 def existingFileOrFunction
-                if (lineData[0].contains("#")) {
-                    existingFileOrFunction = projectCache.getProjectFunctionId(githubRepository, lineData[0])
+                if (lineData[1].contains("#")) {
+                    existingFileOrFunction = projectCache.getProjectFunctionId(githubRepository, lineData[1])
                 } else {
-                    existingFileOrFunction = projectCache.getProjectFileId(githubRepository, lineData[0])
+                    existingFileOrFunction = projectCache.getProjectFileId(githubRepository, lineData[1])
                 }
-                def existingFunction = projectCache.getProjectFunctionId(githubRepository, lineData[1])
+                def existingFunction = projectCache.getProjectFunctionId(githubRepository, lineData[3])
 
                 if (existingFileOrFunction.isPresent() && existingFunction.isPresent()) {
                     //check if import needed

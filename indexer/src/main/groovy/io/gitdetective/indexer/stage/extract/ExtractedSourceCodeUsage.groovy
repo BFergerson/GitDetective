@@ -10,6 +10,7 @@ import io.vertx.core.json.JsonObject
 class ExtractedSourceCodeUsage {
     File importFile
     String buildDirectory
+    Map<String, String> fileLocations
     Map<String, String> qualifiedNameMap
     Map<String, String> classToSourceMap
     Map<String, String> aliasMap
