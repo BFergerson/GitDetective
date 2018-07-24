@@ -111,11 +111,10 @@ class RedisDAO {
         })
     }
 
-    void updateMethodExternalReferenceCount(String githubRepository, JsonObject method, long referenceCount,
-                                            Handler<AsyncResult> handler) {
+    void updateFunctionExternalReferenceCount(String githubRepository, JsonObject method, long referenceCount,
+                                              Handler<AsyncResult> handler) {
         def methodDupe = method.copy()
         methodDupe.remove("commit_sha1") //don't care about which commit method came from
-        methodDupe.remove("calculated_reference_rounds") //or which round it came from
         redis.zadd("gitdetective:project:$githubRepository:method_reference_leaderboard", referenceCount,
                 methodDupe.encode(), {
             if (it.failed()) {
@@ -159,35 +158,16 @@ class RedisDAO {
         })
     }
 
-    void cacheMethodReferences(String githubRepository, JsonObject method, JsonArray methodReferences,
-                               Handler<AsyncResult<Long>> handler) {
-        def futures = new ArrayList<Future>()
-        for (int i = 0; i < methodReferences.size(); i++) {
-            def methodRef = methodReferences.getJsonObject(i)
-            def fut = Future.future()
-            futures.addAll(fut)
-            redis.lpush("gitdetective:project:$githubRepository:method_references:" + method.getString("id"),
-                    methodRef.encode(), fut.completer())
-        }
-
-        CompositeFuture.all(futures).setHandler({
-            if (it.failed()) {
-                handler.handle(Future.failedFuture(it.cause()))
-            } else {
-                redis.llen("gitdetective:project:$githubRepository:method_references:" + method.getString("id"), {
-                    if (it.failed()) {
-                        handler.handle(Future.failedFuture(it.cause()))
-                    } else {
-                        def totalRefCount = it.result()
-                        updateMethodExternalReferenceCount(githubRepository, method, totalRefCount, handler)
-                    }
-                })
-            }
-        })
+    void getMethodTotalExternalReferenceCount(String functionId, Handler<AsyncResult<Long>> handler) {
+        redis.llen("gitdetective:osf:function_references:$functionId", handler)
     }
 
-    void updateProjectReferenceLeaderboard(String githubRepository, long projectMethodReferenceCount,
-                                           Handler<AsyncResult> handler) {
+    private void cacheFunctionReference(String functionId, JsonObject referenceFunction, Handler<AsyncResult> handler) {
+        redis.lpush("gitdetective:osf:function_references:$functionId", referenceFunction.encode(), handler)
+    }
+
+    private void updateProjectReferenceLeaderboard(String githubRepository, long projectReferenceCount,
+                                                   Handler<AsyncResult> handler) {
         redis.get("gitdetective:project:$githubRepository:project_external_method_reference_count", {
             if (it.failed()) {
                 handler.handle(Future.failedFuture(it.cause()))
@@ -198,7 +178,7 @@ class RedisDAO {
                 } else {
                     currentScore = Long.parseLong(currentScore)
                 }
-                long newScore = (projectMethodReferenceCount + currentScore)
+                long newScore = (projectReferenceCount + currentScore)
 
                 redis.set("gitdetective:project:$githubRepository:project_external_method_reference_count",
                         newScore as String, {
@@ -311,21 +291,6 @@ class RedisDAO {
 
     void setProjectLastBuilt(String githubRepository, Instant lastBuilt, Handler<AsyncResult> handler) {
         redis.set("gitdetective:project:$githubRepository:project_last_built", lastBuilt.toString(), handler)
-    }
-
-    void getProjectLastCalculated(String githubRepository, Handler<AsyncResult<String>> handler) {
-        redis.get("gitdetective:project:$githubRepository:project_last_calculated", {
-            if (it.failed()) {
-                handler.handle(Future.failedFuture(it.cause()))
-            } else {
-                def result = it.result() as String
-                handler.handle(Future.succeededFuture(result))
-            }
-        })
-    }
-
-    void setProjectLastCalculated(String githubRepository, Instant now, Handler<AsyncResult> handler) {
-        redis.set("gitdetective:project:$githubRepository:project_last_calculated", now.toString(), handler)
     }
 
     void getComputeTime(Handler<AsyncResult<Long>> handler) {
@@ -504,30 +469,67 @@ class RedisDAO {
         redis.publish(NEW_REFERENCE, "$fileOrFunctionId-$functionId", handler)
     }
 
-    void incrementFunctionReferenceImportRound(String functionId, Handler<AsyncResult<Long>> handler) {
-        redis.incr("gitdetective:counts:osf:reference:function:$functionId", {
+    private void addOwnedFunction(String githubRepository, String functionId, Handler<AsyncResult> handler) {
+        log.trace "Adding owned function '$functionId' to owner: $githubRepository"
+        redis.sadd("gitdetective:project:$githubRepository:ownedFunctions", functionId, handler)
+    }
+
+    void getOwnedFunctions(String githubRepository, Handler<AsyncResult<JsonArray>> handler) {
+        redis.smembers("gitdetective:project:$githubRepository:ownedFunctions", handler)
+    }
+
+    void addFunctionOwner(String functionId, String githubRepository, Handler<AsyncResult> handler) {
+        log.trace "Adding owner '$githubRepository' to function: $functionId"
+        redis.sadd("gitdetective:osf:owners:function:$functionId", githubRepository, {
             if (it.failed()) {
                 handler.handle(Future.failedFuture(it.cause()))
+            } else if (it.result() == 1) {
+                //make function owned by owner; check reference count; update project reference counts
+                addOwnedFunction(githubRepository, functionId, {
+                    if (it.failed()) {
+                        handler.handle(Future.failedFuture(it.cause()))
+                    } else {
+                        getMethodTotalExternalReferenceCount(functionId, {
+                            if (it.failed()) {
+                                handler.handle(Future.failedFuture(it.cause()))
+                            } else {
+                                updateProjectReferenceLeaderboard(githubRepository, it.result(), handler)
+                            }
+                        })
+                    }
+                })
             } else {
-                if (it.result() == null) {
-                    handler.handle(Future.succeededFuture(0))
-                } else {
-                    handler.handle(Future.succeededFuture(Long.valueOf(it.result())))
-                }
+                handler.handle(Future.succeededFuture())
             }
         })
     }
 
-    void getFunctionReferenceImportRound(String functionId, Handler<AsyncResult<Long>> handler) {
-        redis.get("gitdetective:counts:osf:reference:function:$functionId", {
+    private void getFunctionOwners(String functionId, Handler<AsyncResult<JsonArray>> handler) {
+        log.debug "Getting function owners for function: $functionId"
+        redis.smembers("gitdetective:osf:owners:function:$functionId", handler)
+    }
+
+    void addFunctionReference(String functionId, JsonObject fileOrFunctionReference, Handler<AsyncResult> handler) {
+        cacheFunctionReference(functionId, fileOrFunctionReference, {
             if (it.failed()) {
                 handler.handle(Future.failedFuture(it.cause()))
             } else {
-                if (it.result() == null) {
-                    handler.handle(Future.succeededFuture(0))
-                } else {
-                    handler.handle(Future.succeededFuture(Long.valueOf(it.result())))
-                }
+                getFunctionOwners(functionId, {
+                    if (it.failed()) {
+                        handler.handle(Future.failedFuture(it.cause()))
+                    } else {
+                        //update function owner in leaderboard
+                        def owners = it.result() as JsonArray
+                        def futures = new ArrayList<Future>()
+                        for (int i = 0; i < owners.size(); i++) {
+                            def owner = owners.getString(i)
+                            def fut = Future.future()
+                            futures.add(fut)
+                            updateProjectReferenceLeaderboard(owner, 1, fut.completer())
+                        }
+                        CompositeFuture.all(futures).setHandler(handler)
+                    }
+                })
             }
         })
     }

@@ -6,7 +6,6 @@ import com.google.common.collect.Lists
 import io.gitdetective.GitDetectiveVersion
 import io.gitdetective.web.dao.JobsDAO
 import io.gitdetective.web.dao.RedisDAO
-import io.gitdetective.web.work.calculator.GraknCalculator
 import io.gitdetective.web.work.importer.GraknImporter
 import io.vertx.core.AbstractVerticle
 import io.vertx.core.CompositeFuture
@@ -34,7 +33,6 @@ class GitDetectiveWebsite extends AbstractVerticle {
     private final static Logger log = LoggerFactory.getLogger(GitDetectiveWebsite.class)
     private static volatile long CURRENTLY_INDEXING_COUNT = 0
     private static volatile long CURRENTLY_IMPORTING_COUNT = 0
-    private static volatile long CURRENTLY_CALCULATING_COUNT = 0
     private static volatile long TOTAL_COMPUTE_TIME = 0
     private static volatile long TOTAL_PROJECT_COUNT = 0
     private static volatile long TOTAL_FILE_COUNT = 0
@@ -105,13 +103,6 @@ class GitDetectiveWebsite extends AbstractVerticle {
         jobs.getActiveCount("IndexGithubProject", {
             if (it.succeeded()) {
                 CURRENTLY_INDEXING_COUNT = it.result()
-            } else {
-                it.cause().printStackTrace()
-            }
-        })
-        jobs.getActiveCount(GraknCalculator.GRAKN_CALCULATE_JOB_TYPE, {
-            if (it.succeeded()) {
-                CURRENTLY_CALCULATING_COUNT = it.result()
             } else {
                 it.cause().printStackTrace()
             }
@@ -200,9 +191,7 @@ class GitDetectiveWebsite extends AbstractVerticle {
                 //add pretty job type
                 for (int i = 0; i < activeJobs.size(); i++) {
                     def job = activeJobs.getJsonObject(i)
-                    if (job.getString("type") == GraknCalculator.GRAKN_CALCULATE_JOB_TYPE) {
-                        job.getJsonObject("data").put("job_type", "Calculating")
-                    } else if (job.getString("type") == GraknImporter.GRAKN_INDEX_IMPORT_JOB_TYPE) {
+                    if (job.getString("type") == GraknImporter.GRAKN_INDEX_IMPORT_JOB_TYPE) {
                         job.getJsonObject("data").put("job_type", "Importing")
                     } else {
                         job.getJsonObject("data").put("job_type", "Indexing")
@@ -267,7 +256,6 @@ class GitDetectiveWebsite extends AbstractVerticle {
                 getProjectFirstIndexed(ctx, repo),
                 getProjectLastIndexed(ctx, repo),
                 getProjectLastIndexedCommitInformation(ctx, repo),
-                getProjectLastCalculated(ctx, repo),
                 getProjectMostReferencedMethods(ctx, repo)
         )).setHandler({
             HandlebarsTemplateEngine engine = HandlebarsTemplateEngine.create()
@@ -291,9 +279,6 @@ class GitDetectiveWebsite extends AbstractVerticle {
                 if (triggerInformation.getBoolean("can_build")) {
                     log.info "Auto-building: " + repo.getString("github_repository")
                     vertx.eventBus().send(CREATE_JOB, repo)
-                } else if (triggerInformation.getBoolean("can_recalculate")) {
-                    log.info "Auto-recalculating: " + repo.getString("github_repository")
-                    vertx.eventBus().send(TRIGGER_RECALCULATION, repo)
                 }
             })
         }
@@ -404,24 +389,10 @@ class GitDetectiveWebsite extends AbstractVerticle {
         return future
     }
 
-    private Future getProjectLastCalculated(RoutingContext ctx, JsonObject githubRepository) {
-        def future = Future.future()
-        def handler = future.completer()
-        vertx.eventBus().send(GET_PROJECT_LAST_CALCULATED, githubRepository, {
-            if (it.failed()) {
-                ctx.fail(it.cause())
-            } else {
-                ctx.put("project_last_calculated", it.result().body())
-            }
-            handler.handle(Future.succeededFuture())
-        })
-        return future
-    }
-
     private static Future getDatabaseStatistics(RoutingContext ctx) {
         def stats = new JsonArray()
         stats.add(new JsonObject().put("stat1", "Active backlog").put("value1",
-                asPrettyNumber(CURRENTLY_INDEXING_COUNT + CURRENTLY_IMPORTING_COUNT + CURRENTLY_CALCULATING_COUNT))
+                asPrettyNumber(CURRENTLY_INDEXING_COUNT + CURRENTLY_IMPORTING_COUNT))
                 .put("stat2", "Projects").put("value2", asPrettyNumber(TOTAL_PROJECT_COUNT)))
         stats.add(new JsonObject().put("stat1", "Definitions").put("value1", asPrettyNumber(TOTAL_DEFINITION_COUNT))
                 .put("stat2", "Files").put("value2", asPrettyNumber(TOTAL_FILE_COUNT)))

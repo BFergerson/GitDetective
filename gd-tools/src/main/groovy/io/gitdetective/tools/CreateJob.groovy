@@ -2,7 +2,6 @@ package io.gitdetective.tools
 
 import io.gitdetective.web.dao.JobsDAO
 import io.gitdetective.web.dao.RedisDAO
-import io.gitdetective.web.work.calculator.GraknCalculator
 import io.gitdetective.web.work.importer.GraknImporter
 import io.vertx.blueprint.kue.Kue
 import io.vertx.blueprint.kue.queue.KueVerticle
@@ -25,7 +24,6 @@ class CreateJob extends AbstractVerticle {
     static String jobType
     static String projectName
     static String priority = "NORMAL"
-    static boolean skipBuild = false
 
     static void main(String[] args) {
         def configFile = new File("web-config.json")
@@ -39,8 +37,6 @@ class CreateJob extends AbstractVerticle {
         jobType = args[0].toLowerCase()
         if (jobType == "index") {
             jobType = "IndexGithubProject"
-        } else if (jobType == "calculate") {
-            jobType = GraknCalculator.GRAKN_CALCULATE_JOB_TYPE
         } else if (jobType == "import") {
             jobType = GraknImporter.GRAKN_INDEX_IMPORT_JOB_TYPE
         } else {
@@ -50,12 +46,6 @@ class CreateJob extends AbstractVerticle {
         projectName = args[1]
         if (args.length > 2) {
             priority = args[2]
-        }
-        if (args.length > 3) {
-            skipBuild = args[3] as boolean
-        }
-        if (!skipBuild && jobType == GraknCalculator.GRAKN_CALCULATE_JOB_TYPE) {
-            skipBuild = true
         }
 
         DeploymentOptions options = new DeploymentOptions().setConfig(config)
@@ -95,14 +85,9 @@ class CreateJob extends AbstractVerticle {
         def redis = new RedisDAO(redisClient)
         def jobs = new JobsDAO(kue, redis)
         def initialMessage = "Admin build job queued"
-        if (jobType == "CalculateGithubProject") {
-            initialMessage = "Admin reference recalculation queued"
-        }
 
         jobs.createJob(jobType, initialMessage,
-                new JsonObject().put("github_repository", projectName)
-                        .put("is_recalculation", jobType == GraknCalculator.GRAKN_CALCULATE_JOB_TYPE)
-                        .put("build_skipped", skipBuild).put("admin_triggered", true),
+                new JsonObject().put("github_repository", projectName).put("admin_triggered", true),
                 Priority.valueOf(priority.toUpperCase()), {
             if (it.failed()) {
                 it.cause().printStackTrace()

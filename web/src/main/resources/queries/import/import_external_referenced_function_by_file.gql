@@ -4,7 +4,6 @@ match
 
 insert
 $y isa function-instance
-    has import_round <importRound>
     has commit_date "<commitDate>"
     has qualified_name "<qualifiedName>"
     has commit_sha1 "<commitSha1>";

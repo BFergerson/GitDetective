@@ -2,7 +2,6 @@ package io.gitdetective.tools
 
 import io.gitdetective.web.dao.JobsDAO
 import io.gitdetective.web.dao.RedisDAO
-import io.gitdetective.web.work.calculator.GraknCalculator
 import io.gitdetective.web.work.importer.GraknImporter
 import io.vertx.blueprint.kue.Kue
 import io.vertx.blueprint.kue.queue.KueVerticle
@@ -35,8 +34,6 @@ class CreateJobs extends AbstractVerticle {
         jobType = args[0].toLowerCase()
         if (jobType == "index") {
             jobType = "IndexGithubProject"
-        } else if (jobType == "calculate") {
-            jobType = GraknCalculator.GRAKN_CALCULATE_JOB_TYPE
         } else if (jobType == "import") {
             jobType = GraknImporter.GRAKN_INDEX_IMPORT_JOB_TYPE
         } else {
@@ -90,14 +87,8 @@ class CreateJobs extends AbstractVerticle {
             def fut = Future.future()
             futures.add(fut)
 
-            def initialMessage = "Admin build job queued"
-            if (jobType == "CalculateGithubProject") {
-                initialMessage = "Admin reference recalculation queued"
-            }
-            jobs.createJob(jobType, initialMessage,
-                    new JsonObject().put("github_repository", it)
-                            .put("is_recalculation", jobType == GraknCalculator.GRAKN_CALCULATE_JOB_TYPE)
-                            .put("admin_triggered", true),
+            jobs.createJob(jobType, "Admin build job queued",
+                    new JsonObject().put("github_repository", it).put("admin_triggered", true),
                     Priority.valueOf(priority.toUpperCase()), {
                 if (it.failed()) {
                     it.cause().printStackTrace()
