@@ -12,6 +12,7 @@ class ImportableSourceCode {
     String filename
     String fileId
     String functionName
+    String functionQualifiedName
     String functionId
     String functionInstanceId
     String referenceFunctionId

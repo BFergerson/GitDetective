@@ -163,7 +163,7 @@ class KytheIndexAugment extends AbstractVerticle {
                 def osfLimit = config().getJsonObject("index_data_limits").getInteger("functions")
                 def osfCount = 0
                 neededFunctions.each {
-                    if (osfCount++ < osfLimit) {
+                    if (osfCount++ < osfLimit || osfLimit == -1) {
                         osFunctionsOutput.append("$it\n")
                     }
                 }
@@ -214,25 +214,15 @@ class KytheIndexAugment extends AbstractVerticle {
 
                     if (ar.succeeded()) {
                         job.data.put("import_index_file_id", ar.result().bodyAsString())
-                        job.save().setHandler({
-                            if (it.failed()) {
-                                it.cause().printStackTrace()
-                                logPrintln(job, "Failed to send index results to importer")
-                                job.done(it.cause())
-                                client.close()
+                        client.post(gitdetectivePort, gitdetectiveHost, "/jobs/transfer").ssl(ssl).sendJson(job, {
+                            if (it.succeeded()) {
+                                job.done()
                             } else {
-                                job = it.result()
-                                client.post(gitdetectivePort, gitdetectiveHost, "/jobs/transfer").ssl(ssl).sendJson(job, {
-                                    if (it.succeeded()) {
-                                        job.done()
-                                    } else {
-                                        it.cause().printStackTrace()
-                                        logPrintln(job, "Failed to send project to importer")
-                                        job.done(it.cause())
-                                    }
-                                    client.close()
-                                })
+                                it.cause().printStackTrace()
+                                logPrintln(job, "Failed to send project to importer")
+                                job.done(it.cause())
                             }
+                            client.close()
                         })
                     } else {
                         ar.cause().printStackTrace()

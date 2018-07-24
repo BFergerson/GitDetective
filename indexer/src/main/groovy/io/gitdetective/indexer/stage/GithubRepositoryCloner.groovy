@@ -10,8 +10,6 @@ import io.vertx.core.AbstractVerticle
 import io.vertx.core.json.JsonObject
 import io.vertx.core.logging.Logger
 import io.vertx.core.logging.LoggerFactory
-import io.vertx.ext.web.client.WebClient
-import io.vertx.ext.web.client.WebClientOptions
 import org.eclipse.jgit.api.Git
 import org.eclipse.jgit.api.errors.TransportException
 import org.kohsuke.github.GHFileNotFoundException
@@ -77,7 +75,7 @@ class GithubRepositoryCloner extends AbstractVerticle {
                         }
 
                         if (skippingDownload) {
-                            skipBuild(job)
+                            job.done()
                         } else {
                             vertx.executeBlocking({
                                 try {
@@ -120,10 +118,12 @@ class GithubRepositoryCloner extends AbstractVerticle {
 
         //skip forked projects (queue parent project)
         if (repo.fork) {
-            logPrintln(job, "Forked projects not currently supported")
             if (!config().getBoolean("create_forked_project_parent_jobs")) {
+                logPrintln(job, "Forked projects not currently supported. Skipped build")
                 job.done()
                 return
+            } else {
+                logPrintln(job, "Forked projects not fully supported. Building parent")
             }
             def parent = repo.parent
             def parentGithubRepository = parent.fullName.toLowerCase()
@@ -134,11 +134,14 @@ class GithubRepositoryCloner extends AbstractVerticle {
                     return
                 }
 
+                logPrintln(job, "Checking parent project status")
                 if (it.result().isPresent()) {
                     def lastQueue = it.result().get()
                     if (lastQueue.plus(24, ChronoUnit.HOURS).isAfter(Instant.now())) {
                         //parent project already queued in last 24 hours; ignore
+                        logPrintln(job, "Parent project already queued")
                         job.done()
+                        return
                     }
                 }
 
@@ -147,7 +150,7 @@ class GithubRepositoryCloner extends AbstractVerticle {
                 jobs.createJob(INDEX_GITHUB_PROJECT_JOB_TYPE, "System build job queued",
                         data, job.priority, {
                     if (it.failed()) {
-                        it.cause().printStackTrace()
+                        job.done(it.cause())
                     } else {
                         def parentProjectName = it.result().data.getString("github_repository")
                         log.info "Forked project created job: " + it.result().id + " - Parent: " + parentProjectName
@@ -200,7 +203,7 @@ class GithubRepositoryCloner extends AbstractVerticle {
                     }
 
                     if (skippingBuild) {
-                        skipBuild(job)
+                        job.done()
                     } else {
                         cloneAndBuildProject(job, githubRepository, latestCommit, latestCommitDate, builderAddress)
                         redis.setProjectLastBuilt(githubRepository, Instant.now(), {
@@ -215,35 +218,6 @@ class GithubRepositoryCloner extends AbstractVerticle {
         }
     }
 
-    private void skipBuild(Job job) {
-        job.data.put("build_skipped", true)
-        job.save().setHandler({
-            if (it.failed()) {
-                it.cause().printStackTrace()
-            } else {
-                job = it.result()
-
-                def ssl = config().getBoolean("gitdetective_service.ssl_enabled")
-                def gitdetectiveHost = config().getString("gitdetective_service.host")
-                def gitdetectivePort = config().getInteger("gitdetective_service.port")
-                def clientOptions = new WebClientOptions()
-                clientOptions.setTrustAll(true)
-                def client = WebClient.create(vertx, clientOptions)
-
-                client.post(gitdetectivePort, gitdetectiveHost, "/jobs/transfer").ssl(ssl).sendJson(job, {
-                    if (it.succeeded()) {
-                        job.done()
-                    } else {
-                        it.cause().printStackTrace()
-                        logPrintln(job, "Failed to send project to importer")
-                        job.done(it.cause())
-                    }
-                    client.close()
-                })
-            }
-        })
-    }
-
     private void cloneAndBuildProject(Job job, String githubRepository, String latestCommit, Instant latestCommitDate,
                                       String builderAddress) {
         //clean output directory
@@ -251,7 +225,7 @@ class GithubRepositoryCloner extends AbstractVerticle {
         outputDirectory.deleteDir()
         outputDirectory.mkdirs()
 
-        vertx.executeBlocking({ future ->
+        vertx.executeBlocking({ blocking ->
             logPrintln(job, "Cloning project to local filesystem")
             try {
                 Git.cloneRepository()
@@ -261,15 +235,13 @@ class GithubRepositoryCloner extends AbstractVerticle {
                         .setTimeout(TimeUnit.MINUTES.toSeconds(CLONE_TIMEOUT_LIMIT_MINUTES) as int)
                         .call()
 
-                if (KytheMavenBuilder.BUILDER_ADDRESS == builderAddress) {
-                    File mavenBuildPomFile = new File(outputDirectory, "pom.xml")
-                    if (mavenBuildPomFile.exists()) {
-                        logPrintln(job, "Project successfully cloned")
-                        future.complete(mavenBuildPomFile)
-                    } else {
-                        logPrintln(job, "Failed to find pom.xml")
-                        future.fail("Failed to find pom.xml")
-                    }
+                if (KytheMavenBuilder.BUILDER_ADDRESS == builderAddress) {File mavenBuildPomFile = new File(outputDirectory, "pom.xml")
+                if (mavenBuildPomFile.exists()) {
+                    logPrintln(job, "Project successfully cloned")
+                    blocking.complete(mavenBuildPomFile)
+                } else {
+                    logPrintln(job, "Failed to find pom.xml")
+                    blocking.fail("Failed to find pom.xml")}
                 } else if (KytheGradleBuilder.BUILDER_ADDRESS == builderAddress) {
                     File gradleBuildFile = new File(outputDirectory, "build.gradle")
                     if (gradleBuildFile.exists()) {
@@ -284,7 +256,7 @@ class GithubRepositoryCloner extends AbstractVerticle {
                 }
             } catch (TransportException e) {
                 logPrintln(job, "Project clone timed out")
-                future.fail("Project clone timed out")
+                blocking.fail("Project clone timed out")
             }
         }, false, { res ->
             if (res.failed()) {

@@ -11,7 +11,6 @@ import io.gitdetective.web.dao.GraknDAO
 import io.gitdetective.web.dao.JobsDAO
 import io.gitdetective.web.dao.RedisDAO
 import io.gitdetective.web.work.GHArchiveSync
-import io.gitdetective.web.work.calculator.GraknCalculator
 import io.gitdetective.web.work.importer.GraknImporter
 import io.vertx.blueprint.kue.Kue
 import io.vertx.blueprint.kue.queue.Job
@@ -65,7 +64,6 @@ class GitDetectiveService extends AbstractVerticle {
 
         vertx.executeBlocking({
             def importJobEnabled = config().getJsonObject("importer").getBoolean("enabled")
-            def calculateJobEnabled = config().getJsonObject("calculator").getBoolean("enabled")
             if (config().getBoolean("grakn.enabled")) {
                 log.info "Grakn integration enabled"
                 setupOntology()
@@ -78,15 +76,7 @@ class GitDetectiveService extends AbstractVerticle {
                 } else {
                     log.info "Import job processing disabled"
                 }
-                if (calculateJobEnabled) {
-                    def grakn = makeGraknDAO(redis)
-                    log.info "Reference calculation job processing enabled"
-                    def calculatorOptions = new DeploymentOptions().setConfig(config())
-                    vertx.deployVerticle(new GraknCalculator(kue, redis, grakn), calculatorOptions)
-                } else {
-                    log.info "Reference calculation job processing disabled"
-                }
-            } else if (importJobEnabled || calculateJobEnabled) {
+            } else if (importJobEnabled) {
                 log.error "Job processing cannot be enabled with Grakn disabled"
                 System.exit(-1)
             } else {
@@ -156,24 +146,16 @@ class GitDetectiveService extends AbstractVerticle {
                 //remove jobs with jobs previous to latest
                 it.result().each {
                     def githubRepository = it.data.getString("github_repository")
-                    if (it.type == GraknCalculator.GRAKN_CALCULATE_JOB_TYPE) {
+                    if (it.type == GraknImporter.GRAKN_INDEX_IMPORT_JOB_TYPE) {
                         finalAllJobs.removeIf({
                             it.data.getString("github_repository") == githubRepository &&
-                                    it.type != GraknCalculator.GRAKN_CALCULATE_JOB_TYPE
-                        })
-                    } else if (it.type == GraknImporter.GRAKN_INDEX_IMPORT_JOB_TYPE) {
-                        finalAllJobs.removeIf({
-                            it.data.getString("github_repository") == githubRepository &&
-                                    it.type != GraknCalculator.GRAKN_CALCULATE_JOB_TYPE &&
                                     it.type != GraknImporter.GRAKN_INDEX_IMPORT_JOB_TYPE
                         })
                     }
                 }
 
                 JsonArray activeJobs = new JsonArray()
-                //encode jobs
                 finalAllJobs.each { activeJobs.add(new JsonObject(Json.encode(it))) }
-
                 log.debug "Got active jobs - Size: " + activeJobs.size()
                 request.reply(activeJobs)
                 context.stop()
@@ -236,42 +218,6 @@ class GitDetectiveService extends AbstractVerticle {
 
                     request.reply(result)
                     context.stop()
-                }
-            })
-        })
-        vertx.eventBus().consumer(TRIGGER_RECALCULATION, { request ->
-            def timer = WebLauncher.metrics.timer(TRIGGER_RECALCULATION)
-            def context = timer.time()
-            def body = (JsonObject) request.body()
-            def githubRepository = body.getString("github_repository").toLowerCase()
-
-            //check if can re-calculator
-            vertx.eventBus().send(GET_TRIGGER_INFORMATION, new JsonObject().put("github_repository", githubRepository), {
-                def triggerInformation = it.result().body() as JsonObject
-                if (triggerInformation.getBoolean("can_recalculate")) {
-                    log.debug "Triggering recalculation"
-
-                    // user requested = highest priority
-                    jobs.createJob(GraknCalculator.GRAKN_CALCULATE_JOB_TYPE,
-                            "User reference recalculation queued",
-                            new JsonObject().put("github_repository", githubRepository)
-                                    .put("is_recalculation", true)
-                                    .put("build_skipped", true),
-                            Priority.CRITICAL, { job ->
-                        if (job.failed()) {
-                            job.cause().printStackTrace()
-                            request.reply(job.cause())
-                            context.stop()
-                        } else {
-                            def jobId = job.result().getId()
-                            String result = new JsonObject()
-                                    .put("message", "User reference recalculation queued (id: $jobId)")
-                                    .put("id", jobId)
-                            log.debug "Created recalculation job: " + result
-                            request.reply(result)
-                            context.stop()
-                        }
-                    })
                 }
             })
         })
@@ -361,12 +307,11 @@ class GitDetectiveService extends AbstractVerticle {
             def timer = WebLauncher.metrics.timer(GET_METHOD_EXTERNAL_REFERENCES)
             def context = timer.time()
             def body = (JsonObject) request.body()
-            def githubRepository = body.getString("github_repository").toLowerCase()
             def methodId = body.getString("method_id")
             def offset = body.getInteger("offset")
             log.debug "Getting method external references"
 
-            redis.getMethodExternalReferences(githubRepository, methodId, offset, 10, {
+            redis.getMethodExternalReferences(methodId, offset, 10, {
                 if (it.failed()) {
                     it.cause().printStackTrace()
                     request.reply(it.cause())
@@ -431,24 +376,6 @@ class GitDetectiveService extends AbstractVerticle {
                 context.stop()
             })
         })
-        vertx.eventBus().consumer(GET_PROJECT_LAST_CALCULATED, { request ->
-            def timer = WebLauncher.metrics.timer(GET_PROJECT_LAST_CALCULATED)
-            def context = timer.time()
-            def body = (JsonObject) request.body()
-            def githubRepository = body.getString("github_repository").toLowerCase()
-            log.debug "Getting project last calculated"
-
-            redis.getProjectLastCalculated(githubRepository, {
-                if (it.failed()) {
-                    it.cause().printStackTrace()
-                    request.reply(it.cause())
-                } else {
-                    log.debug "Got project last calculated: " + it.result()
-                    request.reply(it.result())
-                }
-                context.stop()
-            })
-        })
         vertx.eventBus().consumer(GET_TRIGGER_INFORMATION, { request ->
             def timer = WebLauncher.metrics.timer(GET_TRIGGER_INFORMATION)
             def context = timer.time()
@@ -471,7 +398,6 @@ class GitDetectiveService extends AbstractVerticle {
                             def triggerInformation = new JsonObject()
                             triggerInformation.put("can_queue", false)
                             triggerInformation.put("can_build", false)
-                            triggerInformation.put("can_recalculate", false)
                             request.reply(triggerInformation)
                             context.stop()
                             return
@@ -479,7 +405,7 @@ class GitDetectiveService extends AbstractVerticle {
                     }
                 }
 
-                //check last queue/build/calc
+                //check last queue/build
                 def futures = new ArrayList<Future>()
                 def canQueueFuture = Future.future()
                 futures.add(canQueueFuture)
@@ -487,19 +413,14 @@ class GitDetectiveService extends AbstractVerticle {
                 def canBuildFuture = Future.future()
                 futures.add(canBuildFuture)
                 redis.getProjectLastBuilt(githubRepository, canBuildFuture.completer())
-                def canRecalculateFuture = Future.future()
-                futures.add(canRecalculateFuture)
-                redis.getProjectLastCalculated(githubRepository, canRecalculateFuture.completer())
 
                 CompositeFuture.all(futures).setHandler({
                     if (it.failed()) {
                         it.cause().printStackTrace()
                     } else {
-                        def calcConfig = config().getJsonObject("calculator")
                         def triggerInformation = new JsonObject()
                         triggerInformation.put("can_queue", true)
                         triggerInformation.put("can_build", true)
-                        triggerInformation.put("can_recalculate", true)
 
                         Optional<Instant> lastQueued = it.result().resultAt(0) as Optional<Instant>
                         if (lastQueued.isPresent()) {
@@ -508,14 +429,6 @@ class GitDetectiveService extends AbstractVerticle {
                                 triggerInformation.put("can_build", false)
                                 //todo: remove when things that receive this interpret correctly
                             }
-                            if (lastQueued.get().plus(calcConfig.getInteger("project_recalculate_wait_time"),
-                                    ChronoUnit.HOURS).isAfter(Instant.now())) {
-                                triggerInformation.put("can_recalculate", false)
-                                //todo: remove when things that receive this interpret correctly
-                            }
-                        } else {
-                            //no queue = no re-calc
-                            triggerInformation.put("can_recalculate", false)
                         }
                         String lastBuilt = it.result().resultAt(1)
                         if (lastBuilt != null) {
@@ -523,20 +436,6 @@ class GitDetectiveService extends AbstractVerticle {
                             if (lastBuild.plus(24, ChronoUnit.HOURS).isAfter(Instant.now())) {
                                 triggerInformation.put("can_build", false)
                             }
-                        } else {
-                            //no build = no re-calc
-                            triggerInformation.put("can_recalculate", false)
-                        }
-                        String lastCalculated = it.result().resultAt(2)
-                        if (lastCalculated != null) {
-                            def lastCalculation = Instant.parse(lastCalculated)
-                            if (lastCalculation.plus(calcConfig.getInteger("project_recalculate_wait_time"),
-                                    ChronoUnit.HOURS).isAfter(Instant.now())) {
-                                triggerInformation.put("can_recalculate", false)
-                            }
-                        } else {
-                            //no initial calc = no re-calc
-                            triggerInformation.put("can_recalculate", false)
                         }
 
                         request.reply(triggerInformation)
@@ -631,30 +530,17 @@ class GitDetectiveService extends AbstractVerticle {
         Job job = new Job(jobData)
         jobData.put("github_repository", job.data.getString("github_repository"))
 
-        if (job.data.getBoolean("build_skipped")) {
-            kue.createJob(GraknCalculator.GRAKN_CALCULATE_JOB_TYPE, jobData)
-                    .setMax_attempts(0)
-                    .setPriority(job.priority)
-                    .save().setHandler({
-                if (it.failed()) {
-                    it.cause().printStackTrace()
-                } else {
-                    logPrintln(job, "Calculator received job")
-                }
-            })
-        } else {
-            kue.createJob(GraknImporter.GRAKN_INDEX_IMPORT_JOB_TYPE, jobData)
-                    .setMax_attempts(0)
-                    .setRemoveOnComplete(true)
-                    .setPriority(job.priority)
-                    .save().setHandler({
-                if (it.failed()) {
-                    it.cause().printStackTrace()
-                } else {
-                    logPrintln(job, "Importer received job")
-                }
-            })
-        }
+        kue.createJob(GraknImporter.GRAKN_INDEX_IMPORT_JOB_TYPE, jobData)
+                .setMax_attempts(0)
+                .setRemoveOnComplete(true)
+                .setPriority(job.priority)
+                .save().setHandler({
+            if (it.failed()) {
+                it.cause().printStackTrace()
+            } else {
+                logPrintln(job, "Importer received job")
+            }
+        })
         routingContext.response().end()
     }
 

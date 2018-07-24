@@ -3,17 +3,12 @@ eb.onopen = function () {
   triggerJobLogTimer(githubRepository)
 
   var canTriggerBuild = false
-  var canTriggerRecalculation = false
   eb.send('GetTriggerInformation', {'github_repository': githubRepository},
     function (error, message) {
       if (error == null) {
         canTriggerBuild = message.body.can_build
-        canTriggerRecalculation = message.body.can_recalculate
         if (canTriggerBuild) {
           $('#trigger_build_button').removeClass('disabled')
-        }
-        if (canTriggerRecalculation) {
-          $('#trigger_recalculate_button').removeClass('disabled')
         }
       } else {
         console.log(error.message)
@@ -38,24 +33,6 @@ eb.onopen = function () {
             }
           })
         $('#trigger_build_button').addClass('disabled')
-        $('#trigger_recalculate_button').addClass('disabled')
-      }
-    })
-    $('#trigger_recalculate_button').click(function () {
-      if (canTriggerRecalculation) {
-        canTriggerRecalculation = false
-        eb.send('TriggerRecalculation', {'github_repository': githubRepository},
-          function (error, message) {
-            if (error == null) {
-              $('#latest_job_log').text('')
-              logPositionIndex = -1
-              triggerJobLogTimer(githubRepository)
-            } else {
-              console.log(error.message)
-              $('#latest_job_log').append(error.message)
-            }
-          })
-        $('#trigger_recalculate_button').addClass('disabled')
       }
     })
   })
