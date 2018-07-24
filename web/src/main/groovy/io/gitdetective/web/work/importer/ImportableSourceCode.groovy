@@ -18,6 +18,7 @@ class ImportableSourceCode {
     String functionId
     String functionInstanceId
     String referenceFunctionId
+    String referenceFunctionName
     String referenceFunctionInstanceId
     boolean isFileReferencing
     boolean isExternalReference

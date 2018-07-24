@@ -1,7 +1,7 @@
 package io.gitdetective.indexer.stage.extract
 
 import com.google.common.collect.Sets
-import io.gitdetective.indexer.stage.GitDetectiveImportFilter
+import io.gitdetective.indexer.stage.KytheIndexAugment
 import io.vertx.blueprint.kue.queue.Job
 import io.vertx.core.AbstractVerticle
 import io.vertx.core.logging.Logger
@@ -81,9 +81,7 @@ class KytheUsageExtractor extends AbstractVerticle {
                 job.done(res.cause())
             } else {
                 job.data.put("index_results_db", dbFile.absolutePath)
-                job.save().setHandler({
-                    vertx.eventBus().send(GitDetectiveImportFilter.GITDETECTIVE_IMPORT_FILTER, it.result())
-                })
+                vertx.eventBus().send(KytheIndexAugment.KYTHE_INDEX_AUGMENT, job)
             }
         })
     }
