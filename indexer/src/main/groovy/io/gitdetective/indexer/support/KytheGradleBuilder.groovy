@@ -18,7 +18,7 @@ class KytheGradleBuilder extends AbstractVerticle {
     public static final String BUILDER_ADDRESS = "KytheGradleBuilder"
     private final static Logger log = LoggerFactory.getLogger(KytheGradleBuilder.class)
     private static final File repoDir = new File("/tmp/.gradle")
-    private static final File javacWrapper = new File("opt/kythe-v0.0.26/extractors/javac-wrapper.sh")
+    private static final File javacWrapper = new File("opt/kythe-v0.0.28/extractors/javac-wrapper.sh")
     private static final File gradleHome = new File("opt/builders/gradle-4.9")
 
     @Override
@@ -26,7 +26,6 @@ class KytheGradleBuilder extends AbstractVerticle {
         repoDir.mkdirs()
 
         vertx.eventBus().consumer(BUILDER_ADDRESS, { msg ->
-            //process job
             def job = (Job) msg.body()
             buildProject(job, new File(job.data.getString("build_target")))
         })

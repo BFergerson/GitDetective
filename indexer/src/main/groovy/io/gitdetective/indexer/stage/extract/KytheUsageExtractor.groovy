@@ -5,7 +5,6 @@ import com.google.devtools.kythe.proto.MarkedSource
 import com.google.devtools.kythe.util.KytheURI
 import com.google.protobuf.ByteString
 import groovy.json.StringEscapeUtils
-import io.gitdetective.indexer.stage.GitDetectiveImportFilter
 import io.gitdetective.indexer.stage.KytheIndexAugment
 import io.vertx.blueprint.kue.queue.Job
 import io.vertx.core.AbstractVerticle
@@ -120,25 +119,6 @@ class KytheUsageExtractor extends AbstractVerticle {
                 extractedFunction.context = className.substring(0, className.lastIndexOf(".") + 1)
                 extractedFunction.identifier = className.substring(className.lastIndexOf(".") + 1)
             } else if (predicate == "/kythe/code") {
-//                if (it.contains("d1986b43119e8013b76b5a57426d0ed51d3ef15a8bdb166657ef6aff91d3e6fc")) {
-//                    println "here"
-//
-//                    byte[] bytes = ByteString.copyFromUtf8(StringEscapeUtils.unescapeJava(row[2])).toByteArray()
-//                    def buf = ByteBuffer.allocate(bytes.length)
-//                    int size = 0
-//                    for (byte b : bytes) {
-//                        if (b != -62) {
-//                            buf.put(b)
-//                            size++
-//                        }
-//                    }
-//                    buf.rewind()
-//                    byte[] endBytes = new byte[size]
-//                    buf.get(endBytes, 0, size)
-//
-//                    def source = MarkedSource.parseFrom(endBytes)
-//                    println source
-//                }
                 try {
                     MarkedSource.parseFrom(ByteString.copyFromUtf8(
                             StringEscapeUtils.unescapeJava(row[2])).toByteArray())
