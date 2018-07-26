@@ -3,8 +3,6 @@ package io.gitdetective.indexer.stage.extract
 import com.google.common.collect.Sets
 import com.google.devtools.kythe.proto.MarkedSource
 import com.google.devtools.kythe.util.KytheURI
-import com.google.protobuf.ByteString
-import groovy.json.StringEscapeUtils
 import io.gitdetective.indexer.stage.KytheIndexAugment
 import io.vertx.blueprint.kue.queue.Job
 import io.vertx.core.AbstractVerticle
@@ -68,6 +66,7 @@ class KytheUsageExtractor extends AbstractVerticle {
             sourceUsage.paramToTypeMap = db.hashMap("paramToType", Serializer.STRING, Serializer.STRING).create()
             sourceUsage.sourceLocationMap = db.hashMap("sourceLocationMap", Serializer.STRING, Serializer.INT_ARRAY).create()
             sourceUsage.functionNameSet = db.hashSet("functionNameSet", Serializer.STRING).create()
+            sourceUsage.definedFiles = db.hashSet("definedFiles", Serializer.STRING).create()
             sourceUsage.indexDataLimits = config().getJsonObject("index_data_limits")
 
             filesOutput.append("fileLocation|filename|qualifiedName\n")
@@ -99,7 +98,15 @@ class KytheUsageExtractor extends AbstractVerticle {
             sourceUsage.getExtractedNode(subjectUri).uri = subjectUri
 
             String predicate = row[1]
-            if (predicate == "/kythe/edge/defines/binding") {
+            if (predicate == "/kythe/node/kind" && row[2] == "file") {
+                sourceUsage.definedFiles.add(sourceUsage.getQualifiedName(subjectUri))
+            } else if (predicate == "/kythe/subkind" && row[2] == "class") {
+                def fileLocation = subjectUri.path
+                if (fileLocation.contains("#")) {
+                    fileLocation = fileLocation.substring(0, fileLocation.indexOf("#"))
+                }
+                sourceUsage.fileLocations.put(subjectUri.toString(), fileLocation)
+            } else if (predicate == "/kythe/edge/defines/binding") {
                 def objectUri = toGithubCorpus(KytheURI.parse(row[2]))
                 sourceUsage.getExtractedNode(objectUri).uri = objectUri
                 sourceUsage.addBinding(subjectUri, objectUri)
@@ -109,9 +116,9 @@ class KytheUsageExtractor extends AbstractVerticle {
                 def parentNode = sourceUsage.getExtractedNode(objectUri)
                 sourceUsage.getExtractedNode(subjectUri).setParentNode(parentNode)
             } else if (predicate.startsWith("/kythe/edge/param.")) {
-                String object = row[2]
+                def objectUri = toGithubCorpus(KytheURI.parse(row[2]))
                 def extractedFunction = sourceUsage.getExtractedNode(subjectUri)
-                extractedFunction.addParam(predicate.replace("/kythe/edge/param.", "") as int, object)
+                extractedFunction.addParam(predicate.replace("/kythe/edge/param.", "") as int, objectUri)
             } else if (predicate == "/kythe/edge/named") {
                 def object = row[2]
                 def extractedFunction = sourceUsage.getExtractedNode(subjectUri)
@@ -119,34 +126,24 @@ class KytheUsageExtractor extends AbstractVerticle {
                 extractedFunction.context = className.substring(0, className.lastIndexOf(".") + 1)
                 extractedFunction.identifier = className.substring(className.lastIndexOf(".") + 1)
             } else if (predicate == "/kythe/code") {
-                try {
-                    MarkedSource.parseFrom(ByteString.copyFromUtf8(
-                            StringEscapeUtils.unescapeJava(row[2])).toByteArray())
-                } catch (all) {
-                    log.error "Couldn't parse: " + row[2]
-                    return
-                }
-                def markedSource = MarkedSource.parseFrom(ByteString.copyFromUtf8(
-                        StringEscapeUtils.unescapeJava(row[2])).toByteArray())
+                def markedSource = MarkedSource.parseFrom(row[2].decodeBase64())
                 if (markedSource.childCount == 0) {
                     return //nothing to do
                 }
 
+                def type = ""
                 def context = ""
                 def identifier = ""
+                def isParam = false
                 def hasInitializer = false
                 def isFunction = false
                 for (int i = 0; i < markedSource.childCount; i++) {
                     def child = markedSource.getChild(i)
-                    if (child.kind == MarkedSource.Kind.CONTEXT) {
-                        for (int z = 0; z < child.childCount; z++) {
-                            def grandChild = child.getChild(z)
-                            context += grandChild.preText
-
-                            if ((z + 1) < child.childCount || child.addFinalListToken) {
-                                context += child.postChildText
-                            }
-                        }
+                    if (child.kind == MarkedSource.Kind.TYPE) {
+                        type = getType(child)
+                        isParam = true
+                    } else if (child.kind == MarkedSource.Kind.CONTEXT) {
+                        context = getContext(child)
                     } else if (child.kind == MarkedSource.Kind.IDENTIFIER) {
                         identifier = child.preText
                     } else if (child.kind == MarkedSource.Kind.INITIALIZER) {
@@ -157,13 +154,14 @@ class KytheUsageExtractor extends AbstractVerticle {
                 }
                 if (hasInitializer) {
                     return //need function definitions not function calls
+                } else if (!isFunction && isParam) {
+                    sourceUsage.paramToTypeMap.put(subjectUri.toString(), type)
+                } else {
+                    sourceUsage.getExtractedNode(subjectUri).uri = subjectUri
+                    sourceUsage.getExtractedNode(subjectUri).context = context
+                    sourceUsage.getExtractedNode(subjectUri).identifier = identifier
+                    sourceUsage.getExtractedNode(subjectUri).isFunction = isFunction
                 }
-
-                sourceUsage.getExtractedNode(subjectUri).uri = subjectUri
-                sourceUsage.getExtractedNode(subjectUri).context = context
-                sourceUsage.getExtractedNode(subjectUri).identifier = identifier
-                sourceUsage.getExtractedNode(subjectUri).isFile = !isFunction
-                sourceUsage.getExtractedNode(subjectUri).isFunction = isFunction
             }
         }
     }
@@ -198,16 +196,21 @@ class KytheUsageExtractor extends AbstractVerticle {
     private static void processRecordEntity(String subject, String predicate, String object,
                                             ExtractedSourceCodeUsage sourceUsage, File filesOutput) {
         if (predicate == "/kythe/node/kind" || predicate == "/kythe/subkind") {
-            if (object == "file" || object == "function") {
+            if (object == "class" || object == "function") {
                 if (!isJDK(subject)) {
                     def subjectUri = toGithubCorpus(KytheURI.parse(subject))
-                    if (object == "file" || object == "class") {
+                    if (object == "class") {
                         sourceUsage.getExtractedNode(subjectUri).isFile = true
                         def fileLimit = sourceUsage.indexDataLimits.getInteger("files")
                         if (fileLimit == -1 || sourceUsage.fileCount++ < fileLimit) {
                             def fileLocation = subject.substring(subject.indexOf("path=") + 5)
+                            if (fileLocation.contains("#")) {
+                                fileLocation = fileLocation.substring(0, fileLocation.indexOf("#"))
+                            }
                             def qualifiedName = sourceUsage.getQualifiedName(subjectUri)
-                            filesOutput.append("$fileLocation|$subject|$qualifiedName\n")
+                            if (sourceUsage.definedFiles.contains(qualifiedName)) {
+                                filesOutput.append("$fileLocation|$subjectUri|$qualifiedName\n")
+                            }
                         }
                     }
                     if (object == "function") {
@@ -248,7 +251,7 @@ class KytheUsageExtractor extends AbstractVerticle {
         def subjectNode = sourceUsage.getParentNode(subjectUriOriginal)
         def objectNode = sourceUsage.getParentNode(objectUriOriginal)
 
-        def location
+        int[] location
         if (subjectNode?.uri == null || objectNode?.uri == null) {
             return
         } else if (sourceUsage.sourceLocationMap.containsKey(subjectUriOriginal.toString())) {
@@ -256,7 +259,7 @@ class KytheUsageExtractor extends AbstractVerticle {
         } else if (sourceUsage.sourceLocationMap.containsKey(subjectUriOriginal.signature)) {
             location = sourceUsage.sourceLocationMap.get(subjectUriOriginal.signature) //function
         } else {
-            return //n/a
+            location = [-1, -1] //no code location
         }
 
         if (predicate == "/kythe/edge/childof") {
@@ -268,7 +271,7 @@ class KytheUsageExtractor extends AbstractVerticle {
 
             def subjectUri = subjectNode.uri
             def objectUri = objectNode.uri
-            def qualifiedName = sourceUsage.getFunctionQualifiedName(objectNode.uri.signature)
+            def qualifiedName = subjectNode.getQualifiedName(sourceUsage)
             functionDefinitions.append("$objectUri|$subjectUri|$qualifiedName|" + location[0] + "|" + location[1] + "\n")
         } else if (predicate == "/kythe/edge/ref/call") {
             if (isJDK(subjectNode.uri) || isJDK(objectNode.uri)) {
@@ -279,8 +282,14 @@ class KytheUsageExtractor extends AbstractVerticle {
 
             def subjectUri = subjectNode.uri
             def objectUri = objectNode.uri
-            def qualifiedName = sourceUsage.getFunctionQualifiedName(objectNode.uri.signature)
-            functionReferences.append("$subjectUri|$objectUri|$qualifiedName|" + location[0] + "|" + location[1] + "\n")
+            def subjectQualifiedName = subjectNode.getQualifiedName(sourceUsage)
+            def objectQualifiedName = objectNode.getQualifiedName(sourceUsage)
+            def fileLocation = sourceUsage.fileLocations.get(subjectUri.toString())
+            if (fileLocation == null) {
+                fileLocation = Objects.requireNonNull(sourceUsage.fileLocations.get(subjectNode.parentNode.uri.toString()))
+            }
+            functionReferences.append("$fileLocation|$subjectUri|$subjectQualifiedName|$objectUri|$objectQualifiedName|"
+                    + location[0] + "|" + location[1] + "\n")
         }
     }
 
@@ -299,6 +308,10 @@ class KytheUsageExtractor extends AbstractVerticle {
             githubUri = new KytheURI(githubUri.signature, githubUri.corpus, githubUri.root,
                     githubUri.path.replaceAll("(src/main/[^/]+/)", ""), githubUri.language)
         }
+        if (githubUri.path.contains(".jar!")) {
+            githubUri = new KytheURI(githubUri.signature, githubUri.corpus, githubUri.root,
+                    githubUri.path.substring(githubUri.path.indexOf(".jar!") + 6), githubUri.language)
+        }
         return githubUri
     }
 
@@ -316,6 +329,68 @@ class KytheUsageExtractor extends AbstractVerticle {
                 uri.startsWith("kythe://github?lang=java?javax/") ||
                 uri.startsWith("kythe://github?lang=java?sun/") ||
                 uri.startsWith("kythe://github?lang=java?com/sun/")
+    }
+
+    private static String getType(MarkedSource markedSource) {
+        if (markedSource.kind != MarkedSource.Kind.TYPE) {
+            throw new IllegalArgumentException("Marked source missing context")
+        }
+
+        def type = ""
+        for (int i = 0; i < markedSource.childCount; i++) {
+            def child = markedSource.getChild(i)
+            if (child.kind == MarkedSource.Kind.IDENTIFIER) {
+                type += child.preText
+                if ((i + 1) < markedSource.childCount || markedSource.addFinalListToken) {
+                    type += markedSource.postChildText
+                }
+            } else if (child.kind == MarkedSource.Kind.CONTEXT) {
+                type += getContext(child)
+            }
+        }
+
+        def typeChild = markedSource.getChild(0)
+        if (typeChild.kind == MarkedSource.Kind.BOX && typeChild.childCount == 1) {
+            typeChild = typeChild.getChild(0)
+        }
+        for (int i = 0; i < typeChild.childCount; i++) {
+            def child = typeChild.getChild(i)
+            if (child.kind == MarkedSource.Kind.IDENTIFIER) {
+                type += child.preText
+                if ((i + 1) < typeChild.childCount || typeChild.addFinalListToken) {
+                    type += typeChild.postChildText
+                }
+            } else if (child.kind == MarkedSource.Kind.CONTEXT) {
+                type += getContext(child)
+            }
+        }
+        return type
+    }
+
+    private static String getContext(MarkedSource markedSource) {
+        if (markedSource.kind != MarkedSource.Kind.CONTEXT) {
+            throw new IllegalArgumentException("Marked source missing context")
+        }
+
+        def context = ""
+        for (int i = 0; i < markedSource.childCount; i++) {
+            def child = markedSource.getChild(i)
+            if (child.kind == MarkedSource.Kind.IDENTIFIER) {
+                context += child.preText
+                if ((i + 1) < markedSource.childCount || markedSource.addFinalListToken) {
+                    context += markedSource.postChildText
+                }
+            }
+
+            for (int z = 0; z < child.childCount; z++) {
+                def grandChild = child.getChild(z)
+                context += grandChild.preText
+                if ((z + 1) < child.childCount || child.addFinalListToken) {
+                    context += child.postChildText
+                }
+            }
+        }
+        return context
     }
 
 }

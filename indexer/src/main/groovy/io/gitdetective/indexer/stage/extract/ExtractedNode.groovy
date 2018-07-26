@@ -17,18 +17,26 @@ class ExtractedNode {
     ExtractedNode parentNode
     final List<String> params = new ArrayList<>()
 
-    void addParam(int position, String identifier) {
-        params[position] = identifier
+    void addParam(int position, KytheURI identifier) {
+        params[position] = identifier.toString()
     }
 
-    String getQualifiedName() {
-        if (context == null || identifier == null) {
-            println "here" //todo: here
+    String getQualifiedName(ExtractedSourceCodeUsage codeUsage) {
+        if (isFile) {
+            return context + identifier
+        } else {
+            def paramStr = ""
+            if (!params.isEmpty()) {
+                for (int i = 0; i < params.size(); i++) {
+                    def param = params.get(i)
+                    paramStr += codeUsage.paramToTypeMap.get(param)
+                    if ((i + 1) < params.size()) {
+                        paramStr += ","
+                    }
+                }
+            }
+            return context + identifier + "($paramStr)"
         }
-        if (!params.isEmpty()) {
-            println "here" //todo: here
-        }
-        return context + identifier + "()"
     }
 
     @Override

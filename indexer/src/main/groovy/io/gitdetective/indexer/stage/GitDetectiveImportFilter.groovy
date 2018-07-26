@@ -130,7 +130,6 @@ class GitDetectiveImportFilter extends AbstractVerticle {
         }
     }
 
-
     private void sendToImporter(Job job) {
         def outputDirectory = job.data.getString("output_directory")
         def results = new File(outputDirectory, "gitdetective_index_results.zip")

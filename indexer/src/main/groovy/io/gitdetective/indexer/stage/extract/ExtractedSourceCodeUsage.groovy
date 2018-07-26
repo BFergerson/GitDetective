@@ -17,11 +17,10 @@ class ExtractedSourceCodeUsage {
     final Map<String, ExtractedNode> extractedNodes = Maps.newConcurrentMap()
     Map<String, String> paramToTypeMap
     Map<String, String> fileLocations
-    Map<String, String> qualifiedNameMap
-    Map<String, String> classToSourceMap
     Map<String, String> aliasMap
     Map<String, int[]> sourceLocationMap
     Set<String> functionNameSet
+    Set<String> definedFiles
     long fileCount
     JsonObject indexDataLimits
 
@@ -73,16 +72,12 @@ class ExtractedSourceCodeUsage {
         if (uri.signature == null || uri.signature.isEmpty()) {
             //class qualified name
             return FilenameUtils.removeExtension(uri.path.replace("src/main/" + uri.path.substring(
-                    uri.path.lastIndexOf(".") + 1), "").substring(1))
+                    uri.path.lastIndexOf(".") + 1), ""))
                     .replace("/", ".") //todo: better? only handles src/main/*language*
         }
 
         //function qualified name
-        return extractedNodes.get(uri.signature).qualifiedName
-    }
-
-    String getFunctionQualifiedName(String signature) {
-        return extractedNodes.get(signature).qualifiedName
+        return extractedNodes.get(uri.signature).getQualifiedName(this)
     }
 
 }
