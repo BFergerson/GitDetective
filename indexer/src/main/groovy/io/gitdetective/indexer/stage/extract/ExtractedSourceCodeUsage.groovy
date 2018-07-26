@@ -72,8 +72,8 @@ class ExtractedSourceCodeUsage {
         if (uri.signature == null || uri.signature.isEmpty()) {
             //class qualified name
             return FilenameUtils.removeExtension(uri.path.replace("src/main/" + uri.path.substring(
-                    uri.path.lastIndexOf(".") + 1), ""))
-                    .replace("/", ".") //todo: better? only handles src/main/*language*
+                    uri.path.lastIndexOf(".") + 1) + "/", ""))
+                    .replace("/", ".")
         }
 
         //function qualified name

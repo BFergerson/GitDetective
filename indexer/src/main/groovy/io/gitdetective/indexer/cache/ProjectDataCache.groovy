@@ -33,9 +33,8 @@ class ProjectDataCache extends AbstractVerticle {
     @Override
     void start(Future<Void> startFuture) throws Exception {
         //init project data cache
-        db = DBMaker.fileDB(new File(config().getString("working_directory"), "gd-project.cache"))
-                .closeOnJvmShutdown()
-                .transactionEnable().make()
+        //todo: replace mapdb
+        db = DBMaker.fileDB(new File(config().getString("working_directory"), "gd-project.cache")).make()
         definitions = db.hashSet("definitions", Serializer.STRING).createOrOpen()
         references = db.hashSet("references", Serializer.STRING).createOrOpen()
         files = db.hashMap("files", Serializer.STRING, Serializer.STRING).createOrOpen()

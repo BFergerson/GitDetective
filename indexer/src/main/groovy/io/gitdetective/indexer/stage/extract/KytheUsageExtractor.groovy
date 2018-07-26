@@ -28,6 +28,8 @@ class KytheUsageExtractor extends AbstractVerticle {
     private static final Set<String> KYTHE_RELATIONSHIP_PARSE_SET = Sets.newHashSet(
             "/kythe/edge/childof", "/kythe/edge/ref/call")
     private static final File javacExtractor = new File("opt/kythe-v0.0.28/extractors/javac_extractor.jar")
+    private static final String triplesRegexPattern = '\"(.+)\" \"(.+)\" \"(.*)\"'
+    private static Set<String> classTypes = Sets.newHashSet("class", "enumClass")
 
     @Override
     void start() throws Exception {
@@ -93,30 +95,29 @@ class KytheUsageExtractor extends AbstractVerticle {
     private static void preprocessEntities(Job job, ExtractedSourceCodeUsage sourceUsage) {
         logPrintln(job, "Pre-processing entities")
         sourceUsage.importFile.eachLine {
-            String[] row = ((it =~ '\"(.+)\" \"(.+)\" \"(.+)\"')[0] as String[]).drop(1)
-            def subjectUri = toGithubCorpus(KytheURI.parse(row[0]))
+            String[] row = ((it =~ triplesRegexPattern)[0] as String[]).drop(1)
+            def subjectUri = toUniversalUri(KytheURI.parse(row[0]))
             sourceUsage.getExtractedNode(subjectUri).uri = subjectUri
 
             String predicate = row[1]
             if (predicate == "/kythe/node/kind" && row[2] == "file") {
                 sourceUsage.definedFiles.add(sourceUsage.getQualifiedName(subjectUri))
-            } else if (predicate == "/kythe/subkind" && row[2] == "class") {
-                def fileLocation = subjectUri.path
-                if (fileLocation.contains("#")) {
-                    fileLocation = fileLocation.substring(0, fileLocation.indexOf("#"))
+            } else if (predicate == "/kythe/subkind" && classTypes.contains(row[2])) {
+                def fileLocation = KytheURI.parse(row[0]).path
+                if (!fileLocation.isEmpty()) {
+                    sourceUsage.fileLocations.put(subjectUri.toString(), fileLocation)
                 }
-                sourceUsage.fileLocations.put(subjectUri.toString(), fileLocation)
             } else if (predicate == "/kythe/edge/defines/binding") {
-                def objectUri = toGithubCorpus(KytheURI.parse(row[2]))
+                def objectUri = toUniversalUri(KytheURI.parse(row[2]))
                 sourceUsage.getExtractedNode(objectUri).uri = objectUri
                 sourceUsage.addBinding(subjectUri, objectUri)
             } else if (predicate == "/kythe/edge/childof") {
-                def objectUri = toGithubCorpus(KytheURI.parse(row[2]))
+                def objectUri = toUniversalUri(KytheURI.parse(row[2]))
                 sourceUsage.getExtractedNode(objectUri).uri = objectUri
                 def parentNode = sourceUsage.getExtractedNode(objectUri)
                 sourceUsage.getExtractedNode(subjectUri).setParentNode(parentNode)
             } else if (predicate.startsWith("/kythe/edge/param.")) {
-                def objectUri = toGithubCorpus(KytheURI.parse(row[2]))
+                def objectUri = toUniversalUri(KytheURI.parse(row[2]))
                 def extractedFunction = sourceUsage.getExtractedNode(subjectUri)
                 extractedFunction.addParam(predicate.replace("/kythe/edge/param.", "") as int, objectUri)
             } else if (predicate == "/kythe/edge/named") {
@@ -169,7 +170,7 @@ class KytheUsageExtractor extends AbstractVerticle {
     private static void processEntities(Job job, ExtractedSourceCodeUsage sourceUsage, File filesOutput) {
         logPrintln(job, "Processing entities")
         sourceUsage.importFile.eachLine {
-            String[] row = ((it =~ '\"(.+)\" \"(.+)\" \"(.+)\"')[0] as String[]).drop(1)
+            String[] row = ((it =~ triplesRegexPattern)[0] as String[]).drop(1)
             String subject = row[0]
             String predicate = row[1]
             if (KYTHE_ENTITY_PARSE_SET.contains(predicate)) {
@@ -183,7 +184,7 @@ class KytheUsageExtractor extends AbstractVerticle {
                                              File definesOutput, File refcallsOutput) {
         logPrintln(job, "Processing relationships")
         sourceUsage.importFile.eachLine {
-            String[] row = ((it =~ '\"(.+)\" \"(.+)\" \"(.+)\"')[0] as String[]).drop(1)
+            String[] row = ((it =~ triplesRegexPattern)[0] as String[]).drop(1)
             def subject = row[0]
             String predicate = row[1]
             if (KYTHE_RELATIONSHIP_PARSE_SET.contains(predicate)) {
@@ -196,10 +197,10 @@ class KytheUsageExtractor extends AbstractVerticle {
     private static void processRecordEntity(String subject, String predicate, String object,
                                             ExtractedSourceCodeUsage sourceUsage, File filesOutput) {
         if (predicate == "/kythe/node/kind" || predicate == "/kythe/subkind") {
-            if (object == "class" || object == "function") {
+            if (classTypes.contains(object) || object == "function") {
                 if (!isJDK(subject)) {
-                    def subjectUri = toGithubCorpus(KytheURI.parse(subject))
-                    if (object == "class") {
+                    def subjectUri = toUniversalUri(KytheURI.parse(subject))
+                    if (classTypes.contains(object)) {
                         sourceUsage.getExtractedNode(subjectUri).isFile = true
                         def fileLimit = sourceUsage.indexDataLimits.getInteger("files")
                         if (fileLimit == -1 || sourceUsage.fileCount++ < fileLimit) {
@@ -221,7 +222,7 @@ class KytheUsageExtractor extends AbstractVerticle {
                 }
             }
         } else if (predicate == "/kythe/loc/start") {
-            def subjectUri = toGithubCorpus(KytheURI.parse(subject))
+            def subjectUri = toUniversalUri(KytheURI.parse(subject))
             subjectUri = sourceUsage.getBindedNode(subjectUri).uri
 
             if (sourceUsage.sourceLocationMap.containsKey(subjectUri.signature)) {
@@ -231,7 +232,7 @@ class KytheUsageExtractor extends AbstractVerticle {
                 sourceUsage.sourceLocationMap.put(subjectUri.signature, [Integer.parseInt(object), -1] as int[])
             }
         } else if (predicate == "/kythe/loc/end") {
-            def subjectUri = toGithubCorpus(KytheURI.parse(subject))
+            def subjectUri = toUniversalUri(KytheURI.parse(subject))
             subjectUri = sourceUsage.getBindedNode(subjectUri).uri
 
             if (sourceUsage.sourceLocationMap.containsKey(subjectUri.signature)) {
@@ -246,8 +247,8 @@ class KytheUsageExtractor extends AbstractVerticle {
     private static void processRecordRelationship(String subject, String predicate, String object,
                                                   ExtractedSourceCodeUsage sourceUsage,
                                                   File functionDefinitions, File functionReferences) {
-        def subjectUriOriginal = toGithubCorpus(KytheURI.parse(subject))
-        def objectUriOriginal = toGithubCorpus(KytheURI.parse(object))
+        def subjectUriOriginal = toUniversalUri(KytheURI.parse(subject))
+        def objectUriOriginal = toUniversalUri(KytheURI.parse(object))
         def subjectNode = sourceUsage.getParentNode(subjectUriOriginal)
         def objectNode = sourceUsage.getParentNode(objectUriOriginal)
 
@@ -293,26 +294,34 @@ class KytheUsageExtractor extends AbstractVerticle {
         }
     }
 
-    private static KytheURI toGithubCorpus(KytheURI uri) {
+    private static KytheURI toUniversalUri(KytheURI uri) {
         if (uri.corpus == "jdk") return uri
-        def githubUri = new KytheURI(uri.signature, "github", uri.root, uri.path, uri.language)
         def indexerPath = javacExtractor.absolutePath
-        if (githubUri.path.contains(indexerPath)) {
-            githubUri = new KytheURI(githubUri.signature, githubUri.corpus, githubUri.root,
-                    githubUri.path
+        if (uri.path.contains(indexerPath)) {
+            uri = new KytheURI(uri.signature, uri.corpus, uri.root,
+                    uri.path
                             .replaceAll(indexerPath + "!/", "")
                             .replaceAll(indexerPath + "%21/", ""),
-                    githubUri.language)
+                    uri.language)
         }
-        if (githubUri.path.startsWith("src/main/")) {
-            githubUri = new KytheURI(githubUri.signature, githubUri.corpus, githubUri.root,
-                    githubUri.path.replaceAll("(src/main/[^/]+/)", ""), githubUri.language)
+        if (uri.path.contains("src/main/") && !uri.language?.isEmpty()) {
+            def srcPath = "src/main/" + uri.language + "/"
+            uri = new KytheURI(uri.signature, uri.corpus, uri.root,
+                    uri.path.substring(uri.path.indexOf(srcPath) + srcPath.length()), uri.language)
+        } else if ((uri.path =~ '(src/main/[^/]+/)').find()) {
+            String langPath = (uri.path =~ '(src/main/[^/]+/)')[0][0]
+            uri = new KytheURI(uri.signature, uri.corpus, uri.root,
+                    uri.path.substring(uri.path.indexOf(langPath) + langPath.length()), uri.language)
         }
-        if (githubUri.path.contains(".jar!")) {
-            githubUri = new KytheURI(githubUri.signature, githubUri.corpus, githubUri.root,
-                    githubUri.path.substring(githubUri.path.indexOf(".jar!") + 6), githubUri.language)
+        if (uri.path.contains(".jar!")) {
+            uri = new KytheURI(uri.signature, uri.corpus, uri.root,
+                    uri.path.substring(uri.path.indexOf(".jar!") + 6), uri.language)
         }
-        return githubUri
+        if (uri.path.endsWith(".class") && !uri.language?.isEmpty()) {
+            uri = new KytheURI(uri.signature, uri.corpus, uri.root,
+                    uri.path.substring(0, uri.path.indexOf(".class")) + "." + uri.language, uri.language)
+        }
+        return uri
     }
 
     static boolean isJDK(KytheURI uri) {
