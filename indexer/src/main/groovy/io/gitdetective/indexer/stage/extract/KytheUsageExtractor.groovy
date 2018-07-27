@@ -29,7 +29,8 @@ class KytheUsageExtractor extends AbstractVerticle {
             "/kythe/edge/childof", "/kythe/edge/ref/call")
     private static final File javacExtractor = new File("opt/kythe-v0.0.28/extractors/javac_extractor.jar")
     private static final String triplesRegexPattern = '\"(.+)\" \"(.+)\" \"(.*)\"'
-    private static Set<String> classTypes = Sets.newHashSet("class", "enumClass")
+    private static Set<String> fileTypes = Sets.newHashSet("file", "interface")
+    private static Set<String> classTypes = Sets.newHashSet("class", "enumClass", "interface")
 
     @Override
     void start() throws Exception {
@@ -65,6 +66,7 @@ class KytheUsageExtractor extends AbstractVerticle {
             sourceUsage.buildDirectory = new File(job.data.getString("build_target")).parentFile.absolutePath
             sourceUsage.fileLocations = db.hashMap("fileLocations", Serializer.STRING, Serializer.STRING).create()
             sourceUsage.aliasMap = db.hashMap("aliasMap", Serializer.STRING, Serializer.STRING).create()
+            sourceUsage.bindings = db.hashMap("bindings", Serializer.STRING, Serializer.STRING).create()
             sourceUsage.paramToTypeMap = db.hashMap("paramToType", Serializer.STRING, Serializer.STRING).create()
             sourceUsage.sourceLocationMap = db.hashMap("sourceLocationMap", Serializer.STRING, Serializer.INT_ARRAY).create()
             sourceUsage.functionNameSet = db.hashSet("functionNameSet", Serializer.STRING).create()
@@ -100,9 +102,10 @@ class KytheUsageExtractor extends AbstractVerticle {
             sourceUsage.getExtractedNode(subjectUri).uri = subjectUri
 
             String predicate = row[1]
-            if (predicate == "/kythe/node/kind" && row[2] == "file") {
-                sourceUsage.definedFiles.add(sourceUsage.getQualifiedName(subjectUri))
-            } else if (predicate == "/kythe/subkind" && classTypes.contains(row[2])) {
+            if (predicate == "/kythe/node/kind" && fileTypes.contains(row[2])) {
+                sourceUsage.definedFiles.add(sourceUsage.getQualifiedName(subjectUri, true))
+            }
+            if ((predicate == "/kythe/node/kind" || predicate == "/kythe/subkind") && classTypes.contains(row[2])) {
                 def fileLocation = KytheURI.parse(row[0]).path
                 if (!fileLocation.isEmpty()) {
                     sourceUsage.fileLocations.put(subjectUri.toString(), fileLocation)
@@ -312,6 +315,10 @@ class KytheUsageExtractor extends AbstractVerticle {
             String langPath = (uri.path =~ '(src/main/[^/]+/)')[0][0]
             uri = new KytheURI(uri.signature, uri.corpus, uri.root,
                     uri.path.substring(uri.path.indexOf(langPath) + langPath.length()), uri.language)
+        }
+        if (uri.path.contains("target/classes/")) {
+            uri = new KytheURI(uri.signature, uri.corpus, uri.root,
+                    uri.path.substring(uri.path.indexOf("target/classes/") + "target/classes/".length()), uri.language)
         }
         if (uri.path.contains(".jar!")) {
             uri = new KytheURI(uri.signature, uri.corpus, uri.root,

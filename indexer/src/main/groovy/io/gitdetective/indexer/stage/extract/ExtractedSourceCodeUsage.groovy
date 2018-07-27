@@ -11,10 +11,10 @@ import org.gradle.internal.impldep.com.google.common.collect.Maps
  */
 @Canonical
 class ExtractedSourceCodeUsage {
+    final Map<String, ExtractedNode> extractedNodes = Maps.newConcurrentMap()
     File importFile
     String buildDirectory
-    final Map<String, String> bindings = Maps.newConcurrentMap()
-    final Map<String, ExtractedNode> extractedNodes = Maps.newConcurrentMap()
+    Map<String, String> bindings
     Map<String, String> paramToTypeMap
     Map<String, String> fileLocations
     Map<String, String> aliasMap
@@ -70,14 +70,25 @@ class ExtractedSourceCodeUsage {
 
     String getQualifiedName(KytheURI uri) {
         if (uri.signature == null || uri.signature.isEmpty()) {
-            //class qualified name
-            return FilenameUtils.removeExtension(uri.path.replace("src/main/" + uri.path.substring(
+            return getQualifiedName(uri, true)
+        } else {
+            return getQualifiedName(uri, false)
+        }
+    }
+
+    String getQualifiedName(KytheURI uri, boolean isClass) {
+        if (isClass) {
+            def qualifiedName = FilenameUtils.removeExtension(uri.path.replace("src/main/" + uri.path.substring(
                     uri.path.lastIndexOf(".") + 1) + "/", ""))
                     .replace("/", ".")
+            if (qualifiedName.contains("#")) {
+                return qualifiedName.substring(0, qualifiedName.indexOf("#"))
+            } else {
+                return qualifiedName
+            }
+        } else {
+            return extractedNodes.get(uri.signature).getQualifiedName(this)
         }
-
-        //function qualified name
-        return extractedNodes.get(uri.signature).getQualifiedName(this)
     }
 
 }
