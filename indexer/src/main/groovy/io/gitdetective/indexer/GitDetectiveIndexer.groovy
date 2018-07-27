@@ -2,7 +2,6 @@ package io.gitdetective.indexer
 
 import com.codahale.metrics.MetricRegistry
 import io.gitdetective.GitDetectiveVersion
-import io.gitdetective.indexer.cache.ProjectDataCache
 import io.gitdetective.indexer.stage.GitDetectiveImportFilter
 import io.gitdetective.indexer.stage.GithubRepositoryCloner
 import io.gitdetective.indexer.stage.KytheIndexAugment
@@ -11,6 +10,7 @@ import io.gitdetective.indexer.stage.extract.KytheUsageExtractor
 import io.gitdetective.indexer.support.KytheGradleBuilder
 import io.gitdetective.indexer.support.KytheMavenBuilder
 import io.gitdetective.web.dao.JobsDAO
+import io.gitdetective.web.dao.PostgresDAO
 import io.gitdetective.web.dao.RedisDAO
 import io.vertx.blueprint.kue.Kue
 import io.vertx.blueprint.kue.queue.Job
@@ -89,24 +89,21 @@ class GitDetectiveIndexer extends AbstractVerticle {
         def deployOptions = new DeploymentOptions()
         deployOptions.config = config()
 
-        def projectCache = new ProjectDataCache(readableRedis)
-        vertx.deployVerticle(projectCache, deployOptions, {
-            if (it.failed()) {
-                it.cause().printStackTrace()
-                System.exit(-1)
-            }
+        def refStorage = readableRedis
+        if (config().getJsonObject("storage") != null) {
+            refStorage = new PostgresDAO(vertx, config().getJsonObject("storage"), readableRedis)
+        }
 
-            //core
-            vertx.deployVerticle(new GithubRepositoryCloner(kue, jobs, writableRedis), deployOptions)
-            vertx.deployVerticle(new KytheIndexOutput(), deployOptions)
-            vertx.deployVerticle(new KytheUsageExtractor(), deployOptions)
-            vertx.deployVerticle(new GitDetectiveImportFilter(projectCache), deployOptions)
-            vertx.deployVerticle(new KytheIndexAugment(readableRedis), deployOptions)
+        //core
+        vertx.deployVerticle(new GithubRepositoryCloner(kue, jobs, writableRedis), deployOptions)
+        vertx.deployVerticle(new KytheIndexOutput(), deployOptions)
+        vertx.deployVerticle(new KytheUsageExtractor(), deployOptions)
+        vertx.deployVerticle(new GitDetectiveImportFilter(refStorage), deployOptions)
+        vertx.deployVerticle(new KytheIndexAugment(readableRedis), deployOptions)
 
-            //project builders
-            vertx.deployVerticle(new KytheMavenBuilder(), deployOptions)
-            vertx.deployVerticle(new KytheGradleBuilder(), deployOptions)
-        })
+        //project builders
+        vertx.deployVerticle(new KytheMavenBuilder(), deployOptions)
+        vertx.deployVerticle(new KytheGradleBuilder(), deployOptions)
     }
 
 }

@@ -23,10 +23,6 @@ import static io.gitdetective.web.WebServices.*
  */
 class RedisDAO implements ReferenceStorage {
 
-    public static final String NEW_PROJECT_FILE = "NewProjectFile"
-    public static final String NEW_PROJECT_FUNCTION = "NewProjectFunction"
-    public static final String NEW_REFERENCE = "NewReference"
-    public static final String NEW_DEFINITION = "NewDefinition"
     private final static Logger log = LoggerFactory.getLogger(RedisDAO.class)
     private final RedisClient redis
 
@@ -193,7 +189,7 @@ class RedisDAO implements ReferenceStorage {
     }
 
     void updateProjectReferenceLeaderboard(String githubRepository, long projectReferenceCount,
-                                                   Handler<AsyncResult> handler) {
+                                           Handler<AsyncResult> handler) {
         redis.get("gitdetective:project:$githubRepository:project_external_method_reference_count", {
             if (it.failed()) {
                 handler.handle(Future.failedFuture(it.cause()))
@@ -481,30 +477,30 @@ class RedisDAO implements ReferenceStorage {
 
     @Override
     void addProjectImportedFile(String githubRepository, String filename, String fileId, Handler<AsyncResult> handler) {
-        log.trace "Caching imported function: $filename"
-        redis.publish(NEW_PROJECT_FILE, "$githubRepository|$filename|$fileId", handler)
+        log.trace "Adding project imported file: $filename"
+        redis.set("gitdetective:project:$githubRepository:file:$filename", fileId, handler)
     }
 
     @Override
     void addProjectImportedFunction(String githubRepository, String functionName, String functionId, Handler<AsyncResult> handler) {
-        log.trace "Caching imported function: $functionName"
-        redis.publish(NEW_PROJECT_FUNCTION, "$githubRepository|$functionName|$functionId", handler)
+        log.trace "Adding project imported function: $functionName"
+        redis.set("gitdetective:project:$githubRepository:function:$functionName", functionId, handler)
     }
 
     @Override
     void addProjectImportedDefinition(String fileId, String functionId, Handler<AsyncResult> handler) {
-        log.trace "Caching imported definition: $fileId-$functionId"
-        redis.publish(NEW_DEFINITION, "$fileId-$functionId", handler)
+        log.trace "Adding project imported definition: $fileId-$functionId"
+        redis.set("gitdetective:osf:definition:$fileId-$functionId", "true", handler)
     }
 
     @Override
     void addProjectImportedReference(String fileOrFunctionId, String functionId, Handler<AsyncResult> handler) {
-        log.trace "Caching imported reference: $fileOrFunctionId-$functionId"
-        redis.publish(NEW_REFERENCE, "$fileOrFunctionId-$functionId", handler)
+        log.trace "Adding project imported reference: $fileOrFunctionId-$functionId"
+        redis.set("gitdetective:project:osf:reference:$fileOrFunctionId-$functionId", "true", handler)
     }
 
     private void addOwnedFunction(String githubRepository, String functionId, String qualifiedName,
-                          Handler<AsyncResult> handler) {
+                                  Handler<AsyncResult> handler) {
         log.trace "Adding owned function '$functionId' to owner: $githubRepository"
         redis.sadd("gitdetective:project:$githubRepository:ownedFunctions", new JsonObject()
                 .put("function_id", functionId)
@@ -583,6 +579,58 @@ class RedisDAO implements ReferenceStorage {
                         CompositeFuture.all(futures).setHandler(handler)
                     }
                 })
+            }
+        })
+    }
+
+    @Override
+    void getProjectFileId(String project, String fileName, Handler<AsyncResult<Optional<String>>> handler) {
+        redis.get("gitdetective:project:$project:file:$fileName", {
+            if (it.failed()) {
+                handler.handle(Future.failedFuture(it.cause()))
+            } else if (it.result() == null) {
+                handler.handle(Future.succeededFuture(Optional.empty()))
+            } else {
+                handler.handle(Future.succeededFuture(Optional.of(it.result())))
+            }
+        })
+    }
+
+    @Override
+    void getProjectFunctionId(String project, String functionName, Handler<AsyncResult<Optional<String>>> handler) {
+        redis.get("gitdetective:project:$project:function:$functionName", {
+            if (it.failed()) {
+                handler.handle(Future.failedFuture(it.cause()))
+            } else if (it.result() == null) {
+                handler.handle(Future.succeededFuture(Optional.empty()))
+            } else {
+                handler.handle(Future.succeededFuture(Optional.of(it.result())))
+            }
+        })
+    }
+
+    @Override
+    void projectHasDefinition(String fileId, String functionId, Handler<AsyncResult<Boolean>> handler) {
+        redis.get("gitdetective:project:osf:definition:$fileId-$functionId", {
+            if (it.failed()) {
+                handler.handle(Future.failedFuture(it.cause()))
+            } else if (it.result() == null) {
+                handler.handle(Future.succeededFuture(false))
+            } else {
+                handler.handle(Future.succeededFuture(true))
+            }
+        })
+    }
+
+    @Override
+    void projectHasReference(String fileOrFunctionId, String functionId, Handler<AsyncResult<Boolean>> handler) {
+        redis.get("gitdetective:project:osf:reference:$fileOrFunctionId-$functionId", {
+            if (it.failed()) {
+                handler.handle(Future.failedFuture(it.cause()))
+            } else if (it.result() == null) {
+                handler.handle(Future.succeededFuture(false))
+            } else {
+                handler.handle(Future.succeededFuture(true))
             }
         })
     }

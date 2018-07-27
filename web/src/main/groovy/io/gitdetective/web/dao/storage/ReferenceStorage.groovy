@@ -34,4 +34,12 @@ interface ReferenceStorage {
 
     void addFunctionReference(String functionId, JsonObject fileOrFunctionReference, Handler<AsyncResult> handler)
 
+    void getProjectFileId(String project, String fileName, Handler<AsyncResult<Optional<String>>> handler)
+
+    void getProjectFunctionId(String project, String functionName, Handler<AsyncResult<Optional<String>>> handler)
+
+    void projectHasDefinition(String fileId, String functionId, Handler<AsyncResult<Boolean>> handler)
+
+    void projectHasReference(String fileOrFunctionId, String functionId, Handler<AsyncResult<Boolean>> handler)
+
 }

@@ -102,7 +102,7 @@ class KytheUsageExtractor extends AbstractVerticle {
             sourceUsage.getExtractedNode(subjectUri).uri = subjectUri
 
             String predicate = row[1]
-            if (predicate == "/kythe/node/kind" && fileTypes.contains(row[2])) {
+            if (predicate == "/kythe/node/kind" && fileTypes.contains(row[2]) && subjectUri.corpus != "jdk") {
                 sourceUsage.definedFiles.add(sourceUsage.getQualifiedName(subjectUri, true))
             }
             if ((predicate == "/kythe/node/kind" || predicate == "/kythe/subkind") && classTypes.contains(row[2])) {

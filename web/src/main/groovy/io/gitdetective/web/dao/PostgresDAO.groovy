@@ -37,6 +37,14 @@ class PostgresDAO implements ReferenceStorage {
             "queries/sql/storage/get_function_total_external_reference_count.sql"), Charsets.UTF_8)
     public final static String GET_FUNCTION_EXTERNAL_REFERENCES = Resources.toString(Resources.getResource(
             "queries/sql/storage/get_function_external_references.sql"), Charsets.UTF_8)
+    public final static String GET_PROJECT_IMPORTED_FILE_ID = Resources.toString(Resources.getResource(
+            "queries/sql/storage/get_project_imported_file_id.sql"), Charsets.UTF_8)
+    public final static String GET_PROJECT_IMPORTED_FUNCTION_ID = Resources.toString(Resources.getResource(
+            "queries/sql/storage/get_project_imported_function_id.sql"), Charsets.UTF_8)
+    public final static String PROJECT_HAS_DEFINITION = Resources.toString(Resources.getResource(
+            "queries/sql/storage/project_has_definition.sql"), Charsets.UTF_8)
+    public final static String PROJECT_HAS_REFERENCE = Resources.toString(Resources.getResource(
+            "queries/sql/storage/project_has_reference.sql"), Charsets.UTF_8)
     private final static Logger log = LoggerFactory.getLogger(PostgresDAO.class)
     private AsyncSQLClient client
     private RedisDAO redis
@@ -171,6 +179,7 @@ class PostgresDAO implements ReferenceStorage {
 
     @Override
     void addProjectImportedFile(String githubRepository, String filename, String fileId, Handler<AsyncResult> handler) {
+        log.trace "Adding project imported file: $filename"
         client.getConnection({
             if (it.failed()) {
                 handler.handle(Future.failedFuture(it.cause()))
@@ -195,6 +204,7 @@ class PostgresDAO implements ReferenceStorage {
 
     @Override
     void addProjectImportedFunction(String githubRepository, String functionName, String functionId, Handler<AsyncResult> handler) {
+        log.trace "Adding project imported function: $functionName"
         client.getConnection({
             if (it.failed()) {
                 handler.handle(Future.failedFuture(it.cause()))
@@ -219,6 +229,7 @@ class PostgresDAO implements ReferenceStorage {
 
     @Override
     void addProjectImportedDefinition(String fileId, String functionId, Handler<AsyncResult> handler) {
+        log.trace "Adding project imported definition: $fileId-$functionId"
         client.getConnection({
             if (it.failed()) {
                 handler.handle(Future.failedFuture(it.cause()))
@@ -242,6 +253,7 @@ class PostgresDAO implements ReferenceStorage {
 
     @Override
     void addProjectImportedReference(String fileOrFunctionId, String functionId, Handler<AsyncResult> handler) {
+        log.trace "Adding project imported reference: $fileOrFunctionId-$functionId"
         client.getConnection({
             if (it.failed()) {
                 handler.handle(Future.failedFuture(it.cause()))
@@ -292,6 +304,7 @@ class PostgresDAO implements ReferenceStorage {
 
     @Override
     void addFunctionOwner(String functionId, String qualifiedName, String githubRepository, Handler<AsyncResult> handler) {
+        log.trace "Adding owner '$githubRepository' to function: $functionId"
         client.getConnection({
             if (it.failed()) {
                 handler.handle(Future.failedFuture(it.cause()))
@@ -322,6 +335,7 @@ class PostgresDAO implements ReferenceStorage {
 
     @Override
     void getFunctionOwners(String functionId, Handler<AsyncResult<JsonArray>> handler) {
+        log.trace "Getting owners of function: $functionId"
         client.getConnection({
             if (it.failed()) {
                 handler.handle(Future.failedFuture(it.cause()))
@@ -336,12 +350,7 @@ class PostgresDAO implements ReferenceStorage {
                     } else {
                         def rs = it.result()
                         if (!rs.rows.isEmpty()) {
-                            def jsonArray = new JsonArray()
-                            rs.rows.each {
-                                println it
-                                jsonArray.add(it)
-                            }
-                            handler.handle(Future.succeededFuture(jsonArray))
+                            handler.handle(Future.succeededFuture(rs.rows as JsonArray))
                         } else {
                             handler.handle(Future.succeededFuture(new JsonArray()))
                         }
@@ -383,6 +392,108 @@ class PostgresDAO implements ReferenceStorage {
                                 CompositeFuture.all(futures).setHandler(handler)
                             }
                         })
+                    }
+                    conn.close()
+                })
+            }
+        })
+    }
+
+    @Override
+    void getProjectFileId(String project, String fileName, Handler<AsyncResult<Optional<String>>> handler) {
+        client.getConnection({
+            if (it.failed()) {
+                handler.handle(Future.failedFuture(it.cause()))
+            } else {
+                def params = new JsonArray()
+                params.add(project)
+                params.add(fileName)
+
+                def conn = it.result()
+                conn.queryWithParams(GET_PROJECT_IMPORTED_FILE_ID, params, {
+                    if (it.failed()) {
+                        handler.handle(Future.failedFuture(it.cause()))
+                    } else {
+                        def rs = it.result()
+                        if (!rs.rows.isEmpty()) {
+                            handler.handle(Future.succeededFuture(Optional.of(rs.rows.get(0).getString("file_id"))))
+                        } else {
+                            handler.handle(Future.succeededFuture(Optional.empty()))
+                        }
+                    }
+                    conn.close()
+                })
+            }
+        })
+    }
+
+    @Override
+    void getProjectFunctionId(String project, String functionName, Handler<AsyncResult<Optional<String>>> handler) {
+        client.getConnection({
+            if (it.failed()) {
+                handler.handle(Future.failedFuture(it.cause()))
+            } else {
+                def params = new JsonArray()
+                params.add(project)
+                params.add(functionName)
+
+                def conn = it.result()
+                conn.queryWithParams(GET_PROJECT_IMPORTED_FUNCTION_ID, params, {
+                    if (it.failed()) {
+                        handler.handle(Future.failedFuture(it.cause()))
+                    } else {
+                        def rs = it.result()
+                        if (!rs.rows.isEmpty()) {
+                            handler.handle(Future.succeededFuture(Optional.of(rs.rows.get(0).getString("function_id"))))
+                        } else {
+                            handler.handle(Future.succeededFuture(Optional.empty()))
+                        }
+                    }
+                    conn.close()
+                })
+            }
+        })
+    }
+
+    @Override
+    void projectHasDefinition(String fileId, String functionId, Handler<AsyncResult<Boolean>> handler) {
+        client.getConnection({
+            if (it.failed()) {
+                handler.handle(Future.failedFuture(it.cause()))
+            } else {
+                def params = new JsonArray()
+                params.add(fileId)
+                params.add(functionId)
+
+                def conn = it.result()
+                conn.queryWithParams(PROJECT_HAS_DEFINITION, params, {
+                    if (it.failed()) {
+                        handler.handle(Future.failedFuture(it.cause()))
+                    } else {
+                        handler.handle(Future.succeededFuture(!it.result().rows.isEmpty()))
+                    }
+                    conn.close()
+                })
+            }
+        })
+    }
+
+    @Override
+    void projectHasReference(String fileOrFunctionId, String functionId, Handler<AsyncResult<Boolean>> handler) {
+        client.getConnection({
+            if (it.failed()) {
+                handler.handle(Future.failedFuture(it.cause()))
+            } else {
+                def params = new JsonArray()
+                params.add(fileOrFunctionId)
+                params.add(functionId)
+
+                def conn = it.result()
+                conn.queryWithParams(PROJECT_HAS_REFERENCE, params, {
+                    if (it.failed()) {
+                        handler.handle(Future.failedFuture(it.cause()))
+                    } else {
+                        handler.handle(Future.succeededFuture(!it.result().rows.isEmpty()))
                     }
                     conn.close()
                 })
