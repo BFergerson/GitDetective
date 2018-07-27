@@ -11,7 +11,7 @@ CREATE TABLE function_owner (
   create_date             TIMESTAMPTZ   NOT NULL DEFAULT CURRENT_TIMESTAMP,
   project_name            VARCHAR(510)  NOT NULL,
   function_id             VARCHAR(255)  NOT NULL,
-  qualified_name          VARCHAR(510)  NOT NULL,
+  qualified_name          VARCHAR(2056)  NOT NULL,
   PRIMARY KEY (project_name, function_id)
 );
 CREATE INDEX ON function_owner (
