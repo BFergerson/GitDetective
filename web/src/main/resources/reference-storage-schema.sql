@@ -1,7 +1,10 @@
 CREATE TABLE function_reference (
   create_date             TIMESTAMPTZ   NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  function_id             VARCHAR(255)  NOT NULL PRIMARY KEY,
+  function_id             VARCHAR(255)  NOT NULL,
   reference_data          JSON          NOT NULL
+);
+CREATE INDEX ON function_reference (
+  function_id
 );
 
 CREATE TABLE function_owner (

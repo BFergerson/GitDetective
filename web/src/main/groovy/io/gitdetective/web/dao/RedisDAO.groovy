@@ -115,8 +115,8 @@ class RedisDAO implements ReferenceStorage {
     }
 
     @Override
-    void getProjectMostExternalReferencedMethods(String githubRepository, int topCount,
-                                                 Handler<AsyncResult<JsonArray>> handler) {
+    void getProjectMostExternalReferencedFunctions(String githubRepository, int topCount,
+                                                   Handler<AsyncResult<JsonArray>> handler) {
         getOwnedFunctions(githubRepository, {
             if (it.failed()) {
                 handler.handle(Future.failedFuture(it.cause()))
@@ -168,8 +168,8 @@ class RedisDAO implements ReferenceStorage {
     }
 
     @Override
-    void getMethodExternalReferences(String functionId, int offset, int limit,
-                                     Handler<AsyncResult<JsonArray>> handler) {
+    void getFunctionExternalReferences(String functionId, int offset, int limit,
+                                       Handler<AsyncResult<JsonArray>> handler) {
         redis.lrange("gitdetective:osf:function_references:$functionId", offset, limit, {
             if (it.failed()) {
                 handler.handle(Future.failedFuture(it.cause()))
@@ -192,7 +192,7 @@ class RedisDAO implements ReferenceStorage {
         redis.lpush("gitdetective:osf:function_references:$functionId", referenceFunction.encode(), handler)
     }
 
-    private void updateProjectReferenceLeaderboard(String githubRepository, long projectReferenceCount,
+    void updateProjectReferenceLeaderboard(String githubRepository, long projectReferenceCount,
                                                    Handler<AsyncResult> handler) {
         redis.get("gitdetective:project:$githubRepository:project_external_method_reference_count", {
             if (it.failed()) {
@@ -218,7 +218,6 @@ class RedisDAO implements ReferenceStorage {
         })
     }
 
-    @Override
     void getProjectReferenceLeaderboard(int topCount, Handler<AsyncResult<JsonArray>> handler) {
         redis.zrevrange("gitdetective:project_reference_leaderboard", 0, topCount - 1, RangeOptions.WITHSCORES, {
             if (it.failed()) {

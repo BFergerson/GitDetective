@@ -62,6 +62,10 @@ class GitDetectiveService extends AbstractVerticle {
         uploadsDirectory = config().getString("uploads.directory")
         def redis = new RedisDAO(RedisHelper.client(vertx, config()))
         def jobs = new JobsDAO(kue, redis)
+        def refStorage = redis
+        if (config().getJsonObject("storage") != null) {
+            refStorage = new PostgresDAO(vertx, config().getJsonObject("storage"), redis)
+        }
 
         vertx.executeBlocking({
             def importJobEnabled = config().getJsonObject("importer").getBoolean("enabled")
@@ -73,11 +77,6 @@ class GitDetectiveService extends AbstractVerticle {
                     def grakn = makeGraknDAO(redis)
                     log.info "Import job processing enabled"
                     def importerOptions = new DeploymentOptions().setConfig(config())
-                    def refStorage = redis
-                    if (config().getJsonObject("storage") != null) {
-                        refStorage = new PostgresDAO(vertx, config().getJsonObject("storage"))
-                    }
-
                     vertx.deployVerticle(new GraknImporter(kue, redis, refStorage, grakn, uploadsDirectory), importerOptions)
                 } else {
                     log.info "Import job processing disabled"
@@ -270,7 +269,7 @@ class GitDetectiveService extends AbstractVerticle {
             def githubRepository = body.getString("github_repository").toLowerCase()
             log.debug "Getting project most referenced methods"
 
-            redis.getProjectMostExternalReferencedMethods(githubRepository, 10, {
+            refStorage.getProjectMostExternalReferencedFunctions(githubRepository, 10, {
                 if (it.failed()) {
                     it.cause().printStackTrace()
                     request.reply(it.cause())
@@ -317,7 +316,7 @@ class GitDetectiveService extends AbstractVerticle {
             def offset = body.getInteger("offset")
             log.debug "Getting method external references"
 
-            redis.getMethodExternalReferences(methodId, offset, 10, {
+            refStorage.getFunctionExternalReferences(methodId, offset, 10, {
                 if (it.failed()) {
                     it.cause().printStackTrace()
                     request.reply(it.cause())

@@ -12,13 +12,11 @@ import io.vertx.core.json.JsonObject
  */
 interface ReferenceStorage {
 
-    void getProjectMostExternalReferencedMethods(String githubRepository, int topCount, Handler<AsyncResult<JsonArray>> handler)
+    void getProjectMostExternalReferencedFunctions(String githubRepository, int topCount, Handler<AsyncResult<JsonArray>> handler)
 
-    void getMethodExternalReferences(String functionId, int offset, int limit, Handler<AsyncResult<JsonArray>> handler)
+    void getFunctionExternalReferences(String functionId, int offset, int limit, Handler<AsyncResult<JsonArray>> handler)
 
     void getFunctionTotalExternalReferenceCount(String functionId, Handler<AsyncResult<Long>> handler)
-
-    void getProjectReferenceLeaderboard(int topCount, Handler<AsyncResult<JsonArray>> handler)
 
     void cacheProjectImportedFile(String githubRepository, String filename, String fileId, Handler<AsyncResult> handler)
 

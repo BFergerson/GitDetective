@@ -123,6 +123,8 @@ class GraknImporter extends AbstractVerticle {
                 processImportJob(job, it.completer())
             }, false, {
                 if (it.failed()) {
+                    it.cause().printStackTrace()
+                    logPrintln(job, "Import failed! Cause: " + it.cause().message)
                     indexJob.done(it.cause())
                 } else {
                     indexJob.done()
