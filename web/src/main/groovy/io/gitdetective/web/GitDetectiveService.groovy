@@ -262,8 +262,8 @@ class GitDetectiveService extends AbstractVerticle {
                 context.stop()
             })
         })
-        vertx.eventBus().consumer(GET_PROJECT_MOST_REFERENCED_METHODS, { request ->
-            def timer = WebLauncher.metrics.timer(GET_PROJECT_MOST_REFERENCED_METHODS)
+        vertx.eventBus().consumer(GET_PROJECT_MOST_REFERENCED_FUNCTIONS, { request ->
+            def timer = WebLauncher.metrics.timer(GET_PROJECT_MOST_REFERENCED_FUNCTIONS)
             def context = timer.time()
             def body = (JsonObject) request.body()
             def githubRepository = body.getString("github_repository").toLowerCase()
@@ -308,8 +308,8 @@ class GitDetectiveService extends AbstractVerticle {
                 context.stop()
             })
         })
-        vertx.eventBus().consumer(GET_METHOD_EXTERNAL_REFERENCES, { request ->
-            def timer = WebLauncher.metrics.timer(GET_METHOD_EXTERNAL_REFERENCES)
+        vertx.eventBus().consumer(GET_FUNCTION_EXTERNAL_REFERENCES, { request ->
+            def timer = WebLauncher.metrics.timer(GET_FUNCTION_EXTERNAL_REFERENCES)
             def context = timer.time()
             def body = (JsonObject) request.body()
             def methodId = body.getString("method_id")

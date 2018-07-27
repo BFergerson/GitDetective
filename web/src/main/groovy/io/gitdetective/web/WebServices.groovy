@@ -16,18 +16,18 @@ import java.util.concurrent.TimeUnit
  */
 final class WebServices {
 
-    static final String GET_PROJECT_REFERENCE_LEADERBOARD = "GetProjectReferenceLeaderboard"
+    static final String CREATE_JOB = "CreateJob"
+    static final String GET_ACTIVE_JOBS = "GetActiveJobs"
     static final String GET_TRIGGER_INFORMATION = "GetTriggerInformation"
     static final String GET_LATEST_JOB_LOG = "GetLatestJobLog"
+    static final String GET_FUNCTION_EXTERNAL_REFERENCES = "GetFunctionExternalReferences"
+    static final String GET_PROJECT_MOST_REFERENCED_FUNCTIONS = "GetProjectMostReferencedMethods"
+    static final String GET_PROJECT_REFERENCE_LEADERBOARD = "GetProjectReferenceLeaderboard"
     static final String GET_PROJECT_FILE_COUNT = "GetProjectFileCount"
-    static final String GET_PROJECT_METHOD_INSTANCE_COUNT = "GetProjectMethodInstanceCount"
-    static final String GET_PROJECT_MOST_REFERENCED_METHODS = "GetProjectMostReferencedMethods"
+    static final String GET_PROJECT_METHOD_INSTANCE_COUNT = "GetProjectFunctionInstanceCount"
     static final String GET_PROJECT_FIRST_INDEXED = "GetProjectFirstIndexed"
     static final String GET_PROJECT_LAST_INDEXED = "GetProjectLastIndexed"
     static final String GET_PROJECT_LAST_INDEXED_COMMIT_INFORMATION = "GetProjectLastIndexedCommitInformation"
-    static final String GET_ACTIVE_JOBS = "GetActiveJobs"
-    static final String CREATE_JOB = "CreateJob"
-    static final String GET_METHOD_EXTERNAL_REFERENCES = "GetMethodExternalReferences"
     private final static Logger log = LoggerFactory.getLogger(WebServices.class)
     private final static DecimalFormat decimalFormat = new DecimalFormat("#.00")
 
@@ -37,10 +37,6 @@ final class WebServices {
     static void logPrintln(Job job, String logData) {
         job.log(logData)
         log.info logData + " (repo: " + job.data.getString("github_repository") + ")"
-    }
-
-    static String getFilename(String fileLocation) {
-        return fileLocation.substring(fileLocation.lastIndexOf("/") + 1)
     }
 
     static String getShortQualifiedClassName(String qualifiedName) {

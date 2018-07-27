@@ -2,6 +2,7 @@ package io.gitdetective.web.dao
 
 import com.google.common.base.Charsets
 import com.google.common.io.Resources
+import io.gitdetective.web.WebServices
 import io.gitdetective.web.dao.storage.ReferenceStorage
 import io.vertx.core.*
 import io.vertx.core.json.JsonArray
@@ -10,8 +11,6 @@ import io.vertx.core.logging.Logger
 import io.vertx.core.logging.LoggerFactory
 import io.vertx.ext.asyncsql.AsyncSQLClient
 import io.vertx.ext.asyncsql.PostgreSQLClient
-
-import static io.gitdetective.web.WebServices.*
 
 /**
  * @author <a href="mailto:brandon.fergerson@codebrig.com">Brandon Fergerson</a>
@@ -101,10 +100,10 @@ class PostgresDAO implements ReferenceStorage {
                             def qualifiedName = rankedOwnedFunctions.getJsonObject(i).getString("qualified_name")
                             rankedOwnedFunctions.getJsonObject(i)
                                     .put("id", functionId)
-                                    .put("short_class_name", getShortQualifiedClassName(qualifiedName))
-                                    .put("class_name", getQualifiedClassName(qualifiedName))
-                                    .put("short_method_signature", getShortMethodSignature(qualifiedName))
-                                    .put("method_signature", getMethodSignature(qualifiedName))
+                                    .put("short_class_name", WebServices.getShortQualifiedClassName(qualifiedName))
+                                    .put("class_name", WebServices.getQualifiedClassName(qualifiedName))
+                                    .put("short_method_signature", WebServices.getShortMethodSignature(qualifiedName))
+                                    .put("method_signature", WebServices.getMethodSignature(qualifiedName))
                                     .put("is_function", true)
                         }
                         handler.handle(Future.succeededFuture(rankedOwnedFunctions))
@@ -171,7 +170,7 @@ class PostgresDAO implements ReferenceStorage {
     }
 
     @Override
-    void cacheProjectImportedFile(String githubRepository, String filename, String fileId, Handler<AsyncResult> handler) {
+    void addProjectImportedFile(String githubRepository, String filename, String fileId, Handler<AsyncResult> handler) {
         client.getConnection({
             if (it.failed()) {
                 handler.handle(Future.failedFuture(it.cause()))
@@ -195,7 +194,7 @@ class PostgresDAO implements ReferenceStorage {
     }
 
     @Override
-    void cacheProjectImportedFunction(String githubRepository, String functionName, String functionId, Handler<AsyncResult> handler) {
+    void addProjectImportedFunction(String githubRepository, String functionName, String functionId, Handler<AsyncResult> handler) {
         client.getConnection({
             if (it.failed()) {
                 handler.handle(Future.failedFuture(it.cause()))
@@ -219,7 +218,7 @@ class PostgresDAO implements ReferenceStorage {
     }
 
     @Override
-    void cacheProjectImportedDefinition(String fileId, String functionId, Handler<AsyncResult> handler) {
+    void addProjectImportedDefinition(String fileId, String functionId, Handler<AsyncResult> handler) {
         client.getConnection({
             if (it.failed()) {
                 handler.handle(Future.failedFuture(it.cause()))
@@ -242,7 +241,7 @@ class PostgresDAO implements ReferenceStorage {
     }
 
     @Override
-    void cacheProjectImportedReference(String fileOrFunctionId, String functionId, Handler<AsyncResult> handler) {
+    void addProjectImportedReference(String fileOrFunctionId, String functionId, Handler<AsyncResult> handler) {
         client.getConnection({
             if (it.failed()) {
                 handler.handle(Future.failedFuture(it.cause()))

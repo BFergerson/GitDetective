@@ -18,13 +18,13 @@ interface ReferenceStorage {
 
     void getFunctionTotalExternalReferenceCount(String functionId, Handler<AsyncResult<Long>> handler)
 
-    void cacheProjectImportedFile(String githubRepository, String filename, String fileId, Handler<AsyncResult> handler)
+    void addProjectImportedFile(String githubRepository, String filename, String fileId, Handler<AsyncResult> handler)
 
-    void cacheProjectImportedFunction(String githubRepository, String functionName, String functionId, Handler<AsyncResult> handler)
+    void addProjectImportedFunction(String githubRepository, String functionName, String functionId, Handler<AsyncResult> handler)
 
-    void cacheProjectImportedDefinition(String fileId, String functionId, Handler<AsyncResult> handler)
+    void addProjectImportedDefinition(String fileId, String functionId, Handler<AsyncResult> handler)
 
-    void cacheProjectImportedReference(String fileOrFunctionId, String functionId, Handler<AsyncResult> handler)
+    void addProjectImportedReference(String fileOrFunctionId, String functionId, Handler<AsyncResult> handler)
 
     void getOwnedFunctions(String githubRepository, Handler<AsyncResult<JsonArray>> handler)
 

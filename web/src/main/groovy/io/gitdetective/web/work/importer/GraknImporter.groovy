@@ -294,7 +294,7 @@ class GraknImporter extends AbstractVerticle {
                             def existingFileId = match.get(0).get("x").asEntity().id.toString()
                             def fut = Future.future()
                             cacheFutures.add(fut)
-                            referenceStorage.cacheProjectImportedFile(githubRepository, lineData[1], existingFileId, fut.completer())
+                            referenceStorage.addProjectImportedFile(githubRepository, lineData[1], existingFileId, fut.completer())
                             importData.importedFiles.put(lineData[1], existingFileId)
                         }
                     }
@@ -314,7 +314,7 @@ class GraknImporter extends AbstractVerticle {
                         //cache imported file
                         def fut = Future.future()
                         cacheFutures.add(fut)
-                        referenceStorage.cacheProjectImportedFile(githubRepository, lineData[1], importedFileId, fut.completer())
+                        referenceStorage.addProjectImportedFile(githubRepository, lineData[1], importedFileId, fut.completer())
                     }
                 }
             }
@@ -364,8 +364,8 @@ class GraknImporter extends AbstractVerticle {
                             def fut1 = Future.future()
                             def fut2 = Future.future()
                             cacheFutures.addAll(fut1, fut2)
-                            referenceStorage.cacheProjectImportedFunction(githubRepository, lineData[1], existingFunctionId, fut1.completer())
-                            referenceStorage.cacheProjectImportedDefinition(existingFileId, existingFunctionId, fut2.completer())
+                            referenceStorage.addProjectImportedFunction(githubRepository, lineData[1], existingFunctionId, fut1.completer())
+                            referenceStorage.addProjectImportedDefinition(existingFileId, existingFunctionId, fut2.completer())
 
                             importData.definedFunctions.put(lineData[1], existingFunctionId)
                             importData.definedFunctionInstances.put(existingFunctionId, existingFunctionInstanceId)
@@ -434,8 +434,8 @@ class GraknImporter extends AbstractVerticle {
                         def fut2 = Future.future()
                         def fut3 = Future.future()
                         cacheFutures.addAll(fut1, fut2, fut3)
-                        referenceStorage.cacheProjectImportedFunction(githubRepository, importCode.functionName, importCode.functionId, fut1.completer())
-                        referenceStorage.cacheProjectImportedDefinition(importCode.fileId, importCode.functionId, fut2.completer())
+                        referenceStorage.addProjectImportedFunction(githubRepository, importCode.functionName, importCode.functionId, fut1.completer())
+                        referenceStorage.addProjectImportedDefinition(importCode.fileId, importCode.functionId, fut2.completer())
                         referenceStorage.addFunctionOwner(importCode.functionId, importCode.functionQualifiedName, githubRepository, fut3.completer())
                     }
                     tx.commit()
@@ -494,7 +494,7 @@ class GraknImporter extends AbstractVerticle {
                                     def functionId = existingRef.get(0).get("func").asEntity().id.toString()
                                     def fut = Future.future()
                                     cacheFutures.addAll(fut)
-                                    referenceStorage.cacheProjectImportedReference(fileId, functionId, fut.completer())
+                                    referenceStorage.addProjectImportedReference(fileId, functionId, fut.completer())
                                 }
                             } else {
                                 def existingRef = graql.parse(GET_INTERNAL_REFERENCE_BY_FILE_NAME
@@ -506,7 +506,7 @@ class GraknImporter extends AbstractVerticle {
                                     def functionId = existingRef.get(0).get("func").asEntity().id.toString()
                                     def fut = Future.future()
                                     cacheFutures.addAll(fut)
-                                    referenceStorage.cacheProjectImportedReference(fileId, functionId, fut.completer())
+                                    referenceStorage.addProjectImportedReference(fileId, functionId, fut.completer())
                                 }
                             }
                         } else {
@@ -530,8 +530,8 @@ class GraknImporter extends AbstractVerticle {
                                     def fut1 = Future.future()
                                     def fut2 = Future.future()
                                     cacheFutures.addAll(fut1, fut2)
-                                    referenceStorage.cacheProjectImportedFunction(githubRepository, lineData[3], osFunc.functionId, fut1.completer())
-                                    referenceStorage.cacheProjectImportedReference(function1Id, function2Id, fut2.completer())
+                                    referenceStorage.addProjectImportedFunction(githubRepository, lineData[3], osFunc.functionId, fut1.completer())
+                                    referenceStorage.addProjectImportedReference(function1Id, function2Id, fut2.completer())
                                 }
                             } else {
                                 def refFunctionId = importData.definedFunctions.get(lineData[1])
@@ -545,7 +545,7 @@ class GraknImporter extends AbstractVerticle {
                                         def existingFunc2Id = existingRef.get(0).get("func2").asEntity().id.toString()
                                         def fut = Future.future()
                                         cacheFutures.addAll(fut)
-                                        referenceStorage.cacheProjectImportedReference(existingFunc1Id, existingFunc2Id, fut.completer())
+                                        referenceStorage.addProjectImportedReference(existingFunc1Id, existingFunc2Id, fut.completer())
                                     }
                                 } else {
                                     def funcId = importData.definedFunctions.get(lineData[3])
@@ -562,7 +562,7 @@ class GraknImporter extends AbstractVerticle {
                                     if (!importReference) {
                                         def fut = Future.future()
                                         cacheFutures.addAll(fut)
-                                        referenceStorage.cacheProjectImportedReference(refFunctionId, funcId, fut.completer())
+                                        referenceStorage.addProjectImportedReference(refFunctionId, funcId, fut.completer())
                                     }
                                 }
                             }
@@ -711,7 +711,7 @@ class GraknImporter extends AbstractVerticle {
                                 //cache imported reference (internal file -> external function)
                                 def fut1 = Future.future()
                                 cacheFutures.add(fut1)
-                                referenceStorage.cacheProjectImportedReference(importCode.fileId, importCode.referenceFunctionId, fut1.completer())
+                                referenceStorage.addProjectImportedReference(importCode.fileId, importCode.referenceFunctionId, fut1.completer())
 
                                 //add external file reference
                                 def file = new JsonObject()
@@ -729,19 +729,19 @@ class GraknImporter extends AbstractVerticle {
                                 //cache imported reference (internal file -> internal function)
                                 def fut = Future.future()
                                 cacheFutures.add(fut)
-                                referenceStorage.cacheProjectImportedReference(importCode.fileId, importCode.referenceFunctionId, fut.completer())
+                                referenceStorage.addProjectImportedReference(importCode.fileId, importCode.referenceFunctionId, fut.completer())
                             }
                         } else {
                             if (importCode.isExternalReference) {
                                 //cache imported function/reference (internal function -> external function)
                                 def fut1 = Future.future()
                                 cacheFutures.add(fut1)
-                                referenceStorage.cacheProjectImportedFunction(githubRepository, importCode.referenceFunctionName,
+                                referenceStorage.addProjectImportedFunction(githubRepository, importCode.referenceFunctionName,
                                         importCode.referenceFunctionId, fut1.completer())
 
                                 def fut2 = Future.future()
                                 cacheFutures.add(fut2)
-                                referenceStorage.cacheProjectImportedReference(importCode.functionId, importCode.referenceFunctionId, fut2.completer())
+                                referenceStorage.addProjectImportedReference(importCode.functionId, importCode.referenceFunctionId, fut2.completer())
 
                                 //add external function reference
                                 def function = new JsonObject()
@@ -762,7 +762,7 @@ class GraknImporter extends AbstractVerticle {
                                 //cache imported reference (internal function -> internal function)
                                 def fut = Future.future()
                                 cacheFutures.add(fut)
-                                referenceStorage.cacheProjectImportedReference(importCode.functionId, importCode.referenceFunctionId, fut.completer())
+                                referenceStorage.addProjectImportedReference(importCode.functionId, importCode.referenceFunctionId, fut.completer())
                             }
                         }
                     }
