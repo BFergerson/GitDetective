@@ -9,6 +9,7 @@ import com.google.common.base.Charsets
 import com.google.common.io.Resources
 import io.gitdetective.web.dao.GraknDAO
 import io.gitdetective.web.dao.JobsDAO
+import io.gitdetective.web.dao.PostgresDAO
 import io.gitdetective.web.dao.RedisDAO
 import io.gitdetective.web.work.GHArchiveSync
 import io.gitdetective.web.work.importer.GraknImporter
@@ -72,7 +73,12 @@ class GitDetectiveService extends AbstractVerticle {
                     def grakn = makeGraknDAO(redis)
                     log.info "Import job processing enabled"
                     def importerOptions = new DeploymentOptions().setConfig(config())
-                    vertx.deployVerticle(new GraknImporter(kue, redis, grakn, uploadsDirectory), importerOptions)
+                    def refStorage = redis
+                    if (config().getJsonObject("storage") != null) {
+                        refStorage = new PostgresDAO(vertx, config().getJsonObject("storage"))
+                    }
+
+                    vertx.deployVerticle(new GraknImporter(kue, redis, refStorage, grakn, uploadsDirectory), importerOptions)
                 } else {
                     log.info "Import job processing disabled"
                 }

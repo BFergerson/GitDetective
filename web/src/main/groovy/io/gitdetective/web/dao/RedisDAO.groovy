@@ -1,5 +1,6 @@
 package io.gitdetective.web.dao
 
+import io.gitdetective.web.dao.storage.ReferenceStorage
 import io.gitdetective.web.work.importer.OpenSourceFunction
 import io.vertx.core.AsyncResult
 import io.vertx.core.CompositeFuture
@@ -20,7 +21,7 @@ import static io.gitdetective.web.WebServices.*
 /**
  * @author <a href="mailto:brandon.fergerson@codebrig.com">Brandon Fergerson</a>
  */
-class RedisDAO {
+class RedisDAO implements ReferenceStorage {
 
     public static final String NEW_PROJECT_FILE = "NewProjectFile"
     public static final String NEW_PROJECT_FUNCTION = "NewProjectFunction"
@@ -113,6 +114,7 @@ class RedisDAO {
         })
     }
 
+    @Override
     void getProjectMostExternalReferencedMethods(String githubRepository, int topCount,
                                                  Handler<AsyncResult<JsonArray>> handler) {
         getOwnedFunctions(githubRepository, {
@@ -165,6 +167,7 @@ class RedisDAO {
         })
     }
 
+    @Override
     void getMethodExternalReferences(String functionId, int offset, int limit,
                                      Handler<AsyncResult<JsonArray>> handler) {
         redis.lrange("gitdetective:osf:function_references:$functionId", offset, limit, {
@@ -180,6 +183,7 @@ class RedisDAO {
         })
     }
 
+    @Override
     void getFunctionTotalExternalReferenceCount(String functionId, Handler<AsyncResult<Long>> handler) {
         redis.llen("gitdetective:osf:function_references:$functionId", handler)
     }
@@ -214,6 +218,7 @@ class RedisDAO {
         })
     }
 
+    @Override
     void getProjectReferenceLeaderboard(int topCount, Handler<AsyncResult<JsonArray>> handler) {
         redis.zrevrange("gitdetective:project_reference_leaderboard", 0, topCount - 1, RangeOptions.WITHSCORES, {
             if (it.failed()) {
@@ -475,34 +480,39 @@ class RedisDAO {
         })
     }
 
+    @Override
     void cacheProjectImportedFile(String githubRepository, String filename, String fileId, Handler<AsyncResult> handler) {
         log.trace "Caching imported function: $filename"
         redis.publish(NEW_PROJECT_FILE, "$githubRepository|$filename|$fileId", handler)
     }
 
+    @Override
     void cacheProjectImportedFunction(String githubRepository, String functionName, String functionId, Handler<AsyncResult> handler) {
         log.trace "Caching imported function: $functionName"
         redis.publish(NEW_PROJECT_FUNCTION, "$githubRepository|$functionName|$functionId", handler)
     }
 
+    @Override
     void cacheProjectImportedDefinition(String fileId, String functionId, Handler<AsyncResult> handler) {
         log.trace "Caching imported definition: $fileId-$functionId"
         redis.publish(NEW_DEFINITION, "$fileId-$functionId", handler)
     }
 
+    @Override
     void cacheProjectImportedReference(String fileOrFunctionId, String functionId, Handler<AsyncResult> handler) {
         log.trace "Caching imported reference: $fileOrFunctionId-$functionId"
         redis.publish(NEW_REFERENCE, "$fileOrFunctionId-$functionId", handler)
     }
 
     private void addOwnedFunction(String githubRepository, String functionId, String qualifiedName,
-                                  Handler<AsyncResult> handler) {
+                          Handler<AsyncResult> handler) {
         log.trace "Adding owned function '$functionId' to owner: $githubRepository"
         redis.sadd("gitdetective:project:$githubRepository:ownedFunctions", new JsonObject()
                 .put("function_id", functionId)
                 .put("qualified_name", qualifiedName).encode(), handler)
     }
 
+    @Override
     void getOwnedFunctions(String githubRepository, Handler<AsyncResult<JsonArray>> handler) {
         redis.smembers("gitdetective:project:$githubRepository:ownedFunctions", {
             if (it.failed()) {
@@ -518,6 +528,7 @@ class RedisDAO {
         })
     }
 
+    @Override
     void addFunctionOwner(String functionId, String qualifiedName, String githubRepository,
                           Handler<AsyncResult> handler) {
         log.trace "Adding owner '$githubRepository' to function: $functionId"
@@ -545,11 +556,13 @@ class RedisDAO {
         })
     }
 
-    private void getFunctionOwners(String functionId, Handler<AsyncResult<JsonArray>> handler) {
+    @Override
+    void getFunctionOwners(String functionId, Handler<AsyncResult<JsonArray>> handler) {
         log.trace "Getting owners of function: $functionId"
         redis.smembers("gitdetective:osf:owners:function:$functionId", handler)
     }
 
+    @Override
     void addFunctionReference(String functionId, JsonObject fileOrFunctionReference, Handler<AsyncResult> handler) {
         cacheFunctionReference(functionId, fileOrFunctionReference, {
             if (it.failed()) {
