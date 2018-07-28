@@ -350,7 +350,11 @@ class PostgresDAO implements ReferenceStorage {
                     } else {
                         def rs = it.result()
                         if (!rs.rows.isEmpty()) {
-                            handler.handle(Future.succeededFuture(rs.rows as JsonArray))
+                            def rtnArray = new JsonArray()
+                            rs.rows.each {
+                                rtnArray.add(it.getString("project_name"))
+                            }
+                            handler.handle(Future.succeededFuture(rtnArray))
                         } else {
                             handler.handle(Future.succeededFuture(new JsonArray()))
                         }
