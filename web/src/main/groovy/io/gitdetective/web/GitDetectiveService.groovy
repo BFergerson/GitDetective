@@ -60,8 +60,12 @@ class GitDetectiveService extends AbstractVerticle {
     @Override
     void start() {
         uploadsDirectory = config().getString("uploads.directory")
+        def jobsRedisConfig = config().copy()
+        if (config().getJsonObject("jobs_server") != null) {
+            jobsRedisConfig = config().getJsonObject("jobs_server")
+        }
         def redis = new RedisDAO(RedisHelper.client(vertx, config()))
-        def jobs = new JobsDAO(kue, redis)
+        def jobs = new JobsDAO(kue, new RedisDAO(RedisHelper.client(vertx, jobsRedisConfig)))
         def refStorage = redis
         if (config().getJsonObject("storage") != null) {
             refStorage = new PostgresDAO(vertx, config().getJsonObject("storage"), redis)

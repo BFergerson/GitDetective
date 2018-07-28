@@ -61,7 +61,7 @@ class CreateJobs extends AbstractVerticle {
             }
 
             def kue = Kue.createQueue(vertx, kueOptions.config)
-            vertx.deployVerticle(new CreateJobs(kue), options, {
+            vertx.deployVerticle(new CreateJobs(kue), kueOptions, {
                 if (it.failed()) {
                     it.cause().printStackTrace()
                     System.exit(-1)
@@ -78,7 +78,11 @@ class CreateJobs extends AbstractVerticle {
 
     @Override
     void start() throws Exception {
-        def redisClient = RedisHelper.client(vertx, config())
+        def jobsRedisConfig = config().copy()
+        if (config().getJsonObject("jobs_server") != null) {
+            jobsRedisConfig = config().getJsonObject("jobs_server")
+        }
+        def redisClient = RedisHelper.client(vertx, jobsRedisConfig)
         def redis = new RedisDAO(redisClient)
         def jobs = new JobsDAO(kue, redis)
 
