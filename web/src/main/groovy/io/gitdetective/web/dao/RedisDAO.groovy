@@ -496,7 +496,7 @@ class RedisDAO implements ReferenceStorage {
     @Override
     void addProjectImportedReference(String fileOrFunctionId, String functionId, Handler<AsyncResult> handler) {
         log.trace "Adding project imported reference: $fileOrFunctionId-$functionId"
-        redis.set("gitdetective:project:osf:reference:$fileOrFunctionId-$functionId", "true", handler)
+        redis.set("gitdetective:osf:reference:$fileOrFunctionId-$functionId", "true", handler)
     }
 
     private void addOwnedFunction(String githubRepository, String functionId, String qualifiedName,
@@ -611,7 +611,7 @@ class RedisDAO implements ReferenceStorage {
 
     @Override
     void projectHasDefinition(String fileId, String functionId, Handler<AsyncResult<Boolean>> handler) {
-        redis.get("gitdetective:project:osf:definition:$fileId-$functionId", {
+        redis.get("gitdetective:osf:definition:$fileId-$functionId", {
             if (it.failed()) {
                 handler.handle(Future.failedFuture(it.cause()))
             } else if (it.result() == null) {
@@ -624,7 +624,7 @@ class RedisDAO implements ReferenceStorage {
 
     @Override
     void projectHasReference(String fileOrFunctionId, String functionId, Handler<AsyncResult<Boolean>> handler) {
-        redis.get("gitdetective:project:osf:reference:$fileOrFunctionId-$functionId", {
+        redis.get("gitdetective:osf:reference:$fileOrFunctionId-$functionId", {
             if (it.failed()) {
                 handler.handle(Future.failedFuture(it.cause()))
             } else if (it.result() == null) {
