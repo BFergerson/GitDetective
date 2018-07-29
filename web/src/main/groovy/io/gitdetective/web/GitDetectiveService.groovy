@@ -64,8 +64,9 @@ class GitDetectiveService extends AbstractVerticle {
         if (config().getJsonObject("jobs_server") != null) {
             jobsRedisConfig = config().getJsonObject("jobs_server")
         }
+        def jobsRedis = new RedisDAO(RedisHelper.client(vertx, jobsRedisConfig))
         def redis = new RedisDAO(RedisHelper.client(vertx, config()))
-        def jobs = new JobsDAO(kue, new RedisDAO(RedisHelper.client(vertx, jobsRedisConfig)))
+        def jobs = new JobsDAO(kue, jobsRedis)
         def refStorage = redis
         if (config().getJsonObject("storage") != null) {
             refStorage = new PostgresDAO(vertx, config().getJsonObject("storage"), redis)
@@ -97,7 +98,7 @@ class GitDetectiveService extends AbstractVerticle {
                 log.info "Launching GitDetective website"
                 def options = new DeploymentOptions().setConfig(config())
                 vertx.deployVerticle(new GitDetectiveWebsite(jobs, redis, router), options)
-                vertx.deployVerticle(new GHArchiveSync(jobs, redis), options)
+                vertx.deployVerticle(new GHArchiveSync(jobs, jobsRedis), options)
             }
         }, false, {
             if (it.failed()) {
