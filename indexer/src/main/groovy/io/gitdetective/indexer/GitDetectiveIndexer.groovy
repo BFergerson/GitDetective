@@ -79,27 +79,27 @@ class GitDetectiveIndexer extends AbstractVerticle {
     @Override
     void start() throws Exception {
         vertx.eventBus().registerDefaultCodec(Job.class, messageCodec(Job.class))
-        def writableRedisConfig = config().copy()
-        if (config().getJsonObject("writable_redis") != null) {
-            writableRedisConfig = config().getJsonObject("writable_redis")
+        def jobsRedisConfig = config().copy()
+        if (config().getJsonObject("jobs_server") != null) {
+            jobsRedisConfig = config().getJsonObject("jobs_server")
         }
-        def writableRedis = new RedisDAO(RedisHelper.client(vertx, writableRedisConfig))
-        def readableRedis = new RedisDAO(RedisHelper.client(vertx, config()))
-        def jobs = new JobsDAO(kue, writableRedis)
+        def jobsRedis = new RedisDAO(RedisHelper.client(vertx, jobsRedisConfig))
+        def redis = new RedisDAO(RedisHelper.client(vertx, config()))
+        def jobs = new JobsDAO(kue, jobsRedis)
         def deployOptions = new DeploymentOptions()
         deployOptions.config = config()
 
-        def refStorage = readableRedis
+        def refStorage = redis
         if (config().getJsonObject("storage") != null) {
-            refStorage = new PostgresDAO(vertx, config().getJsonObject("storage"), readableRedis)
+            refStorage = new PostgresDAO(vertx, config().getJsonObject("storage"), redis)
         }
 
         //core
-        vertx.deployVerticle(new GithubRepositoryCloner(kue, jobs, writableRedis), deployOptions)
+        vertx.deployVerticle(new GithubRepositoryCloner(kue, jobs, jobsRedis), deployOptions)
         vertx.deployVerticle(new KytheIndexOutput(), deployOptions)
         vertx.deployVerticle(new KytheUsageExtractor(), deployOptions)
         vertx.deployVerticle(new GitDetectiveImportFilter(refStorage), deployOptions)
-        vertx.deployVerticle(new KytheIndexAugment(readableRedis), deployOptions)
+        vertx.deployVerticle(new KytheIndexAugment(redis), deployOptions)
 
         //project builders
         vertx.deployVerticle(new KytheMavenBuilder(), deployOptions)
