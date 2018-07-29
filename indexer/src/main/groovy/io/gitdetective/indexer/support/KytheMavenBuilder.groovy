@@ -102,10 +102,10 @@ class KytheMavenBuilder extends AbstractVerticle {
                     if (!buildTimeoutFuture.done) {
                         buildTimeoutFuture.cancel(true)
                         logPrintln(job, "Project build timed out")
-                        job.done()
+                        job.done(new InterruptedException("Project build timed out"))
                     }
                 }
-            }, 1, TimeUnit.HOURS)
+            }, config().getJsonObject("builder_limits").getInteger("maven_build_limit"), TimeUnit.MINUTES)
         }, false, { res ->
             def invocationResult = res.result() as InvocationResult
             if (invocationResult.exitCode != 0) {

@@ -6,7 +6,15 @@ import io.vertx.blueprint.kue.queue.Job
 import io.vertx.core.AbstractVerticle
 import io.vertx.core.logging.Logger
 import io.vertx.core.logging.LoggerFactory
-import org.gradle.tooling.*
+import org.gradle.tooling.BuildLauncher
+import org.gradle.tooling.GradleConnector
+import org.gradle.tooling.ProjectConnection
+import org.gradle.tooling.internal.consumer.DefaultCancellationTokenSource
+
+import java.util.concurrent.ExecutorService
+import java.util.concurrent.Executors
+import java.util.concurrent.ScheduledExecutorService
+import java.util.concurrent.TimeUnit
 
 import static io.gitdetective.indexer.IndexerServices.asPrettyTime
 import static io.gitdetective.indexer.IndexerServices.logPrintln
@@ -72,21 +80,46 @@ class KytheGradleBuilder extends AbstractVerticle {
             env.put("JAVAC_EXTRACTOR_JAR", javacExtractor.absolutePath)
             build.setEnvironmentVariables(env)
 
-            build.run(new ResultHandler<Void>() {
-                @Override
-                void onComplete(Void result) {
+            def cancelSource = new DefaultCancellationTokenSource()
+            final ExecutorService service = Executors.newFixedThreadPool(1)
+            final ScheduledExecutorService canceller = Executors.newSingleThreadScheduledExecutor()
+            vertx.executeBlocking({ future ->
+                def buildTimeoutFuture = service.submit(new Runnable() {
+                    @Override
+                    void run() {
+                        try {
+                            logPrintln(job, "Building project")
+                            build.withCancellationToken(cancelSource.token())
+                            build.run()
+                            connection.close()
+                            future.complete()
+                        } catch (all) {
+                            cancelSource.cancel()
+                            connection.close()
+                            logPrintln(job, "Project build failed")
+                            job.done(all)
+                            future.fail(all)
+                        }
+                    }
+                })
+                canceller.schedule(new Runnable() {
+                    @Override
+                    void run() {
+                        if (!buildTimeoutFuture.done) {
+                            buildTimeoutFuture.cancel(true)
+                            logPrintln(job, "Project build timed out")
+                        }
+                    }
+                }, config().getJsonObject("builder_limits").getInteger("gradle_build_limit"), TimeUnit.MINUTES)
+            }, false, { res ->
+                if (res.succeeded()) {
                     logPrintln(job, "Project build took: " + asPrettyTime(buildContext.stop()))
                     vertx.eventBus().send(KytheIndexOutput.KYTHE_INDEX_OUTPUT, job)
                 }
-
-                @Override
-                void onFailure(GradleConnectionException failure) {
-                    job.done(failure.cause)
-                }
             })
         } catch (all) {
+            all.printStackTrace()
             job.done(all)
-        } finally {
             connection.close()
         }
     }
