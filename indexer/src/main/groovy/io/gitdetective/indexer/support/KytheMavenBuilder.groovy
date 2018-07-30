@@ -107,18 +107,23 @@ class KytheMavenBuilder extends AbstractVerticle {
                 }
             }, config().getJsonObject("builder_limits").getInteger("maven_build_limit"), TimeUnit.MINUTES)
         }, false, { res ->
-            def invocationResult = res.result() as InvocationResult
-            if (invocationResult.exitCode != 0) {
-                if (invocationResult.executionException != null) {
-                    invocationResult.executionException.printStackTrace()
-                    logPrintln(job, invocationResult.executionException.message)
-                }
+            if (res.succeeded()) {
+                def invocationResult = res.result() as InvocationResult
+                if (invocationResult.exitCode != 0) {
+                    if (invocationResult.executionException != null) {
+                        invocationResult.executionException.printStackTrace()
+                        logPrintln(job, invocationResult.executionException.message)
+                    }
 
-                logPrintln(job, "Project build failed")
-                job.done()
+                    logPrintln(job, "Project build failed")
+                    job.done(new Exception("Project build failed"))
+                } else {
+                    logPrintln(job, "Project build took: " + asPrettyTime(buildContext.stop()))
+                    vertx.eventBus().send(KytheIndexOutput.KYTHE_INDEX_OUTPUT, job)
+                }
             } else {
-                logPrintln(job, "Project build took: " + asPrettyTime(buildContext.stop()))
-                vertx.eventBus().send(KytheIndexOutput.KYTHE_INDEX_OUTPUT, job)
+                logPrintln(job, "Project build failed")
+                job.done(res.cause())
             }
         })
     }
