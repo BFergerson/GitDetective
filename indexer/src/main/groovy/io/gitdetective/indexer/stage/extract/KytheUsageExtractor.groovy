@@ -116,9 +116,11 @@ class KytheUsageExtractor extends AbstractVerticle {
                 sourceUsage.addBinding(subjectUri, objectUri)
             } else if (predicate == "/kythe/edge/childof") {
                 def objectUri = toUniversalUri(KytheURI.parse(row[2]))
-                sourceUsage.getExtractedNode(objectUri).uri = objectUri
-                def parentNode = sourceUsage.getExtractedNode(objectUri)
-                sourceUsage.getExtractedNode(subjectUri).setParentNode(parentNode)
+                if (!objectUri.path.isEmpty()) {
+                    sourceUsage.getExtractedNode(objectUri).uri = objectUri
+                    def parentNode = sourceUsage.getExtractedNode(objectUri)
+                    sourceUsage.getExtractedNode(subjectUri).setParentNode(parentNode)
+                }
             } else if (predicate.startsWith("/kythe/edge/param.")) {
                 def objectUri = toUniversalUri(KytheURI.parse(row[2]))
                 def extractedFunction = sourceUsage.getExtractedNode(subjectUri)
