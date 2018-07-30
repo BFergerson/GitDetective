@@ -305,6 +305,9 @@ class GitDetectiveService extends AbstractVerticle {
                         } else {
                             break
                         }
+
+                        //pretty counts
+                        ob.put("external_reference_count", asPrettyNumber(ob.getInteger("external_reference_count")))
                     }
 
                     log.debug "Got project most referenced methods - Size: " + result.size()
