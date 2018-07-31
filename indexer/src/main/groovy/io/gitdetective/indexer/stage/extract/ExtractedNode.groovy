@@ -35,7 +35,13 @@ class ExtractedNode {
                     }
                 }
             }
-            return context + identifier + "($paramStr)"
+
+            if (parentNode?.isFile) {
+                //use parent qualified name as context
+                return parentNode.getQualifiedName(codeUsage) + ".$identifier($paramStr)"
+            } else {
+                return context + identifier + "($paramStr)"
+            }
         }
     }
 

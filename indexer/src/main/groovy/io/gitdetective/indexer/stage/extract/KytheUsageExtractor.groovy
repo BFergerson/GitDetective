@@ -11,6 +11,7 @@ import io.vertx.core.logging.LoggerFactory
 import org.mapdb.DBMaker
 import org.mapdb.Serializer
 
+import static io.gitdetective.indexer.IndexerServices.getQualifiedClassName
 import static io.gitdetective.indexer.IndexerServices.logPrintln
 
 /**
@@ -29,7 +30,6 @@ class KytheUsageExtractor extends AbstractVerticle {
             "/kythe/edge/childof", "/kythe/edge/ref/call")
     private static final File javacExtractor = new File("opt/kythe-v0.0.28/extractors/javac_extractor.jar")
     private static final String triplesRegexPattern = '\"(.+)\" \"(.+)\" \"(.*)\"'
-    private static Set<String> fileTypes = Sets.newHashSet("file", "interface")
     private static Set<String> classTypes = Sets.newHashSet("class", "enumClass", "interface")
 
     @Override
@@ -102,7 +102,7 @@ class KytheUsageExtractor extends AbstractVerticle {
             sourceUsage.getExtractedNode(subjectUri).uri = subjectUri
 
             String predicate = row[1]
-            if (predicate == "/kythe/node/kind" && fileTypes.contains(row[2]) && subjectUri.corpus != "jdk") {
+            if (predicate == "/kythe/node/kind" && row[2] == "file") {
                 sourceUsage.definedFiles.add(sourceUsage.getQualifiedName(subjectUri, true))
             }
             if ((predicate == "/kythe/node/kind" || predicate == "/kythe/subkind") && classTypes.contains(row[2])) {
@@ -127,10 +127,10 @@ class KytheUsageExtractor extends AbstractVerticle {
                 extractedFunction.addParam(predicate.replace("/kythe/edge/param.", "") as int, objectUri)
             } else if (predicate == "/kythe/edge/named") {
                 def object = row[2]
-                def extractedFunction = sourceUsage.getExtractedNode(subjectUri)
+                def namedNode = sourceUsage.getExtractedNode(subjectUri)
                 def className = object.substring(object.indexOf("#") + 1)
-                extractedFunction.context = className.substring(0, className.lastIndexOf(".") + 1)
-                extractedFunction.identifier = className.substring(className.lastIndexOf(".") + 1)
+                namedNode.context = className.substring(0, className.lastIndexOf(".") + 1)
+                namedNode.identifier = URLDecoder.decode(className.substring(className.lastIndexOf(".") + 1), "UTF-8")
             } else if (predicate == "/kythe/code") {
                 def markedSource = MarkedSource.parseFrom(row[2].decodeBase64())
                 if (markedSource.childCount == 0) {
@@ -159,7 +159,7 @@ class KytheUsageExtractor extends AbstractVerticle {
                     }
                 }
                 if (hasInitializer) {
-                    return //need function definitions not function calls
+                    //do nothing; need function definitions not function calls
                 } else if (!isFunction && isParam) {
                     sourceUsage.paramToTypeMap.put(subjectUri.toString(), type)
                 } else {
@@ -213,9 +213,9 @@ class KytheUsageExtractor extends AbstractVerticle {
                             if (fileLocation.contains("#")) {
                                 fileLocation = fileLocation.substring(0, fileLocation.indexOf("#"))
                             }
-                            def qualifiedName = sourceUsage.getQualifiedName(subjectUri)
-                            if (sourceUsage.definedFiles.contains(qualifiedName)) {
-                                filesOutput.append("$fileLocation|$subjectUri|$qualifiedName\n")
+                            def classQualifiedName = sourceUsage.getQualifiedName(subjectUri)
+                            if (sourceUsage.definedFiles.contains(classQualifiedName)) {
+                                filesOutput.append("$fileLocation|$subjectUri|$classQualifiedName\n")
                             }
                         }
                     }
@@ -278,7 +278,17 @@ class KytheUsageExtractor extends AbstractVerticle {
             def subjectUri = subjectNode.uri
             def objectUri = objectNode.uri
             def qualifiedName = subjectNode.getQualifiedName(sourceUsage)
-            functionDefinitions.append("$objectUri|$subjectUri|$qualifiedName|" + location[0] + "|" + location[1] + "\n")
+            def classQualifiedName = getQualifiedClassName(qualifiedName)
+            if (classQualifiedName.contains('$')) {
+                classQualifiedName = classQualifiedName.substring(0, classQualifiedName.indexOf('$'))
+                while (objectNode.parentNode?.isFile && objectNode.parentNode.uri != null) {
+                    objectNode = objectNode.parentNode
+                    objectUri = objectNode.uri
+                }
+            }
+            if (sourceUsage.definedFiles.contains(classQualifiedName)) {
+                functionDefinitions.append("$objectUri|$subjectUri|$qualifiedName|" + location[0] + "|" + location[1] + "\n")
+            }
         } else if (predicate == "/kythe/edge/ref/call") {
             if (isJDK(subjectNode.uri) || isJDK(objectNode.uri)) {
                 return //no jdk
