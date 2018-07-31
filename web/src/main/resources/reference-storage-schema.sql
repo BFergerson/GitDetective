@@ -24,7 +24,7 @@ CREATE INDEX ON function_owner (
 CREATE TABLE imported_file (
   create_date             TIMESTAMPTZ   NOT NULL DEFAULT CURRENT_TIMESTAMP,
   project_name            VARCHAR(510)  NOT NULL,
-  file_name               VARCHAR(255)  NOT NULL,
+  file_name               VARCHAR(510)  NOT NULL,
   file_id                 VARCHAR(255)  NOT NULL,
   PRIMARY KEY (project_name, file_name)
 );
@@ -32,7 +32,7 @@ CREATE TABLE imported_file (
 CREATE TABLE imported_function (
   create_date             TIMESTAMPTZ   NOT NULL DEFAULT CURRENT_TIMESTAMP,
   project_name            VARCHAR(510)  NOT NULL,
-  function_name           VARCHAR(255)  NOT NULL,
+  function_name           VARCHAR(510)  NOT NULL,
   function_id             VARCHAR(255)  NOT NULL,
   PRIMARY KEY (project_name, function_name)
 );
