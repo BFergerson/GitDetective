@@ -343,20 +343,16 @@ class KytheUsageExtractor extends AbstractVerticle {
         return uri
     }
 
-    static boolean isJDK(KytheURI uri) {
-        return isJDK(uri.toString())
+    static boolean isJDK(String uri) {
+        return isJDK(toUniversalUri(KytheURI.parse(uri)))
     }
 
-    static boolean isJDK(String uri) {
-        return uri.startsWith("kythe://jdk") ||
-                uri.startsWith("kythe://kythe?lang=java?java/") ||
-                uri.startsWith("kythe://kythe?lang=java?javax/") ||
-                uri.startsWith("kythe://kythe?lang=java?sun/") ||
-                uri.startsWith("kythe://kythe?lang=java?com/sun/") ||
-                uri.startsWith("kythe://github?lang=java?java/") ||
-                uri.startsWith("kythe://github?lang=java?javax/") ||
-                uri.startsWith("kythe://github?lang=java?sun/") ||
-                uri.startsWith("kythe://github?lang=java?com/sun/")
+    static boolean isJDK(KytheURI uri) {
+        return uri.corpus == "jdk" ||
+                uri.path.startsWith("java/") ||
+                uri.path.startsWith("javax/") ||
+                uri.path.startsWith("sun/") ||
+                uri.path.startsWith("com/sun/")
     }
 
     private static String getType(MarkedSource markedSource) {
