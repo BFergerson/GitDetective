@@ -36,7 +36,7 @@ class ExtractedNode {
                 }
             }
 
-            if (parentNode?.isFile) {
+            if (parentNode?.isFile && context.contains(parentNode.context)) {
                 //use parent qualified name as context
                 return parentNode.getQualifiedName(codeUsage) + ".$identifier($paramStr)"
             } else {
