@@ -2,14 +2,15 @@ package io.gitdetective.indexer
 
 import com.codahale.metrics.MetricRegistry
 import io.gitdetective.GitDetectiveVersion
-import io.gitdetective.indexer.cache.ProjectDataCache
 import io.gitdetective.indexer.stage.GitDetectiveImportFilter
 import io.gitdetective.indexer.stage.GithubRepositoryCloner
 import io.gitdetective.indexer.stage.KytheIndexAugment
 import io.gitdetective.indexer.stage.KytheIndexOutput
 import io.gitdetective.indexer.stage.extract.KytheUsageExtractor
+import io.gitdetective.indexer.support.KytheGradleBuilder
 import io.gitdetective.indexer.support.KytheMavenBuilder
 import io.gitdetective.web.dao.JobsDAO
+import io.gitdetective.web.dao.PostgresDAO
 import io.gitdetective.web.dao.RedisDAO
 import io.vertx.blueprint.kue.Kue
 import io.vertx.blueprint.kue.queue.Job
@@ -78,33 +79,31 @@ class GitDetectiveIndexer extends AbstractVerticle {
     @Override
     void start() throws Exception {
         vertx.eventBus().registerDefaultCodec(Job.class, messageCodec(Job.class))
-        def writableRedisConfig = config().copy()
-        if (config().getJsonObject("writable_redis") != null) {
-            writableRedisConfig = config().getJsonObject("writable_redis")
+        def jobsRedisConfig = config().copy()
+        if (config().getJsonObject("jobs_server") != null) {
+            jobsRedisConfig = config().getJsonObject("jobs_server")
         }
-        def writableRedis = new RedisDAO(RedisHelper.client(vertx, writableRedisConfig))
-        def readableRedis = new RedisDAO(RedisHelper.client(vertx, config()))
-        def jobs = new JobsDAO(kue, writableRedis)
+        def jobsRedis = new RedisDAO(RedisHelper.client(vertx, jobsRedisConfig))
+        def redis = new RedisDAO(RedisHelper.client(vertx, config()))
+        def jobs = new JobsDAO(kue, jobsRedis)
         def deployOptions = new DeploymentOptions()
         deployOptions.config = config()
 
-        def projectCache = new ProjectDataCache(readableRedis)
-        vertx.deployVerticle(projectCache, deployOptions, {
-            if (it.failed()) {
-                it.cause().printStackTrace()
-                System.exit(-1)
-            }
+        def refStorage = redis
+        if (config().getJsonObject("storage") != null) {
+            refStorage = new PostgresDAO(vertx, config().getJsonObject("storage"), redis)
+        }
 
-            //core
-            vertx.deployVerticle(new GithubRepositoryCloner(kue, jobs, writableRedis), deployOptions)
-            vertx.deployVerticle(new KytheIndexOutput(), deployOptions)
-            vertx.deployVerticle(new KytheUsageExtractor(), deployOptions)
-            vertx.deployVerticle(new GitDetectiveImportFilter(projectCache), deployOptions)
-            vertx.deployVerticle(new KytheIndexAugment(readableRedis), deployOptions)
+        //core
+        vertx.deployVerticle(new GithubRepositoryCloner(kue, jobs, jobsRedis), deployOptions)
+        vertx.deployVerticle(new KytheIndexOutput(), deployOptions)
+        vertx.deployVerticle(new KytheUsageExtractor(), deployOptions)
+        vertx.deployVerticle(new GitDetectiveImportFilter(refStorage), deployOptions)
+        vertx.deployVerticle(new KytheIndexAugment(redis), deployOptions)
 
-            //project builders
-            vertx.deployVerticle(new KytheMavenBuilder(), deployOptions)
-        })
+        //project builders
+        vertx.deployVerticle(new KytheMavenBuilder(), deployOptions)
+        vertx.deployVerticle(new KytheGradleBuilder(), deployOptions)
     }
 
 }

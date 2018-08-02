@@ -9,6 +9,7 @@ import com.google.common.base.Charsets
 import com.google.common.io.Resources
 import io.gitdetective.web.dao.GraknDAO
 import io.gitdetective.web.dao.JobsDAO
+import io.gitdetective.web.dao.PostgresDAO
 import io.gitdetective.web.dao.RedisDAO
 import io.gitdetective.web.work.GHArchiveSync
 import io.gitdetective.web.work.importer.GraknImporter
@@ -59,8 +60,17 @@ class GitDetectiveService extends AbstractVerticle {
     @Override
     void start() {
         uploadsDirectory = config().getString("uploads.directory")
+        def jobsRedisConfig = config().copy()
+        if (config().getJsonObject("jobs_server") != null) {
+            jobsRedisConfig = config().getJsonObject("jobs_server")
+        }
+        def jobsRedis = new RedisDAO(RedisHelper.client(vertx, jobsRedisConfig))
         def redis = new RedisDAO(RedisHelper.client(vertx, config()))
-        def jobs = new JobsDAO(kue, redis)
+        def jobs = new JobsDAO(kue, jobsRedis)
+        def refStorage = redis
+        if (config().getJsonObject("storage") != null) {
+            refStorage = new PostgresDAO(vertx, config().getJsonObject("storage"), redis)
+        }
 
         vertx.executeBlocking({
             def importJobEnabled = config().getJsonObject("importer").getBoolean("enabled")
@@ -72,7 +82,7 @@ class GitDetectiveService extends AbstractVerticle {
                     def grakn = makeGraknDAO(redis)
                     log.info "Import job processing enabled"
                     def importerOptions = new DeploymentOptions().setConfig(config())
-                    vertx.deployVerticle(new GraknImporter(kue, redis, grakn, uploadsDirectory), importerOptions)
+                    vertx.deployVerticle(new GraknImporter(kue, redis, refStorage, grakn, uploadsDirectory), importerOptions)
                 } else {
                     log.info "Import job processing disabled"
                 }
@@ -88,7 +98,7 @@ class GitDetectiveService extends AbstractVerticle {
                 log.info "Launching GitDetective website"
                 def options = new DeploymentOptions().setConfig(config())
                 vertx.deployVerticle(new GitDetectiveWebsite(jobs, redis, router), options)
-                vertx.deployVerticle(new GHArchiveSync(jobs, redis), options)
+                vertx.deployVerticle(new GHArchiveSync(jobs, jobsRedis), options)
             }
         }, false, {
             if (it.failed()) {
@@ -257,14 +267,14 @@ class GitDetectiveService extends AbstractVerticle {
                 context.stop()
             })
         })
-        vertx.eventBus().consumer(GET_PROJECT_MOST_REFERENCED_METHODS, { request ->
-            def timer = WebLauncher.metrics.timer(GET_PROJECT_MOST_REFERENCED_METHODS)
+        vertx.eventBus().consumer(GET_PROJECT_MOST_REFERENCED_FUNCTIONS, { request ->
+            def timer = WebLauncher.metrics.timer(GET_PROJECT_MOST_REFERENCED_FUNCTIONS)
             def context = timer.time()
             def body = (JsonObject) request.body()
             def githubRepository = body.getString("github_repository").toLowerCase()
             log.debug "Getting project most referenced methods"
 
-            redis.getProjectMostExternalReferencedMethods(githubRepository, 10, {
+            refStorage.getProjectMostExternalReferencedFunctions(githubRepository, 10, {
                 if (it.failed()) {
                     it.cause().printStackTrace()
                     request.reply(it.cause())
@@ -295,6 +305,9 @@ class GitDetectiveService extends AbstractVerticle {
                         } else {
                             break
                         }
+
+                        //pretty counts
+                        ob.put("external_reference_count", asPrettyNumber(ob.getInteger("external_reference_count")))
                     }
 
                     log.debug "Got project most referenced methods - Size: " + result.size()
@@ -303,15 +316,15 @@ class GitDetectiveService extends AbstractVerticle {
                 context.stop()
             })
         })
-        vertx.eventBus().consumer(GET_METHOD_EXTERNAL_REFERENCES, { request ->
-            def timer = WebLauncher.metrics.timer(GET_METHOD_EXTERNAL_REFERENCES)
+        vertx.eventBus().consumer(GET_FUNCTION_EXTERNAL_REFERENCES, { request ->
+            def timer = WebLauncher.metrics.timer(GET_FUNCTION_EXTERNAL_REFERENCES)
             def context = timer.time()
             def body = (JsonObject) request.body()
             def methodId = body.getString("method_id")
             def offset = body.getInteger("offset")
             log.debug "Getting method external references"
 
-            redis.getMethodExternalReferences(methodId, offset, 10, {
+            refStorage.getFunctionExternalReferences(methodId, offset, 10, {
                 if (it.failed()) {
                     it.cause().printStackTrace()
                     request.reply(it.cause())

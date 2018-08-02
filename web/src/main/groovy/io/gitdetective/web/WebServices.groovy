@@ -6,6 +6,7 @@ import io.vertx.core.eventbus.MessageCodec
 import io.vertx.core.logging.Logger
 import io.vertx.core.logging.LoggerFactory
 
+import java.text.DecimalFormat
 import java.util.concurrent.TimeUnit
 
 /**
@@ -15,19 +16,20 @@ import java.util.concurrent.TimeUnit
  */
 final class WebServices {
 
-    static final String GET_PROJECT_REFERENCE_LEADERBOARD = "GetProjectReferenceLeaderboard"
+    static final String CREATE_JOB = "CreateJob"
+    static final String GET_ACTIVE_JOBS = "GetActiveJobs"
     static final String GET_TRIGGER_INFORMATION = "GetTriggerInformation"
     static final String GET_LATEST_JOB_LOG = "GetLatestJobLog"
+    static final String GET_FUNCTION_EXTERNAL_REFERENCES = "GetFunctionExternalReferences"
+    static final String GET_PROJECT_MOST_REFERENCED_FUNCTIONS = "GetProjectMostReferencedMethods"
+    static final String GET_PROJECT_REFERENCE_LEADERBOARD = "GetProjectReferenceLeaderboard"
     static final String GET_PROJECT_FILE_COUNT = "GetProjectFileCount"
-    static final String GET_PROJECT_METHOD_INSTANCE_COUNT = "GetProjectMethodInstanceCount"
-    static final String GET_PROJECT_MOST_REFERENCED_METHODS = "GetProjectMostReferencedMethods"
+    static final String GET_PROJECT_METHOD_INSTANCE_COUNT = "GetProjectFunctionInstanceCount"
     static final String GET_PROJECT_FIRST_INDEXED = "GetProjectFirstIndexed"
     static final String GET_PROJECT_LAST_INDEXED = "GetProjectLastIndexed"
     static final String GET_PROJECT_LAST_INDEXED_COMMIT_INFORMATION = "GetProjectLastIndexedCommitInformation"
-    static final String GET_ACTIVE_JOBS = "GetActiveJobs"
-    static final String CREATE_JOB = "CreateJob"
-    static final String GET_METHOD_EXTERNAL_REFERENCES = "GetMethodExternalReferences"
     private final static Logger log = LoggerFactory.getLogger(WebServices.class)
+    private final static DecimalFormat decimalFormat = new DecimalFormat("#.00")
 
     private WebServices() {
     }
@@ -35,10 +37,6 @@ final class WebServices {
     static void logPrintln(Job job, String logData) {
         job.log(logData)
         log.info logData + " (repo: " + job.data.getString("github_repository") + ")"
-    }
-
-    static String getFilename(String fileLocation) {
-        return fileLocation.substring(fileLocation.lastIndexOf("/") + 1)
     }
 
     static String getShortQualifiedClassName(String qualifiedName) {
@@ -93,11 +91,11 @@ final class WebServices {
 
     static String asPrettyNumber(long number) {
         if (number > 1_000_000_000) {
-            return (number / 1_000_000_000d).round(2) + "B"
+            return decimalFormat.format(number / 1_000_000_000d) + "B"
         } else if (number > 1_000_000) {
-            return (number / 1_000_000d).round(2) + "M"
+            return decimalFormat.format(number / 1_000_000d) + "M"
         } else if (number > 1_000) {
-            return (number / 1_000d).round(2) + "K"
+            return decimalFormat.format(number / 1_000d) + "K"
         } else {
             return number as String
         }
@@ -106,9 +104,9 @@ final class WebServices {
     static String asPrettyTime(long ns) {
         double tookTimeMs = TimeUnit.NANOSECONDS.toMillis(ns)
         if (tookTimeMs > 1000 * 60) {
-            return String.format("%.2f", (tookTimeMs / (1000.00d * 60.00d))) + "mins"
+            return decimalFormat.format(tookTimeMs / (1000.00d * 60.00d)) + "mins"
         } else if (tookTimeMs > 1000) {
-            return String.format("%.2f", (tookTimeMs / 1000.00d)) + "secs"
+            return decimalFormat.format(tookTimeMs / 1000.00d) + "secs"
         } else {
             return tookTimeMs + "ms"
         }

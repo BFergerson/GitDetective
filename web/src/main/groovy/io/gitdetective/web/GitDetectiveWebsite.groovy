@@ -88,15 +88,7 @@ class GitDetectiveWebsite extends AbstractVerticle {
             updateDatabaseStatistics(false)
             log.info "Updated database statistics"
         })
-//        //update job processing stats every minute
-//        vertx.setPeriodic(TimeUnit.MINUTES.toMillis(1), {
-//            updateJobProcessingStatistics()
-//            log.info "Updated job processing statistics"
-//        })
         log.info "GitDetectiveWebsite started"
-    }
-
-    private void updateJobProcessingStatistics() {
     }
 
     private void updateDatabaseStatistics(boolean initial) {
@@ -256,7 +248,7 @@ class GitDetectiveWebsite extends AbstractVerticle {
                 getProjectFirstIndexed(ctx, repo),
                 getProjectLastIndexed(ctx, repo),
                 getProjectLastIndexedCommitInformation(ctx, repo),
-                getProjectMostReferencedMethods(ctx, repo)
+                getProjectMostReferencedFunctions(ctx, repo)
         )).setHandler({
             HandlebarsTemplateEngine engine = HandlebarsTemplateEngine.create()
             engine.render(ctx, "webroot/project.hbs", { res ->
@@ -329,10 +321,10 @@ class GitDetectiveWebsite extends AbstractVerticle {
         return future
     }
 
-    private Future getProjectMostReferencedMethods(RoutingContext ctx, JsonObject githubRepository) {
+    private Future getProjectMostReferencedFunctions(RoutingContext ctx, JsonObject githubRepository) {
         def future = Future.future()
         def handler = future.completer()
-        vertx.eventBus().send(GET_PROJECT_MOST_REFERENCED_METHODS, githubRepository, {
+        vertx.eventBus().send(GET_PROJECT_MOST_REFERENCED_FUNCTIONS, githubRepository, {
             if (it.failed()) {
                 ctx.fail(it.cause())
             } else {

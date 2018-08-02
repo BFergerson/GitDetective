@@ -1,8 +1,8 @@
 package io.gitdetective.indexer.stage
 
-import io.gitdetective.indexer.cache.ProjectDataCache
+import io.gitdetective.web.dao.storage.ReferenceStorage
 import io.vertx.blueprint.kue.queue.Job
-import io.vertx.core.AbstractVerticle
+import io.vertx.core.*
 import io.vertx.core.buffer.Buffer
 import io.vertx.core.file.FileProps
 import io.vertx.core.file.OpenOptions
@@ -26,20 +26,17 @@ class GitDetectiveImportFilter extends AbstractVerticle {
 
     public static final String GITDETECTIVE_IMPORT_FILTER = "GitDetectiveImportFilter"
     private final static Logger log = LoggerFactory.getLogger(GitDetectiveImportFilter.class)
-    private final ProjectDataCache projectCache
+    private final ReferenceStorage referenceStorage
 
-    GitDetectiveImportFilter(ProjectDataCache projectCache) {
-        this.projectCache = projectCache
+    GitDetectiveImportFilter(ReferenceStorage referenceStorage) {
+        this.referenceStorage = referenceStorage
     }
 
     @Override
     void start() throws Exception {
         vertx.eventBus().consumer(GITDETECTIVE_IMPORT_FILTER, {
             def job = (Job) it.body()
-            vertx.executeBlocking({
-                doFilter(job)
-                it.complete()
-            }, false, {
+            doFilter(job, {
                 if (it.failed()) {
                     it.cause().printStackTrace()
                     logPrintln(job, it.cause().getMessage())
@@ -52,13 +49,13 @@ class GitDetectiveImportFilter extends AbstractVerticle {
         log.info "GitDetectiveImportFilter started"
     }
 
-    private void doFilter(Job job) {
+    private void doFilter(Job job, Handler<AsyncResult> handler) {
         logPrintln(job, "Filtering already imported data")
-
         def githubRepository = job.data.getString("github_repository")
         def outputDirectory = job.data.getString("output_directory")
         def readyFunctionDefinitions = new File(outputDirectory, "functions_definition_ready.txt")
         def readyFunctionReferences = new File(outputDirectory, "functions_reference_ready.txt")
+        def futures = new ArrayList<Future>()
 
         def filesOutput = new File(outputDirectory, "files_raw.txt")
         def lineNumber = 0
@@ -68,10 +65,18 @@ class GitDetectiveImportFilter extends AbstractVerticle {
             if (lineNumber > 1) {
                 def lineData = line.split("\\|")
 
-                def existingFile = projectCache.getProjectFileId(githubRepository, lineData[1])
-                if (!existingFile.isPresent()) {
-                    filesOutputFinal.append("$line\n") //do import
-                }
+                def fut = Future.future()
+                futures.add(fut)
+                referenceStorage.getProjectFileId(githubRepository, lineData[1], {
+                    if (it.failed()) {
+                        fut.fail(it.cause())
+                    } else {
+                        if (!it.result().isPresent()) {
+                            filesOutputFinal.append("$line\n") //do import
+                        }
+                        fut.complete()
+                    }
+                })
             } else {
                 filesOutputFinal.append("$line\n") //header
             }
@@ -85,17 +90,39 @@ class GitDetectiveImportFilter extends AbstractVerticle {
                 def lineData = line.split("\\|")
 
                 //replace everything with ids (if possible)
-                def existingFile = projectCache.getProjectFileId(githubRepository, lineData[0])
-                def existingFunction = projectCache.getProjectFunctionId(githubRepository, lineData[1])
+                def fileFut = Future.future()
+                referenceStorage.getProjectFileId(githubRepository, lineData[0], fileFut.completer())
+                def funcFut = Future.future()
+                referenceStorage.getProjectFunctionId(githubRepository, lineData[1], funcFut.completer())
 
-                if (existingFile.isPresent() && existingFunction.isPresent()) {
-                    //check if import needed
-                    if (!projectCache.hasDefinition(existingFile.get(), existingFunction.get())) {
-                        functionDefinitionsFinal.append("$line\n") //do import
+                def fut = Future.future()
+                futures.add(fut)
+                CompositeFuture.all(fileFut, funcFut).setHandler({
+                    if (it.failed()) {
+                        fut.fail(it.cause())
+                    } else {
+                        def results = it.result().list()
+                        def existingFile = results.get(0) as Optional<String>
+                        def existingFunction = results.get(1) as Optional<String>
+
+                        if (existingFile.isPresent() && existingFunction.isPresent()) {
+                            //check if import needed
+                            referenceStorage.projectHasDefinition(existingFile.get(), existingFunction.get(), {
+                                if (it.failed()) {
+                                    fut.fail(it.cause())
+                                } else {
+                                    if (!it.result()) {
+                                        functionDefinitionsFinal.append("$line\n") //do import
+                                    }
+                                    fut.complete()
+                                }
+                            })
+                        } else {
+                            functionDefinitionsFinal.append("$line\n") //do import
+                            fut.complete()
+                        }
                     }
-                } else {
-                    functionDefinitionsFinal.append("$line\n") //do import
-                }
+                })
             } else {
                 functionDefinitionsFinal.append("$line\n") //header
             }
@@ -109,28 +136,50 @@ class GitDetectiveImportFilter extends AbstractVerticle {
                 def lineData = line.split("\\|")
 
                 //replace everything with ids (if possible)
-                def existingFileOrFunction
+                def fileOrFuncFut = Future.future()
                 if (lineData[1].contains("#")) {
-                    existingFileOrFunction = projectCache.getProjectFunctionId(githubRepository, lineData[1])
+                    referenceStorage.getProjectFunctionId(githubRepository, lineData[1], fileOrFuncFut.completer())
                 } else {
-                    existingFileOrFunction = projectCache.getProjectFileId(githubRepository, lineData[1])
+                    referenceStorage.getProjectFileId(githubRepository, lineData[1], fileOrFuncFut.completer())
                 }
-                def existingFunction = projectCache.getProjectFunctionId(githubRepository, lineData[3])
+                def funcFut = Future.future()
+                referenceStorage.getProjectFunctionId(githubRepository, lineData[3], funcFut.completer())
 
-                if (existingFileOrFunction.isPresent() && existingFunction.isPresent()) {
-                    //check if import needed
-                    if (!projectCache.hasReference(existingFileOrFunction.get(), existingFunction.get())) {
-                        functionReferencesFinal.append("$line\n") //do import
+
+                def fut = Future.future()
+                futures.add(fut)
+                CompositeFuture.all(fileOrFuncFut, funcFut).setHandler({
+                    if (it.failed()) {
+                        fut.fail(it.cause())
+                    } else {
+                        def results = it.result().list()
+                        def existingFileOrFunction = results.get(0) as Optional<String>
+                        def existingFunction = results.get(1) as Optional<String>
+
+                        if (existingFileOrFunction.isPresent() && existingFunction.isPresent()) {
+                            //check if import needed
+                            referenceStorage.projectHasReference(existingFileOrFunction.get(), existingFunction.get(), {
+                                if (it.failed()) {
+                                    fut.fail(it.cause())
+                                } else {
+                                    if (!it.result()) {
+                                        functionReferencesFinal.append("$line\n") //do import
+                                    }
+                                    fut.complete()
+                                }
+                            })
+                        } else {
+                            functionReferencesFinal.append("$line\n") //do import
+                            fut.complete()
+                        }
                     }
-                } else {
-                    functionReferencesFinal.append("$line\n") //do import
-                }
+                })
             } else {
                 functionReferencesFinal.append("$line\n") //header
             }
         }
+        CompositeFuture.all(futures).setHandler(handler)
     }
-
 
     private void sendToImporter(Job job) {
         def outputDirectory = job.data.getString("output_directory")
