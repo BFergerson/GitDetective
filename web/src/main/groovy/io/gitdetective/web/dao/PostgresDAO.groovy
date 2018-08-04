@@ -88,7 +88,7 @@ class PostgresDAO implements ReferenceStorage {
                     function.put("external_reference_count", function.getString("external_reference_count") as long)
                 }
             }
-            handler.handle(Future.succeededFuture(cachedRankedFunctions))
+            handler.handle(Future.succeededFuture(cachedRankedFunctions.copy()))
             return
         }
         getOwnedFunctions(githubRepository, {
@@ -134,7 +134,7 @@ class PostgresDAO implements ReferenceStorage {
                                     .put("is_function", true)
                         }
                         projectRankedFunctionsCache.put(githubRepository, rankedOwnedFunctions)
-                        handler.handle(Future.succeededFuture(rankedOwnedFunctions))
+                        handler.handle(Future.succeededFuture(rankedOwnedFunctions.copy()))
                     }
                 })
             }
