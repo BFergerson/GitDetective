@@ -67,7 +67,7 @@ class KytheGradleBuilder extends AbstractVerticle {
                 .connect()
         try {
             BuildLauncher build = connection.newBuild()
-            build.forTasks("build")
+            build.forTasks("assemble")
             build.withArguments("-x", "test")
             build.setStandardOutput(System.out)
 
