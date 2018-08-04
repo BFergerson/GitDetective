@@ -55,94 +55,27 @@ class GitDetectiveImportFilter extends AbstractVerticle {
         def outputDirectory = job.data.getString("output_directory")
         def readyFunctionDefinitions = new File(outputDirectory, "functions_definition_ready.txt")
         def readyFunctionReferences = new File(outputDirectory, "functions_reference_ready.txt")
-        def futures = new ArrayList<Future>()
 
-        if (!skipFilter) logPrintln(job, "Filtering already imported files")
-        def filesOutput = new File(outputDirectory, "files_raw.txt")
-        def lineNumber = 0
-        def filesOutputFinal = new File(outputDirectory, "files.txt")
-        filesOutput.eachLine { line ->
-            lineNumber++
-            if (lineNumber > 1) {
-                if (skipFilter) {
-                    filesOutputFinal.append("$line\n") //do import
-                    return
-                }
-                def lineData = line.split("\\|")
-
-                def fut = Future.future()
-                futures.add(fut)
-                referenceStorage.getProjectFileId(githubRepository, lineData[1], {
+        filterFiles(githubRepository, job, outputDirectory, skipFilter, {
+            if (it.failed()) {
+                handler.handle(Future.failedFuture(it.cause()))
+            } else {
+                filterDefinitions(githubRepository, job, outputDirectory, readyFunctionDefinitions, skipFilter, {
                     if (it.failed()) {
-                        it.cause().printStackTrace()
-                        fut.fail(it.cause())
+                        handler.handle(Future.failedFuture(it.cause()))
                     } else {
-                        if (!it.result().isPresent()) {
-                            filesOutputFinal.append("$line\n") //do import
-                        }
-                        fut.complete()
+                        filterReferences(githubRepository, job, outputDirectory, readyFunctionReferences, skipFilter, handler)
                     }
                 })
-            } else {
-                filesOutputFinal.append("$line\n") //header
             }
-        }
+        })
+    }
 
-        if (!skipFilter) logPrintln(job, "Filtering already imported definitions")
-        lineNumber = 0
-        def functionDefinitionsFinal = new File(outputDirectory, "functions_definition.txt")
-        readyFunctionDefinitions.eachLine { line ->
-            lineNumber++
-            if (lineNumber > 1) {
-                if (skipFilter) {
-                    functionDefinitionsFinal.append("$line\n") //do import
-                    return
-                }
-                def lineData = line.split("\\|")
-
-                //replace everything with ids (if possible)
-                def fileFut = Future.future()
-                referenceStorage.getProjectFileId(githubRepository, lineData[0], fileFut.completer())
-                def funcFut = Future.future()
-                referenceStorage.getProjectFunctionId(githubRepository, lineData[1], funcFut.completer())
-
-                def fut = Future.future()
-                futures.add(fut)
-                CompositeFuture.all(fileFut, funcFut).setHandler({
-                    if (it.failed()) {
-                        it.cause().printStackTrace()
-                        fut.fail(it.cause())
-                    } else {
-                        def results = it.result().list()
-                        def existingFile = results.get(0) as Optional<String>
-                        def existingFunction = results.get(1) as Optional<String>
-
-                        if (existingFile.isPresent() && existingFunction.isPresent()) {
-                            //check if import needed
-                            referenceStorage.projectHasDefinition(existingFile.get(), existingFunction.get(), {
-                                if (it.failed()) {
-                                    it.cause().printStackTrace()
-                                    fut.fail(it.cause())
-                                } else {
-                                    if (!it.result()) {
-                                        functionDefinitionsFinal.append("$line\n") //do import
-                                    }
-                                    fut.complete()
-                                }
-                            })
-                        } else {
-                            functionDefinitionsFinal.append("$line\n") //do import
-                            fut.complete()
-                        }
-                    }
-                })
-            } else {
-                functionDefinitionsFinal.append("$line\n") //header
-            }
-        }
-
+    private void filterReferences(String githubRepository, Job job, String outputDirectory, File readyFunctionReferences,
+                                  boolean skipFilter, Handler<AsyncResult> handler) {
         if (!skipFilter) logPrintln(job, "Filtering already imported references")
-        lineNumber = 0
+        def futures = new ArrayList<Future>()
+        def lineNumber = 0
         def functionReferencesFinal = new File(outputDirectory, "functions_reference.txt")
         readyFunctionReferences.eachLine { line ->
             lineNumber++
@@ -195,6 +128,100 @@ class GitDetectiveImportFilter extends AbstractVerticle {
                 })
             } else {
                 functionReferencesFinal.append("$line\n") //header
+            }
+        }
+        CompositeFuture.all(futures).setHandler(handler)
+    }
+
+    private void filterDefinitions(String githubRepository, Job job, String outputDirectory, File readyFunctionDefinitions,
+                                   boolean skipFilter, Handler<AsyncResult> handler) {
+        if (!skipFilter) logPrintln(job, "Filtering already imported definitions")
+        def futures = new ArrayList<Future>()
+        def lineNumber = 0
+        def functionDefinitionsFinal = new File(outputDirectory, "functions_definition.txt")
+        readyFunctionDefinitions.eachLine { line ->
+            lineNumber++
+            if (lineNumber > 1) {
+                if (skipFilter) {
+                    functionDefinitionsFinal.append("$line\n") //do import
+                    return
+                }
+                def lineData = line.split("\\|")
+
+                //replace everything with ids (if possible)
+                def fileFut = Future.future()
+                referenceStorage.getProjectFileId(githubRepository, lineData[0], fileFut.completer())
+                def funcFut = Future.future()
+                referenceStorage.getProjectFunctionId(githubRepository, lineData[1], funcFut.completer())
+
+                def fut = Future.future()
+                futures.add(fut)
+                CompositeFuture.all(fileFut, funcFut).setHandler({
+                    if (it.failed()) {
+                        it.cause().printStackTrace()
+                        fut.fail(it.cause())
+                    } else {
+                        def results = it.result().list()
+                        def existingFile = results.get(0) as Optional<String>
+                        def existingFunction = results.get(1) as Optional<String>
+
+                        if (existingFile.isPresent() && existingFunction.isPresent()) {
+                            //check if import needed
+                            referenceStorage.projectHasDefinition(existingFile.get(), existingFunction.get(), {
+                                if (it.failed()) {
+                                    it.cause().printStackTrace()
+                                    fut.fail(it.cause())
+                                } else {
+                                    if (!it.result()) {
+                                        functionDefinitionsFinal.append("$line\n") //do import
+                                    }
+                                    fut.complete()
+                                }
+                            })
+                        } else {
+                            functionDefinitionsFinal.append("$line\n") //do import
+                            fut.complete()
+                        }
+                    }
+                })
+            } else {
+                functionDefinitionsFinal.append("$line\n") //header
+            }
+        }
+        CompositeFuture.all(futures).setHandler(handler)
+    }
+
+    private void filterFiles(String githubRepository, Job job, String outputDirectory, boolean skipFilter,
+                             Handler<AsyncResult> handler) {
+        if (!skipFilter) logPrintln(job, "Filtering already imported files")
+        def futures = new ArrayList<Future>()
+        def filesOutput = new File(outputDirectory, "files_raw.txt")
+        def lineNumber = 0
+        def filesOutputFinal = new File(outputDirectory, "files.txt")
+        filesOutput.eachLine { line ->
+            lineNumber++
+            if (lineNumber > 1) {
+                if (skipFilter) {
+                    filesOutputFinal.append("$line\n") //do import
+                    return
+                }
+                def lineData = line.split("\\|")
+
+                def fut = Future.future()
+                futures.add(fut)
+                referenceStorage.getProjectFileId(githubRepository, lineData[1], {
+                    if (it.failed()) {
+                        it.cause().printStackTrace()
+                        fut.fail(it.cause())
+                    } else {
+                        if (!it.result().isPresent()) {
+                            filesOutputFinal.append("$line\n") //do import
+                        }
+                        fut.complete()
+                    }
+                })
+            } else {
+                filesOutputFinal.append("$line\n") //header
             }
         }
         CompositeFuture.all(futures).setHandler(handler)

@@ -51,6 +51,7 @@ class KytheGradleBuilder extends AbstractVerticle {
         buildFile.append("\nallprojects {\n" +
                 "  gradle.projectsEvaluated {\n" +
                 "    tasks.withType(JavaCompile) {\n" +
+                "      options.encoding = \"UTF-8\"\n" +
                 "      options.fork = true\n" +
                 "      options.forkOptions.executable = '" + javacWrapper.absolutePath + "'\n" +
                 "    }\n" +
@@ -66,7 +67,7 @@ class KytheGradleBuilder extends AbstractVerticle {
                 .connect()
         try {
             BuildLauncher build = connection.newBuild()
-            build.forTasks("build")
+            build.forTasks("assemble")
             build.withArguments("-x", "test")
             build.setStandardOutput(System.out)
 
@@ -78,6 +79,7 @@ class KytheGradleBuilder extends AbstractVerticle {
             env.put("KYTHE_ROOT_DIRECTORY", buildFile.parentFile.absolutePath)
             env.put("KYTHE_OUTPUT_DIRECTORY", kytheDir.absolutePath)
             env.put("JAVAC_EXTRACTOR_JAR", javacExtractor.absolutePath)
+            env.put("CI", "true") //todo: does this do anything?
             build.setEnvironmentVariables(env)
 
             def cancelSource = new DefaultCancellationTokenSource()
