@@ -7,7 +7,7 @@
 GitDetective scans open source code and extracts references found within the scanned code.
 GitDetective uses Kythe to extract compilation data which is stored in Grakn.
 
-![gitdetective](https://i.imgur.com/mQiunuX.png)
+![gitdetective](https://cdn-images-1.medium.com/max/1000/1*VrYvBxHIRwUtFp0Oe0lLHw.png)
 
 GitDetective consists of two separate modules:
 
