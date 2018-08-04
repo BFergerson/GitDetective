@@ -1,16 +1,13 @@
 package io.gitdetective.tools
 
-import io.gitdetective.web.dao.JobsDAO
+import io.gitdetective.web.dao.PostgresDAO
 import io.gitdetective.web.dao.RedisDAO
-import io.gitdetective.web.work.importer.GraknImporter
 import io.vertx.blueprint.kue.Kue
 import io.vertx.blueprint.kue.queue.KueVerticle
-import io.vertx.blueprint.kue.queue.Priority
 import io.vertx.blueprint.kue.util.RedisHelper
 import io.vertx.core.AbstractVerticle
 import io.vertx.core.DeploymentOptions
 import io.vertx.core.Vertx
-import io.vertx.core.VertxOptions
 import io.vertx.core.json.JsonObject
 import org.apache.commons.io.IOUtils
 
@@ -19,11 +16,10 @@ import java.nio.charset.StandardCharsets
 /**
  * @author <a href="mailto:brandon.fergerson@codebrig.com">Brandon Fergerson</a>
  */
-class CreateJob extends AbstractVerticle {
+class GetProjectDefinedFunctions extends AbstractVerticle {
 
-    static String jobType
     static String projectName
-    static String priority = "NORMAL"
+    static String qualifiedNamePattern
 
     static void main(String[] args) {
         def configFile = new File("web-config.json")
@@ -34,23 +30,10 @@ class CreateJob extends AbstractVerticle {
         }
 
         def config = new JsonObject(IOUtils.toString(configFile.newInputStream(), StandardCharsets.UTF_8))
-        jobType = args[0].toLowerCase()
-        if (jobType == "index") {
-            jobType = "IndexGithubProject"
-        } else if (jobType == "import") {
-            jobType = GraknImporter.GRAKN_INDEX_IMPORT_JOB_TYPE
-        } else {
-            throw new IllegalArgumentException("Invalid job type: " + jobType)
-        }
+        projectName = args[0]
+        qualifiedNamePattern = args[1]
 
-        projectName = args[1]
-        if (args.length > 2) {
-            priority = args[2]
-        }
-
-        VertxOptions vertxOptions = new VertxOptions()
-        vertxOptions.setBlockedThreadCheckInterval(Integer.MAX_VALUE)
-        Vertx vertx = Vertx.vertx(vertxOptions)
+        Vertx vertx = Vertx.vertx()
         def kueOptions = new DeploymentOptions().setConfig(config)
         if (config.getJsonObject("jobs_server") != null) {
             kueOptions.config = config.getJsonObject("jobs_server")
@@ -63,7 +46,7 @@ class CreateJob extends AbstractVerticle {
             }
 
             def kue = Kue.createQueue(vertx, kueOptions.config)
-            vertx.deployVerticle(new CreateJob(kue), kueOptions, {
+            vertx.deployVerticle(new GetProjectDefinedFunctions(kue), new DeploymentOptions().setConfig(config), {
                 if (it.failed()) {
                     it.cause().printStackTrace()
                     System.exit(-1)
@@ -74,31 +57,38 @@ class CreateJob extends AbstractVerticle {
 
     private final Kue kue
 
-    CreateJob(Kue kue) {
+    GetProjectDefinedFunctions(Kue kue) {
         this.kue = kue
     }
 
     @Override
     void start() throws Exception {
-        def jobsRedisConfig = config().copy()
-        if (config().getJsonObject("jobs_server") != null) {
-            jobsRedisConfig = config().getJsonObject("jobs_server")
+        def redis = new RedisDAO(RedisHelper.client(vertx, config()))
+        def refStorage = redis
+        if (config().getJsonObject("storage") != null) {
+            refStorage = new PostgresDAO(vertx, config().getJsonObject("storage"), redis)
         }
-        def redisClient = RedisHelper.client(vertx, jobsRedisConfig)
-        def redis = new RedisDAO(redisClient)
-        def jobs = new JobsDAO(kue, redis)
-        def initialMessage = "Admin build job queued"
 
-        jobs.createJob(jobType, initialMessage,
-                new JsonObject().put("github_repository", projectName.toLowerCase()).put("admin_triggered", true),
-                Priority.valueOf(priority.toUpperCase()), {
+        refStorage.getOwnedFunctions(projectName, {
             if (it.failed()) {
                 it.cause().printStackTrace()
                 System.exit(-1)
-            }
+            } else {
+                def definedFunctions = it.result()
 
-            println "Created job: " + it.result().getId()
-            vertx.close()
+                def matchCount = 0
+                println "Got " + definedFunctions.size() + " total functions"
+                for (int i = 0; i < definedFunctions.size(); i++) {
+                    def qualifiedName = definedFunctions.getJsonObject(i).getString("qualified_name")
+                    if (qualifiedName =~ qualifiedNamePattern) {
+                        matchCount++
+                        def functionId = definedFunctions.getJsonObject(i).getString("function_id")
+                        println qualifiedName + " (id: $functionId)"
+                    }
+                }
+                println "Matched $matchCount total functions"
+                vertx.close()
+            }
         })
     }
 
