@@ -24,6 +24,7 @@ class CreateJob extends AbstractVerticle {
     static String jobType
     static String projectName
     static String priority = "NORMAL"
+    static boolean skipFilter
 
     static void main(String[] args) {
         def configFile = new File("web-config.json")
@@ -46,6 +47,9 @@ class CreateJob extends AbstractVerticle {
         projectName = args[1]
         if (args.length > 2) {
             priority = args[2]
+        }
+        if (args.length > 3) {
+            skipFilter = args[3] as boolean
         }
 
         VertxOptions vertxOptions = new VertxOptions()
@@ -90,7 +94,9 @@ class CreateJob extends AbstractVerticle {
         def initialMessage = "Admin build job queued"
 
         jobs.createJob(jobType, initialMessage,
-                new JsonObject().put("github_repository", projectName.toLowerCase()).put("admin_triggered", true),
+                new JsonObject().put("github_repository", projectName.toLowerCase())
+                        .put("admin_triggered", true)
+                        .put("skip_filter", skipFilter),
                 Priority.valueOf(priority.toUpperCase()), {
             if (it.failed()) {
                 it.cause().printStackTrace()

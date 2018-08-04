@@ -50,25 +50,31 @@ class GitDetectiveImportFilter extends AbstractVerticle {
     }
 
     private void doFilter(Job job, Handler<AsyncResult> handler) {
-        logPrintln(job, "Filtering already imported data")
+        def skipFilter = job.data.getBoolean("skip_filter", false)
         def githubRepository = job.data.getString("github_repository")
         def outputDirectory = job.data.getString("output_directory")
         def readyFunctionDefinitions = new File(outputDirectory, "functions_definition_ready.txt")
         def readyFunctionReferences = new File(outputDirectory, "functions_reference_ready.txt")
         def futures = new ArrayList<Future>()
 
+        if (!skipFilter) logPrintln(job, "Filtering already imported files")
         def filesOutput = new File(outputDirectory, "files_raw.txt")
         def lineNumber = 0
         def filesOutputFinal = new File(outputDirectory, "files.txt")
         filesOutput.eachLine { line ->
             lineNumber++
             if (lineNumber > 1) {
+                if (skipFilter) {
+                    filesOutputFinal.append("$line\n") //do import
+                    return
+                }
                 def lineData = line.split("\\|")
 
                 def fut = Future.future()
                 futures.add(fut)
                 referenceStorage.getProjectFileId(githubRepository, lineData[1], {
                     if (it.failed()) {
+                        it.cause().printStackTrace()
                         fut.fail(it.cause())
                     } else {
                         if (!it.result().isPresent()) {
@@ -82,11 +88,16 @@ class GitDetectiveImportFilter extends AbstractVerticle {
             }
         }
 
+        if (!skipFilter) logPrintln(job, "Filtering already imported definitions")
         lineNumber = 0
         def functionDefinitionsFinal = new File(outputDirectory, "functions_definition.txt")
         readyFunctionDefinitions.eachLine { line ->
             lineNumber++
             if (lineNumber > 1) {
+                if (skipFilter) {
+                    functionDefinitionsFinal.append("$line\n") //do import
+                    return
+                }
                 def lineData = line.split("\\|")
 
                 //replace everything with ids (if possible)
@@ -99,6 +110,7 @@ class GitDetectiveImportFilter extends AbstractVerticle {
                 futures.add(fut)
                 CompositeFuture.all(fileFut, funcFut).setHandler({
                     if (it.failed()) {
+                        it.cause().printStackTrace()
                         fut.fail(it.cause())
                     } else {
                         def results = it.result().list()
@@ -109,6 +121,7 @@ class GitDetectiveImportFilter extends AbstractVerticle {
                             //check if import needed
                             referenceStorage.projectHasDefinition(existingFile.get(), existingFunction.get(), {
                                 if (it.failed()) {
+                                    it.cause().printStackTrace()
                                     fut.fail(it.cause())
                                 } else {
                                     if (!it.result()) {
@@ -128,11 +141,16 @@ class GitDetectiveImportFilter extends AbstractVerticle {
             }
         }
 
+        if (!skipFilter) logPrintln(job, "Filtering already imported references")
         lineNumber = 0
         def functionReferencesFinal = new File(outputDirectory, "functions_reference.txt")
         readyFunctionReferences.eachLine { line ->
             lineNumber++
             if (lineNumber > 1) {
+                if (skipFilter) {
+                    functionReferencesFinal.append("$line\n") //do import
+                    return
+                }
                 def lineData = line.split("\\|")
 
                 //replace everything with ids (if possible)
@@ -145,11 +163,11 @@ class GitDetectiveImportFilter extends AbstractVerticle {
                 def funcFut = Future.future()
                 referenceStorage.getProjectFunctionId(githubRepository, lineData[3], funcFut.completer())
 
-
                 def fut = Future.future()
                 futures.add(fut)
                 CompositeFuture.all(fileOrFuncFut, funcFut).setHandler({
                     if (it.failed()) {
+                        it.cause().printStackTrace()
                         fut.fail(it.cause())
                     } else {
                         def results = it.result().list()
@@ -160,6 +178,7 @@ class GitDetectiveImportFilter extends AbstractVerticle {
                             //check if import needed
                             referenceStorage.projectHasReference(existingFileOrFunction.get(), existingFunction.get(), {
                                 if (it.failed()) {
+                                    it.cause().printStackTrace()
                                     fut.fail(it.cause())
                                 } else {
                                     if (!it.result()) {
