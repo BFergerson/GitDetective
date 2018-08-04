@@ -190,24 +190,20 @@ class RedisDAO implements ReferenceStorage {
 
     void updateProjectReferenceLeaderboard(String githubRepository, long projectReferenceCount,
                                            Handler<AsyncResult> handler) {
-        redis.get("gitdetective:project:$githubRepository:project_external_method_reference_count", {
+        redis.incrby("gitdetective:project:$githubRepository:project_external_method_reference_count",
+                projectReferenceCount, {
             if (it.failed()) {
                 handler.handle(Future.failedFuture(it.cause()))
             } else {
-                def currentScore = it.result()
-                if (currentScore == null) {
-                    currentScore = 0
-                } else {
-                    currentScore = Long.parseLong(currentScore)
-                }
-                long newScore = (projectReferenceCount + currentScore)
-
-                redis.set("gitdetective:project:$githubRepository:project_external_method_reference_count",
-                        newScore as String, {
+                redis.get("gitdetective:project:$githubRepository:project_external_method_reference_count", {
                     if (it.failed()) {
                         handler.handle(Future.failedFuture(it.cause()))
                     } else {
-                        redis.zadd("gitdetective:project_reference_leaderboard", newScore, githubRepository, handler)
+                        long totalScore = 0
+                        if (it.result() != null) {
+                            totalScore = it.result() as long
+                        }
+                        redis.zadd("gitdetective:project_reference_leaderboard", totalScore, githubRepository, handler)
                     }
                 })
             }
@@ -507,6 +503,14 @@ class RedisDAO implements ReferenceStorage {
                 .put("qualified_name", qualifiedName).encode(), handler)
     }
 
+    private void removeOwnedFunction(String githubRepository, String functionId, String qualifiedName,
+                                     Handler<AsyncResult> handler) {
+        log.info "Removing owned function '$functionId' from owner: $githubRepository"
+        redis.srem("gitdetective:project:$githubRepository:ownedFunctions", new JsonObject()
+                .put("function_id", functionId)
+                .put("qualified_name", qualifiedName).encode(), handler)
+    }
+
     @Override
     void getOwnedFunctions(String githubRepository, Handler<AsyncResult<JsonArray>> handler) {
         redis.smembers("gitdetective:project:$githubRepository:ownedFunctions", {
@@ -531,7 +535,7 @@ class RedisDAO implements ReferenceStorage {
             if (it.failed()) {
                 handler.handle(Future.failedFuture(it.cause()))
             } else if (it.result() == 1) {
-                //make function owned by owner; check reference count; update project reference counts
+                //add function owned by owner; check reference count; add project reference counts
                 addOwnedFunction(githubRepository, functionId, qualifiedName, {
                     if (it.failed()) {
                         handler.handle(Future.failedFuture(it.cause()))
@@ -541,6 +545,33 @@ class RedisDAO implements ReferenceStorage {
                                 handler.handle(Future.failedFuture(it.cause()))
                             } else {
                                 updateProjectReferenceLeaderboard(githubRepository, it.result(), handler)
+                            }
+                        })
+                    }
+                })
+            } else {
+                handler.handle(Future.succeededFuture())
+            }
+        })
+    }
+
+    @Override
+    void removeFunctionOwner(String functionId, String qualifiedName, String githubRepository, Handler<AsyncResult> handler) {
+        log.info "Removing owner '$githubRepository' from function: $functionId"
+        redis.srem("gitdetective:osf:owners:function:$functionId", githubRepository, {
+            if (it.failed()) {
+                handler.handle(Future.failedFuture(it.cause()))
+            } else if (it.result() == 1) {
+                //remove function owned by owner; check reference count; remove project reference counts
+                removeOwnedFunction(githubRepository, functionId, qualifiedName, {
+                    if (it.failed()) {
+                        handler.handle(Future.failedFuture(it.cause()))
+                    } else {
+                        getFunctionTotalExternalReferenceCount(functionId, {
+                            if (it.failed()) {
+                                handler.handle(Future.failedFuture(it.cause()))
+                            } else {
+                                updateProjectReferenceLeaderboard(githubRepository, it.result() * -1, handler)
                             }
                         })
                     }

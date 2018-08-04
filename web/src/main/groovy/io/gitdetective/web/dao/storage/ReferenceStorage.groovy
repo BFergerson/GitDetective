@@ -30,6 +30,8 @@ interface ReferenceStorage {
 
     void addFunctionOwner(String functionId, String qualifiedName, String githubRepository, Handler<AsyncResult> handler)
 
+    void removeFunctionOwner(String functionId, String qualifiedName, String githubRepository, Handler<AsyncResult> handler)
+
     void getFunctionOwners(String functionId, Handler<AsyncResult<JsonArray>> handler)
 
     void addFunctionReference(String functionId, JsonObject fileOrFunctionReference, Handler<AsyncResult> handler)

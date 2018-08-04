@@ -19,6 +19,8 @@ class PostgresDAO implements ReferenceStorage {
 
     public final static String ADD_FUNCTION_OWNER = Resources.toString(Resources.getResource(
             "queries/sql/storage/add_function_owner.sql"), Charsets.UTF_8)
+    public final static String REMOVE_FUNCTION_OWNER = Resources.toString(Resources.getResource(
+            "queries/sql/storage/remove_function_owner.sql"), Charsets.UTF_8)
     public final static String GET_FUNCTION_OWNERS = Resources.toString(Resources.getResource(
             "queries/sql/storage/get_function_owners.sql"), Charsets.UTF_8)
     public final static String GET_OWNED_FUNCTIONS = Resources.toString(Resources.getResource(
@@ -324,6 +326,37 @@ class PostgresDAO implements ReferenceStorage {
                                 handler.handle(Future.failedFuture(it.cause()))
                             } else {
                                 redis.updateProjectReferenceLeaderboard(githubRepository, it.result(), handler)
+                            }
+                        })
+                    }
+                    conn.close()
+                })
+            }
+        })
+    }
+
+    @Override
+    void removeFunctionOwner(String functionId, String qualifiedName, String githubRepository, Handler<AsyncResult> handler) {
+        log.info "Removing owner '$githubRepository' from function: $functionId"
+        client.getConnection({
+            if (it.failed()) {
+                handler.handle(Future.failedFuture(it.cause()))
+            } else {
+                def params = new JsonArray()
+                params.add(githubRepository)
+                params.add(functionId)
+                params.add(qualifiedName)
+
+                def conn = it.result()
+                conn.queryWithParams(REMOVE_FUNCTION_OWNER, params, {
+                    if (it.failed()) {
+                        handler.handle(Future.failedFuture(it.cause()))
+                    } else {
+                        getFunctionTotalExternalReferenceCount(functionId, {
+                            if (it.failed()) {
+                                handler.handle(Future.failedFuture(it.cause()))
+                            } else {
+                                redis.updateProjectReferenceLeaderboard(githubRepository, it.result() * -1, handler)
                             }
                         })
                     }
