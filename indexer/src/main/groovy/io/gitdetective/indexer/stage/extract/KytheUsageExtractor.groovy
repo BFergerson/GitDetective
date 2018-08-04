@@ -281,7 +281,8 @@ class KytheUsageExtractor extends AbstractVerticle {
             def classQualifiedName = getQualifiedClassName(qualifiedName)
             if (classQualifiedName.contains('$')) {
                 classQualifiedName = classQualifiedName.substring(0, classQualifiedName.indexOf('$'))
-                while (objectNode.parentNode?.isFile && objectNode.parentNode.uri != null) {
+                while (objectNode.parentNode?.isFile && objectNode.parentNode.uri != null
+                        && objectNode != objectNode.parentNode) { //todo: how does node become its own parent?
                     objectNode = objectNode.parentNode
                     objectUri = objectNode.uri
                 }
