@@ -45,7 +45,6 @@ class CreateJobs extends AbstractVerticle {
             throw new IllegalStateException("File does not exists: " + projectsFile)
         }
 
-        DeploymentOptions options = new DeploymentOptions().setConfig(config)
         VertxOptions vertxOptions = new VertxOptions()
         vertxOptions.setBlockedThreadCheckInterval(Integer.MAX_VALUE)
         Vertx vertx = Vertx.vertx(vertxOptions)
@@ -88,7 +87,7 @@ class CreateJobs extends AbstractVerticle {
             futures.add(fut)
 
             jobs.createJob(jobType, "Admin build job queued",
-                    new JsonObject().put("github_repository", it).put("admin_triggered", true),
+                    new JsonObject().put("github_repository", it.toLowerCase()).put("admin_triggered", true),
                     Priority.valueOf(priority.toUpperCase()), {
                 if (it.failed()) {
                     it.cause().printStackTrace()

@@ -48,7 +48,6 @@ class CreateJob extends AbstractVerticle {
             priority = args[2]
         }
 
-        DeploymentOptions options = new DeploymentOptions().setConfig(config)
         VertxOptions vertxOptions = new VertxOptions()
         vertxOptions.setBlockedThreadCheckInterval(Integer.MAX_VALUE)
         Vertx vertx = Vertx.vertx(vertxOptions)
@@ -87,7 +86,7 @@ class CreateJob extends AbstractVerticle {
         def initialMessage = "Admin build job queued"
 
         jobs.createJob(jobType, initialMessage,
-                new JsonObject().put("github_repository", projectName).put("admin_triggered", true),
+                new JsonObject().put("github_repository", projectName.toLowerCase()).put("admin_triggered", true),
                 Priority.valueOf(priority.toUpperCase()), {
             if (it.failed()) {
                 it.cause().printStackTrace()
