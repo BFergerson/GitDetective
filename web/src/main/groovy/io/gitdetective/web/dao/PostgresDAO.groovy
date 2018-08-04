@@ -1,6 +1,8 @@
 package io.gitdetective.web.dao
 
 import com.google.common.base.Charsets
+import com.google.common.cache.Cache
+import com.google.common.cache.CacheBuilder
 import com.google.common.io.Resources
 import io.gitdetective.web.WebServices
 import io.gitdetective.web.dao.storage.ReferenceStorage
@@ -11,6 +13,8 @@ import io.vertx.core.logging.Logger
 import io.vertx.core.logging.LoggerFactory
 import io.vertx.ext.asyncsql.AsyncSQLClient
 import io.vertx.ext.asyncsql.PostgreSQLClient
+
+import java.util.concurrent.TimeUnit
 
 /**
  * @author <a href="mailto:brandon.fergerson@codebrig.com">Brandon Fergerson</a>
@@ -50,6 +54,8 @@ class PostgresDAO implements ReferenceStorage {
     private final static Logger log = LoggerFactory.getLogger(PostgresDAO.class)
     private AsyncSQLClient client
     private RedisDAO redis
+    private final Cache<String, JsonArray> projectRankedFunctionsCache = CacheBuilder.newBuilder()
+            .expireAfterWrite(15, TimeUnit.MINUTES).build()
 
     PostgresDAO(Vertx vertx, JsonObject config, RedisDAO redis) {
         this.client = PostgreSQLClient.createShared(vertx, config)
@@ -74,6 +80,17 @@ class PostgresDAO implements ReferenceStorage {
 
     @Override
     void getProjectMostExternalReferencedFunctions(String githubRepository, int topCount, Handler<AsyncResult<JsonArray>> handler) {
+        def cachedRankedFunctions = projectRankedFunctionsCache.getIfPresent(githubRepository)
+        if (cachedRankedFunctions != null) {
+            for (int i = 0; i < cachedRankedFunctions.size(); i++) {
+                def function = cachedRankedFunctions.getJsonObject(i)
+                if (!(function.getValue("external_reference_count") instanceof Long)) {
+                    function.put("external_reference_count", function.getString("external_reference_count") as long)
+                }
+            }
+            handler.handle(Future.succeededFuture(cachedRankedFunctions))
+            return
+        }
         getOwnedFunctions(githubRepository, {
             if (it.failed()) {
                 handler.handle(Future.failedFuture(it.cause()))
@@ -116,8 +133,8 @@ class PostgresDAO implements ReferenceStorage {
                                     .put("method_signature", WebServices.getMethodSignature(qualifiedName))
                                     .put("is_function", true)
                         }
+                        projectRankedFunctionsCache.put(githubRepository, rankedOwnedFunctions)
                         handler.handle(Future.succeededFuture(rankedOwnedFunctions))
-                        //todo: cache ranked owned functions
                     }
                 })
             }
@@ -307,6 +324,8 @@ class PostgresDAO implements ReferenceStorage {
     @Override
     void addFunctionOwner(String functionId, String qualifiedName, String githubRepository, Handler<AsyncResult> handler) {
         log.trace "Adding owner '$githubRepository' to function: $functionId"
+        projectRankedFunctionsCache.invalidate(githubRepository)
+
         client.getConnection({
             if (it.failed()) {
                 handler.handle(Future.failedFuture(it.cause()))
@@ -338,6 +357,8 @@ class PostgresDAO implements ReferenceStorage {
     @Override
     void removeFunctionOwner(String functionId, String qualifiedName, String githubRepository, Handler<AsyncResult> handler) {
         log.info "Removing owner '$githubRepository' from function: $functionId"
+        projectRankedFunctionsCache.invalidate(githubRepository)
+
         client.getConnection({
             if (it.failed()) {
                 handler.handle(Future.failedFuture(it.cause()))
