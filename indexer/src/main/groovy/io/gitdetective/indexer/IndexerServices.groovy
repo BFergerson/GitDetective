@@ -25,6 +25,19 @@ final class IndexerServices {
         log.info logData + " (repo: " + job.data.getString("github_repository") + ")"
     }
 
+    static String getQualifiedClassName(String qualifiedName) {
+        if (!qualifiedName.contains('(')) {
+            return qualifiedName
+        }
+        def withoutArgs = qualifiedName.substring(0, qualifiedName.indexOf("("))
+        if (withoutArgs.contains("<")) {
+            withoutArgs = withoutArgs.substring(0, withoutArgs.indexOf("<"))
+            return withoutArgs.substring(withoutArgs.lastIndexOf("?") + 1, withoutArgs.lastIndexOf("."))
+        } else {
+            return withoutArgs.substring(withoutArgs.lastIndexOf("?") + 1, withoutArgs.lastIndexOf("."))
+        }
+    }
+
     static String asPrettyTime(long ns) {
         double tookTimeMs = TimeUnit.NANOSECONDS.toMillis(ns)
         if (tookTimeMs > 1000 * 60) {

@@ -1,5 +1,6 @@
 package io.gitdetective.indexer.stage
 
+import io.gitdetective.indexer.support.KytheGradleBuilder
 import io.gitdetective.indexer.support.KytheMavenBuilder
 import io.gitdetective.web.dao.JobsDAO
 import io.gitdetective.web.dao.RedisDAO
@@ -12,7 +13,6 @@ import io.vertx.core.logging.LoggerFactory
 import org.eclipse.jgit.api.Git
 import org.eclipse.jgit.api.errors.TransportException
 import org.kohsuke.github.GHFileNotFoundException
-import org.kohsuke.github.GHRepository
 import org.kohsuke.github.GitHub
 
 import java.time.Instant
@@ -164,14 +164,24 @@ class GithubRepositoryCloner extends AbstractVerticle {
 
         logPrintln(job, "Detecting project build system")
         def mavenProject = false
+        def gradleProject = false
         repo.getDirectoryContent("/").each {
             if (it.name == "pom.xml") {
                 mavenProject = true
+            } else if (it.name == "build.gradle") {
+                gradleProject = true
             }
         }
 
-        if (mavenProject) {
-            logPrintln(job, "Detected Maven build system")
+        if (mavenProject || gradleProject) {
+            String builderAddress
+            if (mavenProject) {
+                logPrintln(job, "Detected Maven build system")
+                builderAddress = KytheMavenBuilder.BUILDER_ADDRESS
+            } else {
+                logPrintln(job, "Detected Gradle build system")
+                builderAddress = KytheGradleBuilder.BUILDER_ADDRESS
+            }
             def latestCommit = repo.getBranch(repo.getDefaultBranch()).SHA1
             def latestCommitDate = repo.getCommit(latestCommit).commitDate.toInstant()
 
@@ -195,7 +205,7 @@ class GithubRepositoryCloner extends AbstractVerticle {
                     if (skippingBuild) {
                         job.done()
                     } else {
-                        buildMaven(job, githubRepository, latestCommit, latestCommitDate)
+                        cloneAndBuildProject(job, githubRepository, latestCommit, latestCommitDate, builderAddress)
                         redis.setProjectLastBuilt(githubRepository, Instant.now(), {
                             //nothing
                         })
@@ -208,7 +218,8 @@ class GithubRepositoryCloner extends AbstractVerticle {
         }
     }
 
-    private void buildMaven(Job job, String githubRepository, String latestCommit, Instant latestCommitDate) {
+    private void cloneAndBuildProject(Job job, String githubRepository, String latestCommit, Instant latestCommitDate,
+                                      String builderAddress) {
         //clean output directory
         def outputDirectory = new File(config().getString("temp_directory"), UUID.randomUUID().toString())
         outputDirectory.deleteDir()
@@ -224,13 +235,26 @@ class GithubRepositoryCloner extends AbstractVerticle {
                         .setTimeout(TimeUnit.MINUTES.toSeconds(CLONE_TIMEOUT_LIMIT_MINUTES) as int)
                         .call()
 
-                File mavenBuildPomFile = new File(outputDirectory, "pom.xml")
-                if (mavenBuildPomFile.exists()) {
-                    logPrintln(job, "Project successfully cloned")
-                    blocking.complete(mavenBuildPomFile)
+                if (KytheMavenBuilder.BUILDER_ADDRESS == builderAddress) {
+                    File mavenBuildPomFile = new File(outputDirectory, "pom.xml")
+                    if (mavenBuildPomFile.exists()) {
+                        logPrintln(job, "Project successfully cloned")
+                        blocking.complete(mavenBuildPomFile)
+                    } else {
+                        logPrintln(job, "Failed to find pom.xml")
+                        blocking.fail("Failed to find pom.xml")
+                    }
+                } else if (KytheGradleBuilder.BUILDER_ADDRESS == builderAddress) {
+                    File gradleBuildFile = new File(outputDirectory, "build.gradle")
+                    if (gradleBuildFile.exists()) {
+                        logPrintln(job, "Project successfully cloned")
+                        blocking.complete(gradleBuildFile)
+                    } else {
+                        logPrintln(job, "Failed to find build.gradle")
+                        blocking.fail("Failed to find build.gradle")
+                    }
                 } else {
-                    logPrintln(job, "Failed to find pom.xml")
-                    blocking.fail("Failed to find pom.xml")
+                    throw new IllegalArgumentException("Unsupported builder: $builderAddress")
                 }
             } catch (TransportException e) {
                 logPrintln(job, "Project clone timed out")
@@ -244,7 +268,7 @@ class GithubRepositoryCloner extends AbstractVerticle {
                 job.data.put("commit_date", latestCommitDate)
                 job.data.put("output_directory", outputDirectory.absolutePath)
                 job.data.put("build_target", (res.result() as File).absolutePath)
-                vertx.eventBus().send(KytheMavenBuilder.BUILDER_ADDRESS, job)
+                vertx.eventBus().send(builderAddress, job)
             }
         })
     }

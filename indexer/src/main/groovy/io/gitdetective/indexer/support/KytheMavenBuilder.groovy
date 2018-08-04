@@ -26,8 +26,8 @@ class KytheMavenBuilder extends AbstractVerticle {
     public static final String BUILDER_ADDRESS = "KytheMavenBuilder"
     private final static Logger log = LoggerFactory.getLogger(KytheMavenBuilder.class)
     private static final File repoDir = new File("/tmp/.m2")
-    private static final File javacWrapper = new File("opt/kythe-v0.0.26/extractors/javac-wrapper.sh")
-    private static final File javacExtractor = new File("opt/kythe-v0.0.26/extractors/javac_extractor.jar")
+    private static final File javacWrapper = new File("opt/kythe-v0.0.28/extractors/javac-wrapper.sh")
+    private static final File javacExtractor = new File("opt/kythe-v0.0.28/extractors/javac_extractor.jar")
     private static final File mavenHome = new File("opt/builders/apache-maven-3.5.3")
 
     @Override
@@ -102,23 +102,28 @@ class KytheMavenBuilder extends AbstractVerticle {
                     if (!buildTimeoutFuture.done) {
                         buildTimeoutFuture.cancel(true)
                         logPrintln(job, "Project build timed out")
-                        job.done()
+                        job.done(new InterruptedException("Project build timed out"))
                     }
                 }
-            }, 1, TimeUnit.HOURS)
+            }, config().getJsonObject("builder_limits").getInteger("maven_build_limit"), TimeUnit.MINUTES)
         }, false, { res ->
-            def invocationResult = res.result() as InvocationResult
-            if (invocationResult.exitCode != 0) {
-                if (invocationResult.executionException != null) {
-                    invocationResult.executionException.printStackTrace()
-                    logPrintln(job, invocationResult.executionException.message)
-                }
+            if (res.succeeded()) {
+                def invocationResult = res.result() as InvocationResult
+                if (invocationResult.exitCode != 0) {
+                    if (invocationResult.executionException != null) {
+                        invocationResult.executionException.printStackTrace()
+                        logPrintln(job, invocationResult.executionException.message)
+                    }
 
-                logPrintln(job, "Project build failed")
-                job.done()
+                    logPrintln(job, "Project build failed")
+                    job.done(new Exception("Project build failed"))
+                } else {
+                    logPrintln(job, "Project build took: " + asPrettyTime(buildContext.stop()))
+                    vertx.eventBus().send(KytheIndexOutput.KYTHE_INDEX_OUTPUT, job)
+                }
             } else {
-                logPrintln(job, "Project build took: " + asPrettyTime(buildContext.stop()))
-                vertx.eventBus().send(KytheIndexOutput.KYTHE_INDEX_OUTPUT, job)
+                logPrintln(job, "Project build failed")
+                job.done(res.cause())
             }
         })
     }

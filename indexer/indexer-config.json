@@ -18,5 +18,9 @@
     "functions": -1,
     "function_definitions": -1,
     "function_references": -1
+  },
+  "builder_limits": {
+    "maven_build_limit": 20,
+    "gradle_build_limit": 20
   }
 }

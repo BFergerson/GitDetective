@@ -72,7 +72,11 @@ class FindProjects extends AbstractVerticle {
 
     @Override
     void start() throws Exception {
-        def redisClient = RedisHelper.client(vertx, config())
+        def jobsRedisConfig = config().copy()
+        if (config().getJsonObject("jobs_server") != null) {
+            jobsRedisConfig = config().getJsonObject("jobs_server")
+        }
+        def redisClient = RedisHelper.client(vertx, jobsRedisConfig)
         def redis = new RedisDAO(redisClient)
         def jobs = new JobsDAO(kue, redis)
         vertx.deployVerticle(new GHArchiveSync(jobs, redis), new DeploymentOptions()

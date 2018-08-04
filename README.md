@@ -1,6 +1,9 @@
 # GitDetective
 > Find references to your code on GitHub
 
+[![Release](https://img.shields.io/github/release/CodeBrig/GitDetective.svg)](https://github.com/CodeBrig/GitDetective/releases/latest)
+[![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
+
 GitDetective scans open source code and extracts references found within the scanned code.
 GitDetective uses Kythe to extract compilation data which is stored in Grakn.
 
