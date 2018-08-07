@@ -562,13 +562,13 @@ class PostgresDAO implements ReferenceStorage {
     }
 
     @Override
-    void getFunctionLeaderboard(Handler<AsyncResult<JsonArray>> handler) {
+    void getFunctionLeaderboard(int topCount, Handler<AsyncResult<JsonArray>> handler) {
         client.getConnection({
             if (it.failed()) {
                 handler.handle(Future.failedFuture(it.cause()))
             } else {
                 def conn = it.result()
-                conn.query(GET_FUNCTION_LEADERBOARD, {
+                conn.queryWithParams(GET_FUNCTION_LEADERBOARD, new JsonArray().add(topCount), {
                     if (it.failed()) {
                         handler.handle(Future.failedFuture(it.cause()))
                     } else {

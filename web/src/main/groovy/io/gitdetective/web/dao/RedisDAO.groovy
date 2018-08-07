@@ -198,7 +198,7 @@ class RedisDAO implements ReferenceStorage {
                             totalScore = it.result() as long
                         }
 
-                        redis.zadd("gitdetective:function_leaderboard", totalScore, functionId, handler)
+                        redis.zadd("gitdetective:function_reference_leaderboard", totalScore, functionId, handler)
                     }
                 })
             }
@@ -684,8 +684,22 @@ class RedisDAO implements ReferenceStorage {
     }
 
     @Override
-    void getFunctionLeaderboard(Handler<AsyncResult<JsonArray>> handler) {
-        throw new UnsupportedOperationException()
+    void getFunctionLeaderboard(int topCount, Handler<AsyncResult<JsonArray>> handler) {
+        redis.zrevrange("gitdetective:function_reference_leaderboard", 0, topCount - 1, RangeOptions.WITHSCORES, {
+            if (it.failed()) {
+                handler.handle(Future.failedFuture(it.cause()))
+            } else {
+                def list = it.result() as JsonArray
+                def rtnArray = new JsonArray()
+                for (int i = 0; i < list.size(); i += 2) {
+                    rtnArray.add(new JsonObject()
+                            .put("function_id", list.getString(i))
+                            .put("external_reference_count", list.getString(i + 1)))
+                }
+
+                handler.handle(Future.succeededFuture(rtnArray))
+            }
+        })
     }
 
     RedisClient getClient() {

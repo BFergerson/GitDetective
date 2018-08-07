@@ -10,4 +10,4 @@ SELECT
   external_reference_count
 FROM function_ref_counts
 ORDER by external_reference_count DESC
-LIMIT 100;
+LIMIT ?;

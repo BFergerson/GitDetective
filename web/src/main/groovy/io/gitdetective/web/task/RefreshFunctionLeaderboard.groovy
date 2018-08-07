@@ -53,15 +53,19 @@ class RefreshFunctionLeaderboard extends AbstractVerticle {
     }
 
     private void updateFunctionLeaderboard() {
-        referenceStorage.getFunctionLeaderboard({
+        referenceStorage.getFunctionLeaderboard(100, {
             if (it.failed()) {
-                println "do something"
+                it.cause().printStackTrace()
             } else {
                 def topFunctions = it.result()
                 def futures = new ArrayList<Future>()
                 for (int i = 0; i < topFunctions.size(); i++) {
                     def function = topFunctions.getJsonObject(i)
                     def functionId = function.getString("function_id")
+                    if (function.getValue("external_reference_count") instanceof String) {
+                        function.put("external_reference_count", function.getString("external_reference_count") as long)
+                    }
+
                     def fut = Future.future()
                     futures.add(fut)
                     grakn.getFunctionQualifiedName(functionId, {
@@ -79,7 +83,7 @@ class RefreshFunctionLeaderboard extends AbstractVerticle {
 
                     CompositeFuture.all(futures).setHandler({
                         if (it.failed()) {
-                            println "do something"
+                            it.cause().printStackTrace()
                         } else {
                             cachedLeaderboardResults = topFunctions.copy()
                         }
