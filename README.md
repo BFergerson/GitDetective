@@ -7,7 +7,7 @@
 GitDetective is an open-source web application for finding the use and users of your open-source code.
 GitDetective achives this by compiling open-source code with Kythe and extracting external references found in the compiliation units. This data is then collected and organized into a knowledge graph powered by Grakn.
 
-![gitdetective](https://i.imgur.com/4YGxC6V.png)
+![gitdetective](https://i.imgur.com/gSdJbZH.png)
 
 GitDetective consists of two separate modules:
 
