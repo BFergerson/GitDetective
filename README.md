@@ -1,5 +1,5 @@
 # GitDetective
-> Find the use and users of your open-source code
+> Find the use and users of open-source code
 
 [![Release](https://img.shields.io/github/release/CodeBrig/GitDetective.svg)](https://github.com/CodeBrig/GitDetective/releases/latest)
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
