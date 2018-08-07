@@ -6,6 +6,7 @@ import com.google.common.collect.Lists
 import io.gitdetective.GitDetectiveVersion
 import io.gitdetective.web.dao.JobsDAO
 import io.gitdetective.web.dao.RedisDAO
+import io.gitdetective.web.dao.storage.ReferenceStorage
 import io.gitdetective.web.work.importer.GraknImporter
 import io.vertx.core.AbstractVerticle
 import io.vertx.core.CompositeFuture
@@ -41,13 +42,15 @@ class GitDetectiveWebsite extends AbstractVerticle {
     private static volatile long TOTAL_REFERENCE_COUNT = 0
     private final JobsDAO jobs
     private final RedisDAO redis
+    private final ReferenceStorage storage
     private final Router router
     private final Cache<String, Boolean> autoBuildCache = CacheBuilder.newBuilder()
             .expireAfterWrite(1, TimeUnit.MINUTES).build()
 
-    GitDetectiveWebsite(JobsDAO jobs, RedisDAO redis, Router router) {
+    GitDetectiveWebsite(JobsDAO jobs, RedisDAO redis, ReferenceStorage storage, Router router) {
         this.jobs = jobs
         this.redis = redis
+        this.storage = storage
         this.router = router
     }
 
@@ -60,6 +63,18 @@ class GitDetectiveWebsite extends AbstractVerticle {
         router.get("/").handler({ ctx ->
             handleIndexPage(ctx)
         })
+        router.get("/projects/leaderboard").handler({ ctx ->
+            handleProjectLeaderboardPage(ctx)
+        })
+        router.get("/functions/leaderboard").handler({ ctx ->
+            handleFunctionLeaderboardPage(ctx)
+        })
+        router.get("/:githubUsername/:githubProject").handler({ ctx ->
+            handleProjectPage(ctx)
+        })
+        router.get("/:githubUsername/:githubProject/").handler({ ctx ->
+            handleProjectPage(ctx)
+        })
         router.get("/static").handler({ ctx ->
             ctx.response().setStatusCode(404).end()
         })
@@ -69,12 +84,6 @@ class GitDetectiveWebsite extends AbstractVerticle {
         router.get("/favicon.ico").handler({ ctx ->
             //todo: get favicon
             ctx.response().setStatusCode(404).end()
-        })
-        router.get("/:githubUsername/:githubProject").handler({ ctx ->
-            handleProjectPage(ctx)
-        })
-        router.get("/:githubUsername/:githubProject/").handler({ ctx ->
-            handleProjectPage(ctx)
         })
         router.route().last().handler({
             it.response().putHeader("location", "/")
@@ -154,7 +163,8 @@ class GitDetectiveWebsite extends AbstractVerticle {
         log.info "Displaying index page"
         CompositeFuture.all(Lists.asList(
                 getActiveJobs(ctx),
-                getProjectReferenceLeaderboard(ctx),
+                getProjectReferenceLeaderboard(ctx, 5),
+                getFunctionReferenceLeaderboard(ctx, 5),
                 getDatabaseStatistics(ctx)
         )).setHandler({
             HandlebarsTemplateEngine engine = HandlebarsTemplateEngine.create()
@@ -165,6 +175,52 @@ class GitDetectiveWebsite extends AbstractVerticle {
                     ctx.fail(res.cause())
                 }
             })
+        })
+    }
+
+    private void handleProjectLeaderboardPage(RoutingContext ctx) {
+        ctx.put("gitdetective_url", config().getString("gitdetective_url"))
+        ctx.put("gitdetective_eventbus_url", config().getString("gitdetective_url") + "backend/services/eventbus")
+        ctx.put("gitdetective_version", GitDetectiveVersion.version)
+
+        //load and send page data
+        log.info "Displaying project leaderboard page"
+        getProjectReferenceLeaderboard(ctx, 100).setHandler({
+            if (it.failed()) {
+                ctx.fail(it.cause())
+            } else {
+                HandlebarsTemplateEngine engine = HandlebarsTemplateEngine.create()
+                engine.render(ctx, "webroot/project_leaderboard.hbs", { res ->
+                    if (res.succeeded()) {
+                        ctx.response().end(res.result())
+                    } else {
+                        ctx.fail(res.cause())
+                    }
+                })
+            }
+        })
+    }
+
+    private void handleFunctionLeaderboardPage(RoutingContext ctx) {
+        ctx.put("gitdetective_url", config().getString("gitdetective_url"))
+        ctx.put("gitdetective_eventbus_url", config().getString("gitdetective_url") + "backend/services/eventbus")
+        ctx.put("gitdetective_version", GitDetectiveVersion.version)
+
+        //load and send page data
+        log.info "Displaying function leaderboard page"
+        getFunctionReferenceLeaderboard(ctx, 100).setHandler({
+            if (it.failed()) {
+                ctx.fail(it.cause())
+            } else {
+                HandlebarsTemplateEngine engine = HandlebarsTemplateEngine.create()
+                engine.render(ctx, "webroot/function_leaderboard.hbs", { res ->
+                    if (res.succeeded()) {
+                        ctx.response().end(res.result())
+                    } else {
+                        ctx.fail(res.cause())
+                    }
+                })
+            }
         })
     }
 
@@ -197,10 +253,10 @@ class GitDetectiveWebsite extends AbstractVerticle {
         return future
     }
 
-    private Future getProjectReferenceLeaderboard(RoutingContext ctx) {
+    private Future getProjectReferenceLeaderboard(RoutingContext ctx, int topCount) {
         def future = Future.future()
         def handler = future.completer()
-        vertx.eventBus().send(GET_PROJECT_REFERENCE_LEADERBOARD, new JsonObject(), {
+        vertx.eventBus().send(GET_PROJECT_REFERENCE_LEADERBOARD, new JsonObject().put("top_count", topCount), {
             if (it.failed()) {
                 ctx.fail(it.cause())
             } else {
@@ -213,6 +269,29 @@ class GitDetectiveWebsite extends AbstractVerticle {
                     project.put("value", asPrettyNumber(count))
                 }
                 ctx.put("project_reference_leaderboard", referenceLeaderboard)
+            }
+            handler.handle(Future.succeededFuture())
+        })
+        return future
+    }
+
+    private Future getFunctionReferenceLeaderboard(RoutingContext ctx, int topCount) {
+        def future = Future.future()
+        def handler = future.completer()
+        vertx.eventBus().send(GET_FUNCTION_LEADERBOARD, new JsonObject(), {
+            if (it.failed()) {
+                ctx.fail(it.cause())
+            } else {
+                def referenceLeaderboard = (it.result().body() as JsonArray).take(topCount) as JsonArray
+
+                //make counts pretty
+                for (int i = 0; i < referenceLeaderboard.size(); i++) {
+                    def function = referenceLeaderboard.getJsonObject(i)
+                    function.put("short_qualified_name", getShortQualifiedMethodName(function.getString("qualified_name")))
+                    function.put("external_reference_count", asPrettyNumber(
+                            function.getLong("external_reference_count")))
+                }
+                ctx.put("function_reference_leaderboard", referenceLeaderboard)
             }
             handler.handle(Future.succeededFuture())
         })
@@ -253,6 +332,7 @@ class GitDetectiveWebsite extends AbstractVerticle {
             HandlebarsTemplateEngine engine = HandlebarsTemplateEngine.create()
             engine.render(ctx, "webroot/project.hbs", { res ->
                 if (res.succeeded()) {
+                    //todo: got a response already written here (make issue)
                     ctx.response().end(res.result())
                 } else {
                     ctx.fail(res.cause())

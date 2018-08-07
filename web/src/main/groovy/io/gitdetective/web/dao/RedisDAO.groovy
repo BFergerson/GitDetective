@@ -185,7 +185,24 @@ class RedisDAO implements ReferenceStorage {
     }
 
     private void cacheFunctionReference(String functionId, JsonObject referenceFunction, Handler<AsyncResult> handler) {
-        redis.lpush("gitdetective:osf:function_references:$functionId", referenceFunction.encode(), handler)
+        redis.lpush("gitdetective:osf:function_references:$functionId", referenceFunction.encode(), {
+            if (it.failed()) {
+                handler.handle(Future.failedFuture(it.cause()))
+            } else {
+                redis.incr("gitdetective:osf:function_reference_counts:$functionId", {
+                    if (it.failed()) {
+                        handler.handle(Future.failedFuture(it.cause()))
+                    } else {
+                        long totalScore = 0
+                        if (it.result() != null) {
+                            totalScore = it.result() as long
+                        }
+
+                        redis.zadd("gitdetective:function_leaderboard", totalScore, functionId, handler)
+                    }
+                })
+            }
+        })
     }
 
     void updateProjectReferenceLeaderboard(String githubRepository, long projectReferenceCount,
@@ -664,6 +681,11 @@ class RedisDAO implements ReferenceStorage {
                 handler.handle(Future.succeededFuture(true))
             }
         })
+    }
+
+    @Override
+    void getFunctionLeaderboard(Handler<AsyncResult<JsonArray>> handler) {
+        throw new UnsupportedOperationException()
     }
 
     RedisClient getClient() {
