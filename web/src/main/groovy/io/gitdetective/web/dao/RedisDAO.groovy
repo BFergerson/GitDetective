@@ -185,7 +185,24 @@ class RedisDAO implements ReferenceStorage {
     }
 
     private void cacheFunctionReference(String functionId, JsonObject referenceFunction, Handler<AsyncResult> handler) {
-        redis.lpush("gitdetective:osf:function_references:$functionId", referenceFunction.encode(), handler)
+        redis.lpush("gitdetective:osf:function_references:$functionId", referenceFunction.encode(), {
+            if (it.failed()) {
+                handler.handle(Future.failedFuture(it.cause()))
+            } else {
+                redis.incr("gitdetective:osf:function_reference_counts:$functionId", {
+                    if (it.failed()) {
+                        handler.handle(Future.failedFuture(it.cause()))
+                    } else {
+                        long totalScore = 0
+                        if (it.result() != null) {
+                            totalScore = it.result() as long
+                        }
+
+                        redis.zadd("gitdetective:function_reference_leaderboard", totalScore, functionId, handler)
+                    }
+                })
+            }
+        })
     }
 
     void updateProjectReferenceLeaderboard(String githubRepository, long projectReferenceCount,
@@ -664,6 +681,43 @@ class RedisDAO implements ReferenceStorage {
                 handler.handle(Future.succeededFuture(true))
             }
         })
+    }
+
+    @Override
+    void getFunctionLeaderboard(int topCount, Handler<AsyncResult<JsonArray>> handler) {
+        redis.zrevrange("gitdetective:function_reference_leaderboard", 0, topCount - 1, RangeOptions.WITHSCORES, {
+            if (it.failed()) {
+                handler.handle(Future.failedFuture(it.cause()))
+            } else {
+                def list = it.result() as JsonArray
+                def rtnArray = new JsonArray()
+                for (int i = 0; i < list.size(); i += 2) {
+                    rtnArray.add(new JsonObject()
+                            .put("function_id", list.getString(i))
+                            .put("external_reference_count", list.getString(i + 1)))
+                }
+
+                handler.handle(Future.succeededFuture(rtnArray))
+            }
+        })
+    }
+
+    void getCachedFunctionLeaderboard(Handler<AsyncResult<JsonArray>> handler) {
+        redis.get("gitdetective:function_leaderboard", {
+            if (it.failed()) {
+                handler.handle(Future.failedFuture(it.cause()))
+            } else {
+                if (it.result() == null) {
+                    handler.handle(Future.succeededFuture(new JsonArray()))
+                } else {
+                    handler.handle(Future.succeededFuture(new JsonArray(it.result())))
+                }
+            }
+        })
+    }
+
+    void cacheFunctionLeaderboard(JsonArray functionLeaderboard, Handler<AsyncResult> handler) {
+        redis.set("gitdetective:function_leaderboard", functionLeaderboard.toString(), handler)
     }
 
     RedisClient getClient() {

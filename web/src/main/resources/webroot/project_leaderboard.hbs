@@ -8,7 +8,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="description" content="">
     <meta name="author" content="">
-    <title>GitDetective - Find the use and users of your open-source code</title>
+    <title>Project Leaderboard - GitDetective</title>
     <!-- Bootstrap Core CSS -->
     <link href="{{gitdetective_url}}static/assets/plugins/bootstrap/css/bootstrap.min.css" rel="stylesheet">
     <!-- chartist CSS -->
@@ -97,7 +97,7 @@
             <!-- Sidebar navigation-->
             <nav class="sidebar-nav">
                 <ul id="sidebarnav" style="color: white; opacity: 0.8">
-                    Find the use and users of your open-source code
+                    Find references to your code on GitHub
                 </ul>
             </nav>
             <!-- End Sidebar navigation -->
@@ -120,93 +120,14 @@
             <!-- ============================================================== -->
             <!-- Row -->
             <div class="row">
-                <div class="col-md-5 col-xlg-5">
-                    <!-- Column -->
-                    <div style="background-color: #272c33" class="card">
-                        <div class="card-header">
-                            <h4 style="color: #7AA054" class="card-title m-b-0">Database statistics</h4>
-                        </div>
-                        <div style="padding-top: 0; padding-bottom: 0" class="card-body b-t collapse show">
-                            <table style="margin-bottom: 0.5rem" class="table v-middle no-border">
-                                <tbody id="database_statistics">
-                                {{#each database_statistics}}
-                                    <tr>
-                                        <td style="padding: 0.25rem">{{this.stat1}}</td>
-                                        <td align="left" style="padding: 0.25rem">
-                                            <span class="label">{{this.value1}}</span>
-                                        </td>
-                                        <td style="padding: 0.25rem">{{this.stat2}}</td>
-                                        <td align="left" style="padding: 0.25rem">
-                                            <span class="label">{{this.value2}}</span>
-                                        </td>
-                                    </tr>
-                                {{/each}}
-                                </tbody>
-                            </table>
-                        </div>
-                    </div>
-                    <!-- Column -->
-                    <div style="background-color: #272c33" class="card">
-                        <div class="card-header">
-                            <h4 class="card-title m-b-0">
-                                <a href="{{gitdetective_url}}projects/leaderboard">
-                                    Project Leaderboard
-                                </a>
-                            </h4>
-                        </div>
-                        <div style="padding-top: 0; padding-bottom: 0" class="card-body b-t collapse show">
-                            <table class="table v-middle no-border">
-                                <tbody id="project_reference_leaderboard">
-                                {{#each project_reference_leaderboard}}
-                                    <tr>
-                                        <td style="max-width: 250px">
-                                            <a href="{{gitdetective_url}}{{this.github_repository}}">{{this.github_repository}}</a>
-                                        </td>
-                                        <td align="right">
-                                            <span class="label label-primary">{{this.value}}</span>
-                                        </td>
-                                    </tr>
-                                {{/each}}
-                                </tbody>
-                            </table>
-                        </div>
-                    </div>
-                    <!-- Column -->
-                    <div style="background-color: #272c33" class="card">
-                        <div class="card-header">
-                            <h4 class="card-title m-b-0">
-                                <a href="{{gitdetective_url}}functions/leaderboard">
-                                    Function Leaderboard
-                                </a>
-                            </h4>
-                        </div>
-                        <div style="padding-top: 0; padding-bottom: 0" class="card-body b-t collapse show">
-                            <table class="table v-middle no-border">
-                                <tbody id="function_reference_leaderboard">
-                                {{#each function_reference_leaderboard}}
-                                    <tr>
-                                        <td style="max-width: 250px">
-                                            {{this.short_qualified_name}}
-                                        </td>
-                                        <td align="right">
-                                            <span class="label label-primary">{{this.external_reference_count}}</span>
-                                        </td>
-                                    </tr>
-                                {{/each}}
-                                </tbody>
-                            </table>
-                        </div>
-                    </div>
-                    <!-- Column -->
-                </div>
-                <div class="col-md-7 col-xlg-7">
+                <div class="col-md-12 col-xlg-12">
                     <!-- Row -->
                     <div class="row">
                         <!-- Column -->
                         <div class="col-md-12">
                             <div class="card">
                                 <div class="card-header">
-                                    <h4 class="card-title m-b-0">Active projects</h4>
+                                    <h4 class="card-title m-b-0">Most referenced projects</h4>
                                 </div>
                                 <div class="card-body collapse show">
                                     <div class="table-responsive">
@@ -214,24 +135,18 @@
                                             <thead>
                                             <tr>
                                                 <th>Project</th>
-                                                <th>Updated</th>
-                                                <th>Status</th>
+                                                <th>Total references</th>
                                             </tr>
                                             </thead>
-                                            <tbody id="active_jobs">
-                                            {{#each active_jobs}}
+                                            <tbody id="function_reference_leaderboard">
+                                            {{#each project_reference_leaderboard}}
                                                 <tr>
-                                                    <td><a href="{{gitdetective_url}}{{this.data.github_repository}}">
-                                                        {{this.data.github_repository}}
-                                                    </a></td>
-                                                    <td class="collapsing">
-                                                        <script>
-                                                            document.write(moment({{this.updated_at}}).fromNow())
-                                                        </script>
+                                                    <td style="max-width: 250px">
+                                                        <a href="{{gitdetective_url}}{{this.github_repository}}">{{this.github_repository}}</a>
                                                     </td>
-                                                    <td><span class="label label-primary font-weight-100">
-                                                        {{this.data.job_type}}
-                                                    </span></td>
+                                                    <td>
+                                                        <span class="label label-primary">{{this.value}}</span>
+                                                    </td>
                                                 </tr>
                                             {{/each}}
                                             </tbody>

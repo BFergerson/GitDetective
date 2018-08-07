@@ -44,4 +44,6 @@ interface ReferenceStorage {
 
     void projectHasReference(String fileOrFunctionId, String functionId, Handler<AsyncResult<Boolean>> handler)
 
+    void getFunctionLeaderboard(int topCount, Handler<AsyncResult<JsonArray>> handler)
+
 }

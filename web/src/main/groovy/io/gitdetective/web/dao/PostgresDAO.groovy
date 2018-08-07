@@ -51,6 +51,8 @@ class PostgresDAO implements ReferenceStorage {
             "queries/sql/storage/project_has_definition.sql"), Charsets.UTF_8)
     public final static String PROJECT_HAS_REFERENCE = Resources.toString(Resources.getResource(
             "queries/sql/storage/project_has_reference.sql"), Charsets.UTF_8)
+    public final static String GET_FUNCTION_LEADERBOARD = Resources.toString(Resources.getResource(
+            "queries/sql/storage/get_function_leaderboard.sql"), Charsets.UTF_8)
     private final static Logger log = LoggerFactory.getLogger(PostgresDAO.class)
     private AsyncSQLClient client
     private RedisDAO redis
@@ -559,4 +561,31 @@ class PostgresDAO implements ReferenceStorage {
         })
     }
 
+    @Override
+    void getFunctionLeaderboard(int topCount, Handler<AsyncResult<JsonArray>> handler) {
+        client.getConnection({
+            if (it.failed()) {
+                handler.handle(Future.failedFuture(it.cause()))
+            } else {
+                def conn = it.result()
+                conn.queryWithParams(GET_FUNCTION_LEADERBOARD, new JsonArray().add(topCount), {
+                    if (it.failed()) {
+                        handler.handle(Future.failedFuture(it.cause()))
+                    } else {
+                        def rs = it.result()
+                        if (!rs.rows.isEmpty()) {
+                            def rtnArray = new JsonArray()
+                            rs.rows.each {
+                                rtnArray.add(it as JsonObject)
+                            }
+                            handler.handle(Future.succeededFuture(rtnArray))
+                        } else {
+                            handler.handle(Future.succeededFuture(new JsonArray()))
+                        }
+                    }
+                    conn.close()
+                })
+            }
+        })
+    }
 }

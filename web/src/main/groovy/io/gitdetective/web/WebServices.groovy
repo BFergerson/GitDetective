@@ -43,6 +43,10 @@ final class WebServices {
         return getQualifiedClassName(qualifiedName).replaceAll('\\B\\w+(\\.[a-z])', '$1')
     }
 
+    static String getShortQualifiedMethodName(String qualifiedName) {
+        return getShortQualifiedClassName(qualifiedName) + "." + getShortMethodSignature(qualifiedName)
+    }
+
     static String getQualifiedClassName(String qualifiedName) {
         def withoutArgs = qualifiedName.substring(0, qualifiedName.indexOf("("))
         if (withoutArgs.contains("<")) {

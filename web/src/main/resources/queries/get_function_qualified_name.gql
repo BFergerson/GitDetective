@@ -1,0 +1,6 @@
+#todo: save qualified name to function instead of instance
+match $x id "<id>";
+($x, $y); $y isa function-references; ($y, $z);
+$z has qualified_name $qualifiedName;
+offset 0; limit 1;
+get $qualifiedName;

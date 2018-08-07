@@ -1,6 +1,7 @@
 package io.gitdetective.web.dao
 
 import ai.grakn.GraknSession
+import ai.grakn.GraknTxType
 import ai.grakn.graql.QueryBuilder
 import ai.grakn.graql.internal.query.QueryAnswer
 import com.google.common.base.Charsets
@@ -32,6 +33,8 @@ class GraknDAO {
             "queries/import/get_open_source_function.gql"), Charsets.UTF_8)
     public final static String GET_PROJECT = Resources.toString(Resources.getResource(
             "queries/get_project.gql"), Charsets.UTF_8)
+    public final static String GET_FUNCTION_QUALIFIED_NAME = Resources.toString(Resources.getResource(
+            "queries/get_function_qualified_name.gql"), Charsets.UTF_8)
     private final static Logger log = LoggerFactory.getLogger(GraknDAO.class)
     private final Vertx vertx
     private final RedisDAO redis
@@ -82,5 +85,29 @@ class GraknDAO {
         }
         return osfFunction
     }
+
+    void getFunctionQualifiedName(String functionId, Handler<AsyncResult<String>> handler) {
+        vertx.executeBlocking({ blocking ->
+            def tx = null
+            try {
+                tx = session.open(GraknTxType.READ)
+                def graql = tx.graql()
+                def query = graql.parse(GET_FUNCTION_QUALIFIED_NAME
+                        .replace("<id>", functionId))
+
+                def result = query.execute() as List<QueryAnswer>
+                if (!result.isEmpty()) {
+                    blocking.complete(result.get(0).get("qualifiedName").asAttribute().value as String)
+                } else {
+                    blocking.complete()
+                }
+            } catch (all) {
+                blocking.fail(all)
+            } finally {
+                tx?.close()
+            }
+        }, false, handler)
+    }
+
 
 }

@@ -11,6 +11,7 @@ import io.gitdetective.web.dao.GraknDAO
 import io.gitdetective.web.dao.JobsDAO
 import io.gitdetective.web.dao.PostgresDAO
 import io.gitdetective.web.dao.RedisDAO
+import io.gitdetective.web.task.RefreshFunctionLeaderboard
 import io.gitdetective.web.work.GHArchiveSync
 import io.gitdetective.web.work.importer.GraknImporter
 import io.vertx.blueprint.kue.Kue
@@ -78,9 +79,13 @@ class GitDetectiveService extends AbstractVerticle {
                 log.info "Grakn integration enabled"
                 setupOntology()
 
+                //todo: better placement
+                vertx.deployVerticle(new RefreshFunctionLeaderboard(redis, refStorage, makeGraknDAO(redis)),
+                        new DeploymentOptions().setConfig(config()))
+
                 if (importJobEnabled) {
-                    def grakn = makeGraknDAO(redis)
                     log.info "Import job processing enabled"
+                    def grakn = makeGraknDAO(redis)
                     def importerOptions = new DeploymentOptions().setConfig(config())
                     vertx.deployVerticle(new GraknImporter(kue, redis, refStorage, grakn, uploadsDirectory), importerOptions)
                 } else {
@@ -97,7 +102,7 @@ class GitDetectiveService extends AbstractVerticle {
             if (config().getBoolean("launch_website")) {
                 log.info "Launching GitDetective website"
                 def options = new DeploymentOptions().setConfig(config())
-                vertx.deployVerticle(new GitDetectiveWebsite(jobs, redis, router), options)
+                vertx.deployVerticle(new GitDetectiveWebsite(jobs, redis, refStorage, router), options)
                 vertx.deployVerticle(new GHArchiveSync(jobs, jobsRedis), options)
             }
         }, false, {
@@ -125,7 +130,8 @@ class GitDetectiveService extends AbstractVerticle {
             def context = timer.time()
             log.debug "Getting project reference leaderboard"
 
-            redis.getProjectReferenceLeaderboard(10, {
+            int topCount = (request.body() as JsonObject).getInteger("top_count", 5)
+            redis.getProjectReferenceLeaderboard(topCount, {
                 if (it.failed()) {
                     it.cause().printStackTrace()
                     request.reply(it.cause())
@@ -294,20 +300,20 @@ class GitDetectiveService extends AbstractVerticle {
 
                     //sort methods by external reference count
                     def result = new JsonArray(methodMap.values().asList().sort {
-                        return it.getInteger("external_reference_count")
+                        return it.getLong("external_reference_count")
                     }.reverse())
 
                     //method link
                     for (int i = 0; i < result.size(); i++) {
                         def ob = result.getJsonObject(i)
-                        if (ob.getInteger("external_reference_count") > 0) {
+                        if (ob.getLong("external_reference_count") > 0) {
                             ob.put("has_method_link", true)
                         } else {
                             break
                         }
 
                         //pretty counts
-                        ob.put("external_reference_count", asPrettyNumber(ob.getInteger("external_reference_count")))
+                        ob.put("external_reference_count", asPrettyNumber(ob.getLong("external_reference_count")))
                     }
 
                     log.debug "Got project most referenced methods - Size: " + result.size()
