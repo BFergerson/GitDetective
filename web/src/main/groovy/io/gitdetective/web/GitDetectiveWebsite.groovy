@@ -278,11 +278,11 @@ class GitDetectiveWebsite extends AbstractVerticle {
     private Future getFunctionReferenceLeaderboard(RoutingContext ctx, int topCount) {
         def future = Future.future()
         def handler = future.completer()
-        vertx.eventBus().send(GET_FUNCTION_LEADERBOARD, new JsonObject(), {
+        redis.getCachedFunctionLeaderboard({
             if (it.failed()) {
                 ctx.fail(it.cause())
             } else {
-                def referenceLeaderboard = (it.result().body() as JsonArray).take(topCount) as JsonArray
+                def referenceLeaderboard = it.result().take(topCount) as JsonArray
 
                 //make counts pretty
                 for (int i = 0; i < referenceLeaderboard.size(); i++) {

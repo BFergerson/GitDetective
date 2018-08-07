@@ -702,6 +702,24 @@ class RedisDAO implements ReferenceStorage {
         })
     }
 
+    void getCachedFunctionLeaderboard(Handler<AsyncResult<JsonArray>> handler) {
+        redis.get("gitdetective:function_leaderboard", {
+            if (it.failed()) {
+                handler.handle(Future.failedFuture(it.cause()))
+            } else {
+                if (it.result() == null) {
+                    handler.handle(Future.succeededFuture(new JsonArray()))
+                } else {
+                    handler.handle(Future.succeededFuture(new JsonArray(it.result())))
+                }
+            }
+        })
+    }
+
+    void cacheFunctionLeaderboard(JsonArray functionLeaderboard, Handler<AsyncResult> handler) {
+        redis.set("gitdetective:function_leaderboard", functionLeaderboard.toString(), handler)
+    }
+
     RedisClient getClient() {
         return redis
     }

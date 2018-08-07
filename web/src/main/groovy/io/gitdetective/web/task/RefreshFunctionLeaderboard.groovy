@@ -3,13 +3,12 @@ package io.gitdetective.web.task
 import ai.grakn.Grakn
 import ai.grakn.GraknSession
 import ai.grakn.Keyspace
-import io.gitdetective.web.WebServices
 import io.gitdetective.web.dao.GraknDAO
+import io.gitdetective.web.dao.RedisDAO
 import io.gitdetective.web.dao.storage.ReferenceStorage
 import io.vertx.core.AbstractVerticle
 import io.vertx.core.CompositeFuture
 import io.vertx.core.Future
-import io.vertx.core.json.JsonArray
 import io.vertx.core.logging.Logger
 import io.vertx.core.logging.LoggerFactory
 
@@ -23,12 +22,13 @@ import java.util.concurrent.TimeUnit
 class RefreshFunctionLeaderboard extends AbstractVerticle {
 
     private final static Logger log = LoggerFactory.getLogger(RefreshFunctionLeaderboard.class)
+    private final RedisDAO redis
     private final ReferenceStorage referenceStorage
     private final GraknDAO grakn
     private GraknSession graknSession
-    private JsonArray cachedLeaderboardResults = new JsonArray()
 
-    RefreshFunctionLeaderboard(ReferenceStorage referenceStorage, GraknDAO grakn) {
+    RefreshFunctionLeaderboard(RedisDAO redis, ReferenceStorage referenceStorage, GraknDAO grakn) {
+        this.redis = redis
         this.referenceStorage = referenceStorage
         this.grakn = grakn
     }
@@ -45,10 +45,6 @@ class RefreshFunctionLeaderboard extends AbstractVerticle {
         vertx.setPeriodic(TimeUnit.HOURS.toMillis(1), {
             updateFunctionLeaderboard()
             log.info "Refreshed function leaderboard"
-        })
-
-        vertx.eventBus().consumer(WebServices.GET_FUNCTION_LEADERBOARD, {
-            it.reply(cachedLeaderboardResults.copy())
         })
     }
 
@@ -85,7 +81,11 @@ class RefreshFunctionLeaderboard extends AbstractVerticle {
                         if (it.failed()) {
                             it.cause().printStackTrace()
                         } else {
-                            cachedLeaderboardResults = topFunctions.copy()
+                            redis.cacheFunctionLeaderboard(topFunctions, {
+                                if (it.failed()) {
+                                    it.cause().printStackTrace()
+                                }
+                            })
                         }
                     })
                 }

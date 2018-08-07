@@ -80,7 +80,7 @@ class GitDetectiveService extends AbstractVerticle {
                 setupOntology()
 
                 //todo: better placement
-                vertx.deployVerticle(new RefreshFunctionLeaderboard(refStorage, makeGraknDAO(redis)),
+                vertx.deployVerticle(new RefreshFunctionLeaderboard(redis, refStorage, makeGraknDAO(redis)),
                         new DeploymentOptions().setConfig(config()))
 
                 if (importJobEnabled) {

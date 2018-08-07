@@ -28,7 +28,6 @@ final class WebServices {
     static final String GET_PROJECT_FIRST_INDEXED = "GetProjectFirstIndexed"
     static final String GET_PROJECT_LAST_INDEXED = "GetProjectLastIndexed"
     static final String GET_PROJECT_LAST_INDEXED_COMMIT_INFORMATION = "GetProjectLastIndexedCommitInformation"
-    static final String GET_FUNCTION_LEADERBOARD = "GetFunctionLeaderboard"
     private final static Logger log = LoggerFactory.getLogger(WebServices.class)
     private final static DecimalFormat decimalFormat = new DecimalFormat("#.00")
 
