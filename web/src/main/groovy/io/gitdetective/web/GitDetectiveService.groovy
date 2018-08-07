@@ -130,7 +130,7 @@ class GitDetectiveService extends AbstractVerticle {
             def context = timer.time()
             log.debug "Getting project reference leaderboard"
 
-            int topCount = (request.body() as JsonObject).getInteger("top_count", 10)
+            int topCount = (request.body() as JsonObject).getInteger("top_count", 5)
             redis.getProjectReferenceLeaderboard(topCount, {
                 if (it.failed()) {
                     it.cause().printStackTrace()
