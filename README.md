@@ -19,7 +19,7 @@ The indexer module contains source code builders and integration with Kythe to p
 - extracting Kythe data related to external references
 - augmenting Kythe data with additional information
 - filtering out definition/reference data already imported
-- sending indexed project to web for importing
+- sending indexed project to web module for importing
 
 ### Code Structure
 
