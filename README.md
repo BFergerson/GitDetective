@@ -13,7 +13,7 @@ GitDetective consists of two separate modules:
 
 ## Indexer
 
-The indexer module contains source code builders and integration with Kythe to produce source code reference data to be imported into Grakn by the web module. The indexer scales horizontally, are deployed in a cluster, and are responsible for:
+The indexer module contains source code builders and integration with Kythe to produce source code reference data to be imported into Grakn. The indexer scales horizontally, are deployed in a cluster, and are responsible for:
 - cloning projects
 - building projects with Kythe
 - extracting Kythe data related to external references
