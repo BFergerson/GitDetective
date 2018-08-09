@@ -1,10 +1,9 @@
 package io.gitdetective.web
 
-import ai.grakn.Grakn
-import ai.grakn.GraknConfigKey
 import ai.grakn.GraknTxType
 import ai.grakn.Keyspace
-import ai.grakn.engine.GraknConfig
+import ai.grakn.client.Grakn
+import ai.grakn.util.SimpleURI
 import com.google.common.base.Charsets
 import com.google.common.io.Resources
 import io.gitdetective.web.dao.GraknDAO
@@ -29,11 +28,6 @@ import io.vertx.ext.web.RoutingContext
 import io.vertx.ext.web.handler.sockjs.BridgeOptions
 import io.vertx.ext.web.handler.sockjs.PermittedOptions
 import io.vertx.ext.web.handler.sockjs.SockJSHandler
-import javassist.ClassPool
-import javassist.CtClass
-import javassist.CtMethod
-import org.apache.commons.lang.SystemUtils
-import org.joor.Reflect
 
 import java.time.Instant
 import java.time.temporal.ChronoUnit
@@ -471,22 +465,8 @@ class GitDetectiveService extends AbstractVerticle {
         int graknPort = config().getInteger("grakn.port")
         String graknKeyspace = config().getString("grakn.keyspace")
         def keyspace = Keyspace.of(graknKeyspace)
-        def session = Grakn.session(graknHost + ":" + graknPort, keyspace)
-        if (SystemUtils.IS_OS_WINDOWS) {
-            //start of hacks because Grakn doesn't make things easy for Windows :/
-            try {
-                GraknConfig config = Reflect.on(session).get("config")
-                config.setConfigProperty(GraknConfigKey.STORAGE_HOSTNAME, "192.168.99.100")
-
-                CtClass clazz = ClassPool.getDefault().get("org.apache.cassandra.thrift.EndpointDetails")
-                CtMethod originalMethod = clazz.getDeclaredMethod("getHost")
-                originalMethod.setBody("return \"" + graknHost + "\";")
-                clazz.toClass()
-            } catch (Exception e) {
-                e.printStackTrace()
-            }
-            //end of hacks because Grakn didn't make things easy for Windows :/
-        }
+        def grakn = new Grakn(new SimpleURI(graknHost + ":" + graknPort))
+        def session = grakn.session(keyspace)
         return new GraknDAO(vertx, redis, session)
     }
 
@@ -496,24 +476,9 @@ class GitDetectiveService extends AbstractVerticle {
         int graknPort = config().getInteger("grakn.port")
         String graknKeyspace = config().getString("grakn.keyspace")
         def keyspace = Keyspace.of(graknKeyspace)
-        def session = Grakn.session(graknHost + ":" + graknPort, keyspace)
-        if (SystemUtils.IS_OS_WINDOWS) {
-            //start of hacks because Grakn doesn't make things easy for Windows :/
-            try {
-                GraknConfig config = Reflect.on(session).get("config")
-                config.setConfigProperty(GraknConfigKey.STORAGE_HOSTNAME, "192.168.99.100")
-
-                CtClass clazz = ClassPool.getDefault().get("org.apache.cassandra.thrift.EndpointDetails")
-                CtMethod originalMethod = clazz.getDeclaredMethod("getHost")
-                originalMethod.setBody("return \"" + graknHost + "\";")
-                clazz.toClass()
-            } catch (Exception e) {
-                e.printStackTrace()
-            }
-            //end of hacks because Grakn didn't make things easy for Windows :/
-        }
-
-        def tx = session.open(GraknTxType.WRITE)
+        def grakn = new Grakn(new SimpleURI(graknHost, graknPort))
+        def session = grakn.session(keyspace)
+        def tx = session.transaction(GraknTxType.WRITE)
         def graql = tx.graql()
         def query = graql.parse(Resources.toString(Resources.getResource("gitdetective-schema.gql"), Charsets.UTF_8))
         query.execute()

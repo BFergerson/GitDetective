@@ -168,7 +168,7 @@ class GitDetectiveWebsite extends AbstractVerticle {
                 getDatabaseStatistics(ctx)
         )).setHandler({
             HandlebarsTemplateEngine engine = HandlebarsTemplateEngine.create()
-            engine.render(ctx, "webroot/index.hbs", { res ->
+            engine.render(ctx, "webroot", "/index.hbs", { res ->
                 if (res.succeeded()) {
                     ctx.response().end(res.result())
                 } else {
@@ -190,7 +190,7 @@ class GitDetectiveWebsite extends AbstractVerticle {
                 ctx.fail(it.cause())
             } else {
                 HandlebarsTemplateEngine engine = HandlebarsTemplateEngine.create()
-                engine.render(ctx, "webroot/project_leaderboard.hbs", { res ->
+                engine.render(ctx, "webroot", "/project_leaderboard.hbs", { res ->
                     if (res.succeeded()) {
                         ctx.response().end(res.result())
                     } else {
@@ -213,7 +213,7 @@ class GitDetectiveWebsite extends AbstractVerticle {
                 ctx.fail(it.cause())
             } else {
                 HandlebarsTemplateEngine engine = HandlebarsTemplateEngine.create()
-                engine.render(ctx, "webroot/function_leaderboard.hbs", { res ->
+                engine.render(ctx, "webroot", "/function_leaderboard.hbs", { res ->
                     if (res.succeeded()) {
                         ctx.response().end(res.result())
                     } else {
@@ -330,7 +330,7 @@ class GitDetectiveWebsite extends AbstractVerticle {
                 getProjectMostReferencedFunctions(ctx, repo)
         )).setHandler({
             HandlebarsTemplateEngine engine = HandlebarsTemplateEngine.create()
-            engine.render(ctx, "webroot/project.hbs", { res ->
+            engine.render(ctx, "webroot", "/project.hbs", { res ->
                 if (res.succeeded()) {
                     //todo: got a response already written here (make issue)
                     ctx.response().end(res.result())

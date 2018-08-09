@@ -1,8 +1,9 @@
 package io.gitdetective.web.task
 
-import ai.grakn.Grakn
 import ai.grakn.GraknSession
 import ai.grakn.Keyspace
+import ai.grakn.client.Grakn
+import ai.grakn.util.SimpleURI
 import io.gitdetective.web.dao.GraknDAO
 import io.gitdetective.web.dao.RedisDAO
 import io.gitdetective.web.dao.storage.ReferenceStorage
@@ -39,7 +40,8 @@ class RefreshFunctionLeaderboard extends AbstractVerticle {
         int graknPort = config().getInteger("grakn.port")
         String graknKeyspace = config().getString("grakn.keyspace")
         def keyspace = Keyspace.of(graknKeyspace)
-        graknSession = Grakn.session(graknHost + ":" + graknPort, keyspace)
+        def grakn = new Grakn(new SimpleURI(graknHost + ":" + graknPort))
+        graknSession = grakn.session(keyspace)
 
         updateFunctionLeaderboard()
         vertx.setPeriodic(TimeUnit.HOURS.toMillis(1), {

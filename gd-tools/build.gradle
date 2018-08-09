@@ -11,12 +11,6 @@ dependencies {
     compile project(":web")
     compile group: 'org.antlr', name: 'antlr4-runtime', version: '4.5.1-1'
     compile group: 'org.slf4j', name: 'slf4j-api', version: '1.7.25'
-    compile group: 'ai.grakn', name: 'grakn-core', version: '1.2.0'
-    compile group: 'ai.grakn', name: 'grakn-graql', version: '1.2.0'
-    compile group: 'ai.grakn', name: 'grakn', version: '1.2.0', ext: 'pom'
-    compile group: 'ai.grakn', name: 'grakn-factory', version: '1.2.0'
-    compile group: 'ai.grakn', name: 'grakn-kb', version: '1.2.0'
-    compile group: 'ai.grakn', name: 'grakn-client', version: '1.2.0'
 }
 
 distZip {

@@ -2,7 +2,7 @@
   "redis.host": "localhost",
   "redis.port": 6379,
   "grakn.host": "localhost",
-  "grakn.port": 4567,
+  "grakn.port": 48555,
   "grakn.keyspace": "grakn",
   "grakn.directory": "/opt/grakn-dist-1.2.0",
   "grakn.enabled": true,

@@ -173,7 +173,11 @@ class RedisDAO implements ReferenceStorage {
                 if (it.result() == null) {
                     handler.handle(Future.succeededFuture(new JsonArray()))
                 } else {
-                    handler.handle(Future.succeededFuture(new JsonArray(it.result().toString())))
+                    def rtnArray = new JsonArray()
+                    for (int i = 0; i < it.result().size(); i++) {
+                        rtnArray.add(new JsonObject(it.result().getString(i)))
+                    }
+                    handler.handle(Future.succeededFuture(rtnArray))
                 }
             }
         })
