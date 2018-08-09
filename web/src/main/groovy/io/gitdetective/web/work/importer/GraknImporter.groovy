@@ -175,6 +175,9 @@ class GraknImporter extends AbstractVerticle {
                 WebLauncher.metrics.counter("CreateProject").inc()
             }
             tx.commit()
+        } catch (all) {
+            handler.handle(Future.failedFuture(all))
+            return
         } finally {
             tx.close()
         }
@@ -393,6 +396,9 @@ class GraknImporter extends AbstractVerticle {
                 }
             }
             tx.commit()
+        } catch (all) {
+            handler.handle(Future.failedFuture(all))
+            return
         } finally {
             tx.close()
         }
@@ -406,7 +412,7 @@ class GraknImporter extends AbstractVerticle {
                 try {
                     def futures = it.result().list() as List<ImportableSourceCode>
                     for (def importCode : futures) {
-                        def result = importCode.insertQuery.execute() as List<ConceptMap>
+                        def result = importCode.insertQuery.withTx(tx).execute() as List<ConceptMap>
                         importCode.functionInstanceId = result.get(0).get("y").asEntity().id().toString()
                         importData.definedFunctions.put(importCode.functionName, importCode.functionId)
                         importData.definedFunctionInstances.put(importCode.functionId, importCode.functionInstanceId)
@@ -423,6 +429,9 @@ class GraknImporter extends AbstractVerticle {
                         referenceStorage.addFunctionOwner(importCode.functionId, importCode.functionQualifiedName, githubRepository, fut3.completer())
                     }
                     tx.commit()
+                } catch (all) {
+                    handler.handle(Future.failedFuture(all))
+                    return
                 } finally {
                     tx.close()
                 }
@@ -675,6 +684,9 @@ class GraknImporter extends AbstractVerticle {
                 }
             }
             tx.commit()
+        } catch (all) {
+            handler.handle(Future.failedFuture(all))
+            return
         } finally {
             tx.close()
         }
@@ -688,7 +700,7 @@ class GraknImporter extends AbstractVerticle {
                 try {
                     def futures = it.result().list() as List<ImportableSourceCode>
                     for (def importCode : futures) {
-                        importCode.insertQuery.execute() as List<ConceptMap>
+                        importCode.insertQuery.withTx(tx).execute() as List<ConceptMap>
 
                         if (importCode.isFileReferencing) {
                             if (importCode.isExternalReference) {
@@ -751,6 +763,9 @@ class GraknImporter extends AbstractVerticle {
                         }
                     }
                     tx.commit()
+                } catch (all) {
+                    handler.handle(Future.failedFuture(all))
+                    return
                 } finally {
                     tx.close()
                 }
