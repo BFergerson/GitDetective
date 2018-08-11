@@ -160,13 +160,14 @@ class GitDetectiveWebsite extends AbstractVerticle {
         ctx.put("gitdetective_version", GitDetectiveVersion.version)
 
         //load and send page data
-        log.info "Displaying index page"
+        log.debug "Loading index page"
         CompositeFuture.all(Lists.asList(
                 getActiveJobs(ctx),
                 getProjectReferenceLeaderboard(ctx, 5),
                 getFunctionReferenceLeaderboard(ctx, 5),
                 getDatabaseStatistics(ctx)
         )).setHandler({
+            log.info "Displaying index page"
             HandlebarsTemplateEngine engine = HandlebarsTemplateEngine.create()
             engine.render(ctx, "webroot", "/index.hbs", { res ->
                 if (res.succeeded()) {
@@ -184,11 +185,12 @@ class GitDetectiveWebsite extends AbstractVerticle {
         ctx.put("gitdetective_version", GitDetectiveVersion.version)
 
         //load and send page data
-        log.info "Displaying project leaderboard page"
+        log.debug "Loading project leaderboard page"
         getProjectReferenceLeaderboard(ctx, 100).setHandler({
             if (it.failed()) {
                 ctx.fail(it.cause())
             } else {
+                log.info "Displaying project leaderboard page"
                 HandlebarsTemplateEngine engine = HandlebarsTemplateEngine.create()
                 engine.render(ctx, "webroot", "/project_leaderboard.hbs", { res ->
                     if (res.succeeded()) {
@@ -207,11 +209,12 @@ class GitDetectiveWebsite extends AbstractVerticle {
         ctx.put("gitdetective_version", GitDetectiveVersion.version)
 
         //load and send page data
-        log.info "Displaying function leaderboard page"
+        log.debug "Loading function leaderboard page"
         getFunctionReferenceLeaderboard(ctx, 100).setHandler({
             if (it.failed()) {
                 ctx.fail(it.cause())
             } else {
+                log.info "Displaying function leaderboard page"
                 HandlebarsTemplateEngine engine = HandlebarsTemplateEngine.create()
                 engine.render(ctx, "webroot", "/function_leaderboard.hbs", { res ->
                     if (res.succeeded()) {
@@ -318,7 +321,7 @@ class GitDetectiveWebsite extends AbstractVerticle {
         ctx.put("gitdetective_version", GitDetectiveVersion.version)
 
         //load and send page data
-        log.info "Displaying project page: $username/$project"
+        log.debug "Loading project page: $username/$project"
         def repo = new JsonObject().put("github_repository", "$username/$project")
         CompositeFuture.all(Lists.asList(
                 getLatestBuildLog(ctx, repo),
@@ -329,6 +332,7 @@ class GitDetectiveWebsite extends AbstractVerticle {
                 getProjectLastIndexedCommitInformation(ctx, repo),
                 getProjectMostReferencedFunctions(ctx, repo)
         )).setHandler({
+            log.info "Displaying project page: $username/$project"
             HandlebarsTemplateEngine engine = HandlebarsTemplateEngine.create()
             engine.render(ctx, "webroot", "/project.hbs", { res ->
                 if (res.succeeded()) {
