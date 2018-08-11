@@ -340,19 +340,21 @@ class GitDetectiveWebsite extends AbstractVerticle {
             })
         })
 
-        //schedule build/recalculate if can
-        def autoBuilt = autoBuildCache.getIfPresent(githubRepository)
-        if (autoBuilt == null) {
-            log.debug "Checking repository: $githubRepository"
-            autoBuildCache.put(githubRepository, true)
+        if (config().getBoolean("auto_build_enabled")) {
+            //schedule build/recalculate if can
+            def autoBuilt = autoBuildCache.getIfPresent(githubRepository)
+            if (autoBuilt == null) {
+                log.debug "Checking repository: $githubRepository"
+                autoBuildCache.put(githubRepository, true)
 
-            vertx.eventBus().send(GET_TRIGGER_INFORMATION, repo, {
-                def triggerInformation = it.result().body() as JsonObject
-                if (triggerInformation.getBoolean("can_build")) {
-                    log.info "Auto-building: " + repo.getString("github_repository")
-                    vertx.eventBus().send(CREATE_JOB, repo)
-                }
-            })
+                vertx.eventBus().send(GET_TRIGGER_INFORMATION, repo, {
+                    def triggerInformation = it.result().body() as JsonObject
+                    if (triggerInformation.getBoolean("can_build")) {
+                        log.info "Auto-building: " + repo.getString("github_repository")
+                        vertx.eventBus().send(CREATE_JOB, repo)
+                    }
+                })
+            }
         }
     }
 
