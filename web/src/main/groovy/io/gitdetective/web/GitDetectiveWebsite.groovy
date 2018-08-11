@@ -178,9 +178,10 @@ class GitDetectiveWebsite extends AbstractVerticle {
                 getFunctionReferenceLeaderboard(ctx, 5),
                 getDatabaseStatistics(ctx)
         )).setHandler({
-            log.info "Displaying index page"
+            log.debug "Rendering index page"
             engine.render(ctx, "webroot", "/index.hbs", { res ->
                 if (res.succeeded()) {
+                    log.info "Displaying index page"
                     ctx.response().end(res.result())
                 } else {
                     ctx.fail(res.cause())
@@ -200,9 +201,10 @@ class GitDetectiveWebsite extends AbstractVerticle {
             if (it.failed()) {
                 ctx.fail(it.cause())
             } else {
-                log.info "Displaying project leaderboard page"
+                log.debug "Rendering project leaderboard page"
                 engine.render(ctx, "webroot", "/project_leaderboard.hbs", { res ->
                     if (res.succeeded()) {
+                        log.info "Displaying project leaderboard page"
                         ctx.response().end(res.result())
                     } else {
                         ctx.fail(res.cause())
@@ -223,9 +225,10 @@ class GitDetectiveWebsite extends AbstractVerticle {
             if (it.failed()) {
                 ctx.fail(it.cause())
             } else {
-                log.info "Displaying function leaderboard page"
+                log.debug "Rendering function leaderboard page"
                 engine.render(ctx, "webroot", "/function_leaderboard.hbs", { res ->
                     if (res.succeeded()) {
+                        log.info "Displaying function leaderboard page"
                         ctx.response().end(res.result())
                     } else {
                         ctx.fail(res.cause())
@@ -340,10 +343,10 @@ class GitDetectiveWebsite extends AbstractVerticle {
                 getProjectLastIndexedCommitInformation(ctx, repo),
                 getProjectMostReferencedFunctions(ctx, repo)
         )).setHandler({
-            log.info "Displaying project page: $username/$project"
+            log.debug "Rendering project page: $username/$project"
             engine.render(ctx, "webroot", "/project.hbs", { res ->
                 if (res.succeeded()) {
-                    //todo: got a response already written here (make issue)
+                    log.info "Displaying project page: $username/$project"
                     ctx.response().end(res.result())
                 } else {
                     ctx.fail(res.cause())
