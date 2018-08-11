@@ -91,10 +91,17 @@ class RedisDAO implements ReferenceStorage {
     }
 
     void appendJobToBuildHistory(String githubRepository, long jobId, Handler<AsyncResult<Void>> handler) {
+        log.trace "Adding job $jobId from '$githubRepository' build history"
         redis.lpush("gitdetective:project:$githubRepository:build_history", jobId as String, handler)
     }
 
+    void removeLatestJobFromBuildHistory(String githubRepository, long jobId, Handler<AsyncResult<Void>> handler) {
+        log.info "Removing job $jobId from '$githubRepository' build history"
+        redis.lrem("gitdetective:project:$githubRepository:build_history", 1, jobId as String, handler)
+    }
+
     void getLatestJobId(String githubRepository, Handler<AsyncResult<Optional<Long>>> handler) {
+        log.trace "Getting latest job id for project $githubRepository"
         redis.lrange("gitdetective:project:$githubRepository:build_history", 0, 1, {
             if (it.failed()) {
                 handler.handle(Future.failedFuture(it.cause()))

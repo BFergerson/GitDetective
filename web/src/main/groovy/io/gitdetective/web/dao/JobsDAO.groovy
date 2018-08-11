@@ -96,7 +96,11 @@ class JobsDAO {
                         } else if (it.result().isPresent()) {
                             handler.handle(Future.succeededFuture(Optional.of(it.result().get())))
                         } else {
-                            handler.handle(Future.succeededFuture(Optional.empty()))
+                            //remove from build history
+                            redis.removeLatestJobFromBuildHistory(githubRepository, latestJobId.get(), {
+                                //return new latest
+                                getProjectLatestJob(githubRepository, handler)
+                            })
                         }
                     })
                 } else {
