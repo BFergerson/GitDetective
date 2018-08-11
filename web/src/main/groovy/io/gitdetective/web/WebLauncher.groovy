@@ -5,9 +5,7 @@ import com.codahale.metrics.CsvReporter
 import com.codahale.metrics.MetricRegistry
 import com.codahale.metrics.SharedMetricRegistries
 import io.gitdetective.GitDetectiveVersion
-import io.vertx.blueprint.kue.Kue
 import io.vertx.blueprint.kue.queue.Job
-import io.vertx.blueprint.kue.queue.KueVerticle
 import io.vertx.core.DeploymentOptions
 import io.vertx.core.Vertx
 import io.vertx.core.VertxOptions
@@ -88,25 +86,12 @@ class WebLauncher {
             })
         }
 
-        def kueOptions = new DeploymentOptions().setConfig(config)
-        if (deployOptions.config.getJsonObject("jobs_server") != null) {
-            kueOptions.config = deployOptions.config.getJsonObject("jobs_server")
-        }
-
         log.info "Launching GitDetective service"
-        vertx.deployVerticle(new KueVerticle(), kueOptions, {
+        vertx.deployVerticle(new GitDetectiveService(router), deployOptions, {
             if (it.failed()) {
                 it.cause().printStackTrace()
                 System.exit(-1)
             }
-
-            def kue = new Kue(vertx, kueOptions.config)
-            vertx.deployVerticle(new GitDetectiveService(router, kue), deployOptions, {
-                if (it.failed()) {
-                    it.cause().printStackTrace()
-                    System.exit(-1)
-                }
-            })
         })
     }
 

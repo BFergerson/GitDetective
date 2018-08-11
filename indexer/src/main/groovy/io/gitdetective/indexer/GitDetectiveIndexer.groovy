@@ -79,13 +79,8 @@ class GitDetectiveIndexer extends AbstractVerticle {
     @Override
     void start() throws Exception {
         vertx.eventBus().registerDefaultCodec(Job.class, messageCodec(Job.class))
-        def jobsRedisConfig = config().copy()
-        if (config().getJsonObject("jobs_server") != null) {
-            jobsRedisConfig = config().getJsonObject("jobs_server")
-        }
-        def jobsRedis = new RedisDAO(RedisHelper.client(vertx, jobsRedisConfig))
         def redis = new RedisDAO(RedisHelper.client(vertx, config()))
-        def jobs = new JobsDAO(kue, jobsRedis)
+        def jobs = new JobsDAO(vertx, config())
         def deployOptions = new DeploymentOptions()
         deployOptions.config = config()
 
@@ -95,7 +90,7 @@ class GitDetectiveIndexer extends AbstractVerticle {
         }
 
         //core
-        vertx.deployVerticle(new GithubRepositoryCloner(kue, jobs, jobsRedis), deployOptions)
+        vertx.deployVerticle(new GithubRepositoryCloner(kue, jobs), deployOptions)
         vertx.deployVerticle(new KytheIndexOutput(), deployOptions)
         vertx.deployVerticle(new KytheUsageExtractor(), deployOptions)
         vertx.deployVerticle(new GitDetectiveImportFilter(refStorage), deployOptions)

@@ -1,16 +1,11 @@
 package io.gitdetective.tools
 
 import io.gitdetective.web.dao.JobsDAO
-import io.gitdetective.web.dao.RedisDAO
 import io.gitdetective.web.work.importer.GraknImporter
-import io.vertx.blueprint.kue.Kue
-import io.vertx.blueprint.kue.queue.KueVerticle
 import io.vertx.blueprint.kue.queue.Priority
-import io.vertx.blueprint.kue.util.RedisHelper
 import io.vertx.core.AbstractVerticle
 import io.vertx.core.DeploymentOptions
 import io.vertx.core.Vertx
-import io.vertx.core.VertxOptions
 import io.vertx.core.json.JsonObject
 import org.apache.commons.io.IOUtils
 
@@ -43,7 +38,6 @@ class CreateJob extends AbstractVerticle {
         } else {
             throw new IllegalArgumentException("Invalid job type: " + jobType)
         }
-
         projectName = args[1]
         if (args.length > 2) {
             priority = args[2]
@@ -52,48 +46,18 @@ class CreateJob extends AbstractVerticle {
             skipFilter = args[3] as boolean
         }
 
-        VertxOptions vertxOptions = new VertxOptions()
-        vertxOptions.setBlockedThreadCheckInterval(Integer.MAX_VALUE)
-        Vertx vertx = Vertx.vertx(vertxOptions)
-        def kueOptions = new DeploymentOptions().setConfig(config)
-        if (config.getJsonObject("jobs_server") != null) {
-            kueOptions.config = config.getJsonObject("jobs_server")
-        }
-
-        vertx.deployVerticle(new KueVerticle(), kueOptions, {
+        Vertx.vertx().deployVerticle(new CreateJob(), new DeploymentOptions().setConfig(config), {
             if (it.failed()) {
                 it.cause().printStackTrace()
                 System.exit(-1)
             }
-
-            def kue = Kue.createQueue(vertx, kueOptions.config)
-            vertx.deployVerticle(new CreateJob(kue), kueOptions, {
-                if (it.failed()) {
-                    it.cause().printStackTrace()
-                    System.exit(-1)
-                }
-            })
         })
-    }
-
-    private final Kue kue
-
-    CreateJob(Kue kue) {
-        this.kue = kue
     }
 
     @Override
     void start() throws Exception {
-        def jobsRedisConfig = config().copy()
-        if (config().getJsonObject("jobs_server") != null) {
-            jobsRedisConfig = config().getJsonObject("jobs_server")
-        }
-        def redisClient = RedisHelper.client(vertx, jobsRedisConfig)
-        def redis = new RedisDAO(redisClient)
-        def jobs = new JobsDAO(kue, redis)
-        def initialMessage = "Admin build job queued"
-
-        jobs.createJob(jobType, initialMessage,
+        def jobs = new JobsDAO(vertx, config())
+        jobs.createJob(jobType, "Admin build job queued",
                 new JsonObject().put("github_repository", projectName.toLowerCase())
                         .put("admin_triggered", true)
                         .put("skip_filter", skipFilter),

@@ -249,7 +249,7 @@ class RedisDAO implements ReferenceStorage {
         })
     }
 
-    void getLastArchiveSync(Handler<AsyncResult<String>> handler) {
+    protected void getLastArchiveSync(Handler<AsyncResult<String>> handler) {
         redis.get("gitdetective:last_archive_sync", {
             if (it.failed()) {
                 handler.handle(Future.failedFuture(it.cause()))
@@ -260,7 +260,7 @@ class RedisDAO implements ReferenceStorage {
         })
     }
 
-    void setLastArchiveSync(String now, Handler<AsyncResult> handler) {
+    protected void setLastArchiveSync(String now, Handler<AsyncResult> handler) {
         redis.set("gitdetective:last_archive_sync", now, handler)
     }
 
@@ -328,7 +328,7 @@ class RedisDAO implements ReferenceStorage {
         })
     }
 
-    void setProjectLastBuilt(String githubRepository, Instant lastBuilt, Handler<AsyncResult> handler) {
+    protected void setProjectLastBuilt(String githubRepository, Instant lastBuilt, Handler<AsyncResult> handler) {
         redis.set("gitdetective:project:$githubRepository:project_last_built", lastBuilt.toString(), handler)
     }
 

@@ -13,7 +13,6 @@ import io.gitdetective.web.dao.RedisDAO
 import io.gitdetective.web.task.RefreshFunctionLeaderboard
 import io.gitdetective.web.work.GHArchiveSync
 import io.gitdetective.web.work.importer.GraknImporter
-import io.vertx.blueprint.kue.Kue
 import io.vertx.blueprint.kue.queue.Job
 import io.vertx.blueprint.kue.queue.Priority
 import io.vertx.blueprint.kue.util.RedisHelper
@@ -23,10 +22,10 @@ import io.vertx.core.json.JsonArray
 import io.vertx.core.json.JsonObject
 import io.vertx.core.logging.Logger
 import io.vertx.core.logging.LoggerFactory
+import io.vertx.ext.bridge.PermittedOptions
 import io.vertx.ext.web.Router
 import io.vertx.ext.web.RoutingContext
 import io.vertx.ext.web.handler.sockjs.BridgeOptions
-import io.vertx.ext.web.handler.sockjs.PermittedOptions
 import io.vertx.ext.web.handler.sockjs.SockJSHandler
 
 import java.time.Instant
@@ -44,24 +43,18 @@ class GitDetectiveService extends AbstractVerticle {
 
     private final static Logger log = LoggerFactory.getLogger(GitDetectiveService.class)
     private final Router router
-    private final Kue kue
+    private JobsDAO jobs
     private String uploadsDirectory
 
-    GitDetectiveService(Router router, Kue kue) {
+    GitDetectiveService(Router router) {
         this.router = router
-        this.kue = kue
     }
 
     @Override
     void start() {
+        jobs = new JobsDAO(vertx, config())
         uploadsDirectory = config().getString("uploads.directory")
-        def jobsRedisConfig = config().copy()
-        if (config().getJsonObject("jobs_server") != null) {
-            jobsRedisConfig = config().getJsonObject("jobs_server")
-        }
-        def jobsRedis = new RedisDAO(RedisHelper.client(vertx, jobsRedisConfig))
         def redis = new RedisDAO(RedisHelper.client(vertx, config()))
-        def jobs = new JobsDAO(kue, jobsRedis)
         def refStorage = redis
         if (config().getJsonObject("storage") != null) {
             refStorage = new PostgresDAO(vertx, config().getJsonObject("storage"), redis)
@@ -81,7 +74,7 @@ class GitDetectiveService extends AbstractVerticle {
                     log.info "Import job processing enabled"
                     def grakn = makeGraknDAO(redis)
                     def importerOptions = new DeploymentOptions().setConfig(config())
-                    vertx.deployVerticle(new GraknImporter(kue, redis, refStorage, grakn, uploadsDirectory), importerOptions)
+                    vertx.deployVerticle(new GraknImporter(jobs.kue, redis, refStorage, grakn, uploadsDirectory), importerOptions)
                 } else {
                     log.info "Import job processing disabled"
                 }
@@ -97,7 +90,7 @@ class GitDetectiveService extends AbstractVerticle {
                 log.info "Launching GitDetective website"
                 def options = new DeploymentOptions().setConfig(config())
                 vertx.deployVerticle(new GitDetectiveWebsite(jobs, redis, refStorage, router), options)
-                vertx.deployVerticle(new GHArchiveSync(jobs, jobsRedis), options)
+                vertx.deployVerticle(new GHArchiveSync(jobs), options)
             }
         }, false, {
             if (it.failed()) {
@@ -143,7 +136,7 @@ class GitDetectiveService extends AbstractVerticle {
             def context = timer.time()
             log.debug "Getting active jobs"
 
-            kue.jobRangeByState("active", 0, Integer.MAX_VALUE, "asc").setHandler({
+            jobs.kue.jobRangeByState("active", 0, Integer.MAX_VALUE, "asc").setHandler({
                 if (it.failed()) {
                     it.cause().printStackTrace()
                     request.reply(it.cause())
@@ -514,7 +507,7 @@ class GitDetectiveService extends AbstractVerticle {
         Job job = new Job(jobData)
         jobData.put("github_repository", job.data.getString("github_repository"))
 
-        kue.createJob(GraknImporter.GRAKN_INDEX_IMPORT_JOB_TYPE, jobData)
+        jobs.kue.createJob(GraknImporter.GRAKN_INDEX_IMPORT_JOB_TYPE, jobData)
                 .setMax_attempts(0)
                 .setRemoveOnComplete(true)
                 .setPriority(job.priority)

@@ -3,7 +3,6 @@ package io.gitdetective.indexer.stage
 import io.gitdetective.indexer.support.KytheGradleBuilder
 import io.gitdetective.indexer.support.KytheMavenBuilder
 import io.gitdetective.web.dao.JobsDAO
-import io.gitdetective.web.dao.RedisDAO
 import io.vertx.blueprint.kue.Kue
 import io.vertx.blueprint.kue.queue.Job
 import io.vertx.core.AbstractVerticle
@@ -36,13 +35,11 @@ class GithubRepositoryCloner extends AbstractVerticle {
     private static final int GITHUB_RATE_LIMIT_WAIT_MINUTES = 15
     private final Kue kue
     private final JobsDAO jobs
-    private final RedisDAO redis
     private GitHub github
 
-    GithubRepositoryCloner(Kue kue, JobsDAO jobs, RedisDAO redis) {
+    GithubRepositoryCloner(Kue kue, JobsDAO jobs) {
         this.kue = kue
         this.jobs = jobs
-        this.redis = redis
     }
 
     @Override
@@ -57,7 +54,7 @@ class GithubRepositoryCloner extends AbstractVerticle {
             def githubRepository = job.data.getString("github_repository").toLowerCase()
 
             //skip build if already done in last 24 hours
-            redis.getProjectLastBuilt(githubRepository, {
+            jobs.getProjectLastBuilt(githubRepository, {
                 if (it.failed()) {
                     it.cause().printStackTrace()
                 } else {
@@ -186,7 +183,7 @@ class GithubRepositoryCloner extends AbstractVerticle {
             def latestCommitDate = repo.getCommit(latestCommit).commitDate.toInstant()
 
             //skip build if last built commit is same as current commit
-            redis.getProjectLastIndexedCommitInformation(githubRepository, {
+            jobs.getProjectLastIndexedCommitInformation(githubRepository, {
                 if (it.failed()) {
                     job.done(it.cause())
                 } else {
@@ -206,7 +203,7 @@ class GithubRepositoryCloner extends AbstractVerticle {
                         job.done()
                     } else {
                         cloneAndBuildProject(job, githubRepository, latestCommit, latestCommitDate, builderAddress)
-                        redis.setProjectLastBuilt(githubRepository, Instant.now(), {
+                        jobs.setProjectLastBuilt(githubRepository, Instant.now(), {
                             //nothing
                         })
                     }
