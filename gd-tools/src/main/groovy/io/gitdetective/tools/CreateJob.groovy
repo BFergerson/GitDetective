@@ -5,6 +5,7 @@ import io.gitdetective.web.work.importer.GraknImporter
 import io.vertx.blueprint.kue.queue.Priority
 import io.vertx.core.AbstractVerticle
 import io.vertx.core.DeploymentOptions
+import io.vertx.core.Future
 import io.vertx.core.Vertx
 import io.vertx.core.json.JsonObject
 import org.apache.commons.io.IOUtils
@@ -56,19 +57,23 @@ class CreateJob extends AbstractVerticle {
 
     @Override
     void start() throws Exception {
-        def jobs = new JobsDAO(vertx, config())
-        jobs.createJob(jobType, "Admin build job queued",
-                new JsonObject().put("github_repository", projectName.toLowerCase())
-                        .put("admin_triggered", true)
-                        .put("skip_filter", skipFilter),
-                Priority.valueOf(priority.toUpperCase()), {
-            if (it.failed()) {
-                it.cause().printStackTrace()
-                System.exit(-1)
-            }
+        def jobsFut = Future.future()
+        def jobs = new JobsDAO(vertx, config(), jobsFut.completer())
 
-            println "Created job: " + it.result().getId()
-            vertx.close()
+        jobsFut.setHandler({
+            jobs.createJob(jobType, "Admin build job queued",
+                    new JsonObject().put("github_repository", projectName.toLowerCase())
+                            .put("admin_triggered", true)
+                            .put("skip_filter", skipFilter),
+                    Priority.valueOf(priority.toUpperCase()), {
+                if (it.failed()) {
+                    it.cause().printStackTrace()
+                    System.exit(-1)
+                }
+
+                println "Created job: " + it.result().getId()
+                vertx.close()
+            })
         })
     }
 

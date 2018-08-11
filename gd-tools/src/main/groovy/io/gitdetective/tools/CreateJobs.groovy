@@ -53,27 +53,31 @@ class CreateJobs extends AbstractVerticle {
 
     @Override
     void start() throws Exception {
-        def jobs = new JobsDAO(vertx, config())
-        def futures = new ArrayList<Future>()
-        new File(projectsFile).eachLine {
-            def fut = Future.future()
-            futures.add(fut)
+        def jobsFut = Future.future()
+        def jobs = new JobsDAO(vertx, config(), jobsFut.completer())
 
-            jobs.createJob(jobType, "Admin build job queued",
-                    new JsonObject().put("github_repository", it.toLowerCase()).put("admin_triggered", true),
-                    Priority.valueOf(priority.toUpperCase()), {
-                if (it.failed()) {
-                    it.cause().printStackTrace()
-                    System.exit(-1)
-                }
+        jobsFut.setHandler({
+            def futures = new ArrayList<Future>()
+            new File(projectsFile).eachLine {
+                def fut = Future.future()
+                futures.add(fut)
 
-                println "Created job: " + it.result().getId()
-                fut.complete()
+                jobs.createJob(jobType, "Admin build job queued",
+                        new JsonObject().put("github_repository", it.toLowerCase()).put("admin_triggered", true),
+                        Priority.valueOf(priority.toUpperCase()), {
+                    if (it.failed()) {
+                        it.cause().printStackTrace()
+                        System.exit(-1)
+                    }
+
+                    println "Created job: " + it.result().getId()
+                    fut.complete()
+                })
+            }
+
+            CompositeFuture.all(futures).setHandler({
+                vertx.close()
             })
-        }
-
-        CompositeFuture.all(futures).setHandler({
-            vertx.close()
         })
     }
 

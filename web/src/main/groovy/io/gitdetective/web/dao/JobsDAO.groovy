@@ -20,6 +20,10 @@ class JobsDAO {
     private Kue kue
 
     JobsDAO(Vertx vertx, JsonObject config) {
+        this(vertx, config, {})
+    }
+
+    JobsDAO(Vertx vertx, JsonObject config, Handler<AsyncResult> handler) {
         if (config.getJsonObject("jobs_server") != null) {
             def redisClient = RedisHelper.client(vertx, config.getJsonObject("jobs_server"))
             redis = new RedisDAO(redisClient)
@@ -38,6 +42,7 @@ class JobsDAO {
                 System.exit(-1)
             }
             kue = Kue.createQueue(vertx, kueOptions.config)
+            handler.handle(Future.succeededFuture())
         })
     }
 
