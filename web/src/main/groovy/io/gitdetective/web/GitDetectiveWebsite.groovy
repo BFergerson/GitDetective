@@ -20,6 +20,7 @@ import io.vertx.ext.web.RoutingContext
 import io.vertx.ext.web.handler.StaticHandler
 import io.vertx.ext.web.templ.HandlebarsTemplateEngine
 
+import java.nio.channels.ClosedChannelException
 import java.util.concurrent.TimeUnit
 
 import static io.gitdetective.web.WebServices.*
@@ -44,6 +45,7 @@ class GitDetectiveWebsite extends AbstractVerticle {
     private final RedisDAO redis
     private final ReferenceStorage storage
     private final Router router
+    private final HandlebarsTemplateEngine engine
     private final Cache<String, Boolean> autoBuildCache = CacheBuilder.newBuilder()
             .expireAfterWrite(1, TimeUnit.MINUTES).build()
 
@@ -52,6 +54,7 @@ class GitDetectiveWebsite extends AbstractVerticle {
         this.redis = redis
         this.storage = storage
         this.router = router
+        this.engine = HandlebarsTemplateEngine.create()
     }
 
     @Override
@@ -88,6 +91,14 @@ class GitDetectiveWebsite extends AbstractVerticle {
         router.route().last().handler({
             it.response().putHeader("location", "/")
                     .setStatusCode(302).end()
+        })
+        router.route().failureHandler({
+            if ((it.failure() instanceof IllegalStateException
+                    && it.failure().message == "Response is closed") || it.failure() instanceof ClosedChannelException) {
+                //ignore; //todo: why do these happen?
+            } else {
+                it.failure().printStackTrace()
+            }
         })
 
         //set initial db stats
@@ -168,7 +179,6 @@ class GitDetectiveWebsite extends AbstractVerticle {
                 getDatabaseStatistics(ctx)
         )).setHandler({
             log.info "Displaying index page"
-            HandlebarsTemplateEngine engine = HandlebarsTemplateEngine.create()
             engine.render(ctx, "webroot", "/index.hbs", { res ->
                 if (res.succeeded()) {
                     ctx.response().end(res.result())
@@ -191,7 +201,6 @@ class GitDetectiveWebsite extends AbstractVerticle {
                 ctx.fail(it.cause())
             } else {
                 log.info "Displaying project leaderboard page"
-                HandlebarsTemplateEngine engine = HandlebarsTemplateEngine.create()
                 engine.render(ctx, "webroot", "/project_leaderboard.hbs", { res ->
                     if (res.succeeded()) {
                         ctx.response().end(res.result())
@@ -215,7 +224,6 @@ class GitDetectiveWebsite extends AbstractVerticle {
                 ctx.fail(it.cause())
             } else {
                 log.info "Displaying function leaderboard page"
-                HandlebarsTemplateEngine engine = HandlebarsTemplateEngine.create()
                 engine.render(ctx, "webroot", "/function_leaderboard.hbs", { res ->
                     if (res.succeeded()) {
                         ctx.response().end(res.result())
@@ -333,7 +341,6 @@ class GitDetectiveWebsite extends AbstractVerticle {
                 getProjectMostReferencedFunctions(ctx, repo)
         )).setHandler({
             log.info "Displaying project page: $username/$project"
-            HandlebarsTemplateEngine engine = HandlebarsTemplateEngine.create()
             engine.render(ctx, "webroot", "/project.hbs", { res ->
                 if (res.succeeded()) {
                     //todo: got a response already written here (make issue)
