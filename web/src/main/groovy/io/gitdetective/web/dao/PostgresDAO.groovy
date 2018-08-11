@@ -461,6 +461,7 @@ class PostgresDAO implements ReferenceStorage {
 
     @Override
     void getProjectFileId(String project, String fileName, Handler<AsyncResult<Optional<String>>> handler) {
+        log.trace "Getting project '$project' file id for file: $fileName"
         client.getConnection({
             if (it.failed()) {
                 handler.handle(Future.failedFuture(it.cause()))
@@ -476,8 +477,11 @@ class PostgresDAO implements ReferenceStorage {
                     } else {
                         def rs = it.result()
                         if (!rs.rows.isEmpty()) {
-                            handler.handle(Future.succeededFuture(Optional.of(rs.rows.get(0).getString("file_id"))))
+                            def fileId = rs.rows.get(0).getString("file_id")
+                            log.trace "Found function id '$fileId' for file '$fileName' in project '$project'"
+                            handler.handle(Future.succeededFuture(Optional.of(fileId)))
                         } else {
+                            log.trace "Could not find file id for file '$fileName' in project '$project'"
                             handler.handle(Future.succeededFuture(Optional.empty()))
                         }
                     }
@@ -489,6 +493,7 @@ class PostgresDAO implements ReferenceStorage {
 
     @Override
     void getProjectFunctionId(String project, String functionName, Handler<AsyncResult<Optional<String>>> handler) {
+        log.trace "Getting project '$project' function id for function: $functionName"
         client.getConnection({
             if (it.failed()) {
                 handler.handle(Future.failedFuture(it.cause()))
@@ -504,8 +509,11 @@ class PostgresDAO implements ReferenceStorage {
                     } else {
                         def rs = it.result()
                         if (!rs.rows.isEmpty()) {
-                            handler.handle(Future.succeededFuture(Optional.of(rs.rows.get(0).getString("function_id"))))
+                            def functionId = rs.rows.get(0).getString("function_id")
+                            log.trace "Found function id '$functionId' for function '$functionName' in project '$project'"
+                            handler.handle(Future.succeededFuture(Optional.of(functionId)))
                         } else {
+                            log.trace "Could not find function id for function '$functionName' in project '$project'"
                             handler.handle(Future.succeededFuture(Optional.empty()))
                         }
                     }
@@ -517,6 +525,7 @@ class PostgresDAO implements ReferenceStorage {
 
     @Override
     void projectHasDefinition(String fileId, String functionId, Handler<AsyncResult<Boolean>> handler) {
+        log.trace "Checking project for definition between $fileId and $functionId"
         client.getConnection({
             if (it.failed()) {
                 handler.handle(Future.failedFuture(it.cause()))
@@ -530,7 +539,13 @@ class PostgresDAO implements ReferenceStorage {
                     if (it.failed()) {
                         handler.handle(Future.failedFuture(it.cause()))
                     } else {
-                        handler.handle(Future.succeededFuture(!it.result().rows.isEmpty()))
+                        def foundDef = !it.result().rows.isEmpty()
+                        if (foundDef) {
+                            log.trace "Found definition between $fileId and $functionId"
+                        } else {
+                            log.trace "Could not find definition between $fileId and $functionId"
+                        }
+                        handler.handle(Future.succeededFuture(foundDef))
                     }
                     conn.close()
                 })
@@ -540,6 +555,7 @@ class PostgresDAO implements ReferenceStorage {
 
     @Override
     void projectHasReference(String fileOrFunctionId, String functionId, Handler<AsyncResult<Boolean>> handler) {
+        log.trace "Checking project for reference between $fileOrFunctionId and $functionId"
         client.getConnection({
             if (it.failed()) {
                 handler.handle(Future.failedFuture(it.cause()))
@@ -553,7 +569,13 @@ class PostgresDAO implements ReferenceStorage {
                     if (it.failed()) {
                         handler.handle(Future.failedFuture(it.cause()))
                     } else {
-                        handler.handle(Future.succeededFuture(!it.result().rows.isEmpty()))
+                        def foundRef = !it.result().rows.isEmpty()
+                        if (foundRef) {
+                            log.trace "Found reference between $fileOrFunctionId and $functionId"
+                        } else {
+                            log.trace "Could not find reference between $fileOrFunctionId and $functionId"
+                        }
+                        handler.handle(Future.succeededFuture(foundRef))
                     }
                     conn.close()
                 })
