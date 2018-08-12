@@ -60,14 +60,16 @@ class PostgresDAO implements ReferenceStorage {
     public final static String BATCH_IMPORT_PROJECT_REFERENCES = Resources.toString(Resources.getResource(
             "queries/sql/storage/batch_import_project_references.sql"), Charsets.UTF_8)
     private final static Logger log = LoggerFactory.getLogger(PostgresDAO.class)
-    private AsyncSQLClient client
-    private RedisDAO redis
+    private final AsyncSQLClient client
+    private final RedisDAO redis
+    private final boolean batchSupported
     private final Cache<String, JsonArray> projectRankedFunctionsCache = CacheBuilder.newBuilder()
             .expireAfterWrite(15, TimeUnit.MINUTES).build()
 
     PostgresDAO(Vertx vertx, JsonObject config, RedisDAO redis) {
         this.client = PostgreSQLClient.createShared(vertx, config)
         this.redis = redis
+        this.batchSupported = config.getJsonObject("storage").getBoolean("batch_supported", false)
 
         //verify postgres connection
         client.getConnection({ conn ->
@@ -617,10 +619,6 @@ class PostgresDAO implements ReferenceStorage {
         })
     }
 
-    boolean isBatchSupported() {
-        return true
-    }
-
     @Override
     void batchImportProjectFiles(File inputFile, File outputFile, Handler<AsyncResult> handler) {
         client.getConnection({
@@ -688,6 +686,10 @@ class PostgresDAO implements ReferenceStorage {
                 })
             }
         })
+    }
+
+    boolean isBatchSupported() {
+        return batchSupported
     }
 
 }
