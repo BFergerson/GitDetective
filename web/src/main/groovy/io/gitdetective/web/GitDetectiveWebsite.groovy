@@ -20,6 +20,7 @@ import io.vertx.ext.web.RoutingContext
 import io.vertx.ext.web.handler.StaticHandler
 import io.vertx.ext.web.templ.HandlebarsTemplateEngine
 
+import javax.net.ssl.SSLException
 import java.nio.channels.ClosedChannelException
 import java.util.concurrent.TimeUnit
 
@@ -93,8 +94,9 @@ class GitDetectiveWebsite extends AbstractVerticle {
                     .setStatusCode(302).end()
         })
         router.route().failureHandler({
-            if ((it.failure() instanceof IllegalStateException
-                    && it.failure().message == "Response is closed") || it.failure() instanceof ClosedChannelException) {
+            if ((it.failure() instanceof IllegalStateException && it.failure().message == "Response is closed")
+                    || (it.failure() instanceof SSLException && it.failure().message == "SSLEngine closed already")
+                    || it.failure() instanceof ClosedChannelException) {
                 //ignore; //todo: why do these happen?
             } else {
                 it.failure().printStackTrace()
