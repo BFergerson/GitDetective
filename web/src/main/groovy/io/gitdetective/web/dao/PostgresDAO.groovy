@@ -53,6 +53,12 @@ class PostgresDAO implements ReferenceStorage {
             "queries/sql/storage/project_has_reference.sql"), Charsets.UTF_8)
     public final static String GET_FUNCTION_LEADERBOARD = Resources.toString(Resources.getResource(
             "queries/sql/storage/get_function_leaderboard.sql"), Charsets.UTF_8)
+    public final static String BATCH_IMPORT_PROJECT_FILES = Resources.toString(Resources.getResource(
+            "queries/sql/storage/batch_import_project_files.sql"), Charsets.UTF_8)
+    public final static String BATCH_IMPORT_PROJECT_DEFINITIONS = Resources.toString(Resources.getResource(
+            "queries/sql/storage/batch_import_project_definitions.sql"), Charsets.UTF_8)
+    public final static String BATCH_IMPORT_PROJECT_REFERENCES = Resources.toString(Resources.getResource(
+            "queries/sql/storage/batch_import_project_references.sql"), Charsets.UTF_8)
     private final static Logger log = LoggerFactory.getLogger(PostgresDAO.class)
     private AsyncSQLClient client
     private RedisDAO redis
@@ -610,4 +616,78 @@ class PostgresDAO implements ReferenceStorage {
             }
         })
     }
+
+    boolean isBatchSupported() {
+        return true
+    }
+
+    @Override
+    void batchImportProjectFiles(File inputFile, File outputFile, Handler<AsyncResult> handler) {
+        client.getConnection({
+            if (it.failed()) {
+                handler.handle(Future.failedFuture(it.cause()))
+            } else {
+                def query = BATCH_IMPORT_PROJECT_FILES
+                        .replace("<inputFile>", inputFile.absolutePath)
+                        .replace("<outputFile>", outputFile.absolutePath)
+
+                def conn = it.result()
+                conn.query(query, {
+                    if (it.failed()) {
+                        handler.handle(Future.failedFuture(it.cause()))
+                    } else {
+                        handler.handle(Future.succeededFuture())
+                    }
+                    conn.close()
+                })
+            }
+        })
+    }
+
+    @Override
+    void batchImportProjectDefinitions(File inputFile, File outputFile, Handler<AsyncResult> handler) {
+        client.getConnection({
+            if (it.failed()) {
+                handler.handle(Future.failedFuture(it.cause()))
+            } else {
+                def query = BATCH_IMPORT_PROJECT_DEFINITIONS
+                        .replace("<inputFile>", inputFile.absolutePath)
+                        .replace("<outputFile>", outputFile.absolutePath)
+
+                def conn = it.result()
+                conn.query(query, {
+                    if (it.failed()) {
+                        handler.handle(Future.failedFuture(it.cause()))
+                    } else {
+                        handler.handle(Future.succeededFuture())
+                    }
+                    conn.close()
+                })
+            }
+        })
+    }
+
+    @Override
+    void batchImportProjectReferences(File inputFile, File outputFile, Handler<AsyncResult> handler) {
+        client.getConnection({
+            if (it.failed()) {
+                handler.handle(Future.failedFuture(it.cause()))
+            } else {
+                def query = BATCH_IMPORT_PROJECT_REFERENCES
+                        .replace("<inputFile>", inputFile.absolutePath)
+                        .replace("<outputFile>", outputFile.absolutePath)
+
+                def conn = it.result()
+                conn.query(query, {
+                    if (it.failed()) {
+                        handler.handle(Future.failedFuture(it.cause()))
+                    } else {
+                        handler.handle(Future.succeededFuture())
+                    }
+                    conn.close()
+                })
+            }
+        })
+    }
+
 }

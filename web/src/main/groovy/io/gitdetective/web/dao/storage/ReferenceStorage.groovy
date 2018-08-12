@@ -46,4 +46,12 @@ interface ReferenceStorage {
 
     void getFunctionLeaderboard(int topCount, Handler<AsyncResult<JsonArray>> handler)
 
+    boolean isBatchSupported()
+
+    void batchImportProjectFiles(File inputFile, File outputFile, Handler<AsyncResult> handler)
+
+    void batchImportProjectDefinitions(File inputFile, File outputFile, Handler<AsyncResult> handler)
+
+    void batchImportProjectReferences(File inputFile, File outputFile, Handler<AsyncResult> handler)
+
 }

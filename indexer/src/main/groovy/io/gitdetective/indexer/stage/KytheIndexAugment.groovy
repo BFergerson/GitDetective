@@ -53,7 +53,7 @@ class KytheIndexAugment extends AbstractVerticle {
         def definedFunctions = db.hashSet("definedFunctions", Serializer.STRING).create()
         def outputDirectory = job.data.getString("output_directory")
         def osFunctionsOutput = new File(outputDirectory, "functions_open-source.txt")
-        osFunctionsOutput.append("name|definitionCount|referenceCount\n")
+        osFunctionsOutput.append("function_name\n")
 
         def rawFunctionDefinitions = new File(outputDirectory, "functions_definition_raw.txt")
         def rawFunctionReferences = new File(outputDirectory, "functions_reference_raw.txt")

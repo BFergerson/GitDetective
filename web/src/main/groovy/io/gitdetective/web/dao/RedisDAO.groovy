@@ -735,4 +735,23 @@ class RedisDAO implements ReferenceStorage {
         return redis
     }
 
+    boolean isBatchSupported() {
+        return false
+    }
+
+    @Override
+    void batchImportProjectFiles(File inputFile, File outputFile, Handler<AsyncResult> handler) {
+        throw new UnsupportedOperationException()
+    }
+
+    @Override
+    void batchImportProjectDefinitions(File inputFile, File outputFile, Handler<AsyncResult> handler) {
+        throw new UnsupportedOperationException()
+    }
+
+    @Override
+    void batchImportProjectReferences(File inputFile, File outputFile, Handler<AsyncResult> handler) {
+        throw new UnsupportedOperationException()
+    }
+
 }
