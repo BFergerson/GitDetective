@@ -69,7 +69,7 @@ class PostgresDAO implements ReferenceStorage {
     PostgresDAO(Vertx vertx, JsonObject config, RedisDAO redis) {
         this.client = PostgreSQLClient.createShared(vertx, config)
         this.redis = redis
-        this.batchSupported = config.getJsonObject("storage").getBoolean("batch_supported", false)
+        this.batchSupported = config.getBoolean("batch_supported", false)
 
         //verify postgres connection
         client.getConnection({ conn ->
