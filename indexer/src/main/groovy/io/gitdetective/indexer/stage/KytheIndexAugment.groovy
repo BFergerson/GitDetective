@@ -166,5 +166,4 @@ class KytheIndexAugment extends AbstractVerticle {
         })
     }
 
-
 }
