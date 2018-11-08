@@ -13,14 +13,7 @@ dependencies {
     compile group: 'org.gradle', name: 'gradle-tooling-api', version: '4.9'
     compile group: 'org.kohsuke', name: 'github-api', version: '1.92'
     compile group: 'com.fasterxml.jackson.core', name: 'jackson-annotations', version: '2.9.2'
-    compile 'io.vertx:vertx-web-client:3.4.1'
+    compile 'io.vertx:vertx-web-client:3.5.3'
     compile group: 'org.eclipse.jgit', name: 'org.eclipse.jgit', version: '5.0.1.201806211838-r'
     compile files("../indexer/opt/kythe-v0.0.28/indexers/java_indexer.jar")
-
-    compile group: 'ai.grakn', name: 'grakn-core', version: '1.2.0'
-    compile group: 'ai.grakn', name: 'grakn-graql', version: '1.2.0'
-    compile group: 'ai.grakn', name: 'grakn', version: '1.2.0', ext: 'pom'
-    compile group: 'ai.grakn', name: 'grakn-factory', version: '1.2.0'
-    compile group: 'ai.grakn', name: 'grakn-kb', version: '1.2.0'
-    compile group: 'ai.grakn', name: 'grakn-client', version: '1.2.0'
 }

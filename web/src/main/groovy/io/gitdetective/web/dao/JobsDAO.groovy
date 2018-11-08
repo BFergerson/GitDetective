@@ -2,10 +2,10 @@ package io.gitdetective.web.dao
 
 import io.vertx.blueprint.kue.Kue
 import io.vertx.blueprint.kue.queue.Job
+import io.vertx.blueprint.kue.queue.KueVerticle
 import io.vertx.blueprint.kue.queue.Priority
-import io.vertx.core.AsyncResult
-import io.vertx.core.Future
-import io.vertx.core.Handler
+import io.vertx.blueprint.kue.util.RedisHelper
+import io.vertx.core.*
 import io.vertx.core.json.JsonArray
 import io.vertx.core.json.JsonObject
 
@@ -16,12 +16,34 @@ import java.time.Instant
  */
 class JobsDAO {
 
-    private final Kue kue
     private final RedisDAO redis
+    private Kue kue
 
-    JobsDAO(Kue kue, RedisDAO redis) {
-        this.kue = kue
-        this.redis = redis
+    JobsDAO(Vertx vertx, JsonObject config) {
+        this(vertx, config, {})
+    }
+
+    JobsDAO(Vertx vertx, JsonObject config, Handler<AsyncResult> handler) {
+        if (config.getJsonObject("jobs_server") != null) {
+            def redisClient = RedisHelper.client(vertx, config.getJsonObject("jobs_server"))
+            redis = new RedisDAO(redisClient)
+        } else {
+            def redisClient = RedisHelper.client(vertx, config)
+            redis = new RedisDAO(redisClient)
+        }
+
+        def kueOptions = new DeploymentOptions().setConfig(config)
+        if (config.getJsonObject("jobs_server") != null) {
+            kueOptions.config = config.getJsonObject("jobs_server")
+        }
+        vertx.deployVerticle(new KueVerticle(), kueOptions, {
+            if (it.failed()) {
+                it.cause().printStackTrace()
+                System.exit(-1)
+            }
+            kue = Kue.createQueue(vertx, kueOptions.config)
+            handler.handle(Future.succeededFuture())
+        })
     }
 
     void createJob(String jobType, String initialMessage, String githubRepository, Handler<AsyncResult<Job>> handler) {
@@ -74,7 +96,11 @@ class JobsDAO {
                         } else if (it.result().isPresent()) {
                             handler.handle(Future.succeededFuture(Optional.of(it.result().get())))
                         } else {
-                            handler.handle(Future.succeededFuture(Optional.empty()))
+                            //remove from build history
+                            redis.removeLatestJobFromBuildHistory(githubRepository, latestJobId.get(), {
+                                //return new latest
+                                getProjectLatestJob(githubRepository, handler)
+                            })
                         }
                     })
                 } else {
@@ -108,6 +134,30 @@ class JobsDAO {
 
     void getActiveCount(String jobType, Handler<AsyncResult<Long>> handler) {
         kue.activeCount(jobType).setHandler(handler)
+    }
+
+    void getProjectLastIndexedCommitInformation(String githubRepository, Handler<AsyncResult<JsonObject>> handler) {
+        redis.getProjectLastIndexedCommitInformation(githubRepository, handler)
+    }
+
+    void getProjectLastBuilt(String githubRepository, Handler<AsyncResult<String>> handler) {
+        redis.getProjectLastBuilt(githubRepository, handler)
+    }
+
+    void setProjectLastBuilt(String githubRepository, Instant lastBuilt, Handler<AsyncResult> handler) {
+        redis.setProjectLastBuilt(githubRepository, lastBuilt, handler)
+    }
+
+    void getLastArchiveSync(Handler<AsyncResult<String>> handler) {
+        redis.getLastArchiveSync(handler)
+    }
+
+    void setLastArchiveSync(String now, Handler<AsyncResult> handler) {
+        redis.setLastArchiveSync(now, handler)
+    }
+
+    Kue getKue() {
+        return kue
     }
 
 }

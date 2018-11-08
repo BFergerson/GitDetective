@@ -1,10 +1,9 @@
 package io.gitdetective.web
 
-import ai.grakn.Grakn
-import ai.grakn.GraknConfigKey
 import ai.grakn.GraknTxType
 import ai.grakn.Keyspace
-import ai.grakn.engine.GraknConfig
+import ai.grakn.client.Grakn
+import ai.grakn.util.SimpleURI
 import com.google.common.base.Charsets
 import com.google.common.io.Resources
 import io.gitdetective.web.dao.GraknDAO
@@ -14,7 +13,6 @@ import io.gitdetective.web.dao.RedisDAO
 import io.gitdetective.web.task.RefreshFunctionLeaderboard
 import io.gitdetective.web.work.GHArchiveSync
 import io.gitdetective.web.work.importer.GraknImporter
-import io.vertx.blueprint.kue.Kue
 import io.vertx.blueprint.kue.queue.Job
 import io.vertx.blueprint.kue.queue.Priority
 import io.vertx.blueprint.kue.util.RedisHelper
@@ -24,16 +22,11 @@ import io.vertx.core.json.JsonArray
 import io.vertx.core.json.JsonObject
 import io.vertx.core.logging.Logger
 import io.vertx.core.logging.LoggerFactory
+import io.vertx.ext.bridge.PermittedOptions
 import io.vertx.ext.web.Router
 import io.vertx.ext.web.RoutingContext
 import io.vertx.ext.web.handler.sockjs.BridgeOptions
-import io.vertx.ext.web.handler.sockjs.PermittedOptions
 import io.vertx.ext.web.handler.sockjs.SockJSHandler
-import javassist.ClassPool
-import javassist.CtClass
-import javassist.CtMethod
-import org.apache.commons.lang.SystemUtils
-import org.joor.Reflect
 
 import java.time.Instant
 import java.time.temporal.ChronoUnit
@@ -50,24 +43,18 @@ class GitDetectiveService extends AbstractVerticle {
 
     private final static Logger log = LoggerFactory.getLogger(GitDetectiveService.class)
     private final Router router
-    private final Kue kue
+    private JobsDAO jobs
     private String uploadsDirectory
 
-    GitDetectiveService(Router router, Kue kue) {
+    GitDetectiveService(Router router) {
         this.router = router
-        this.kue = kue
     }
 
     @Override
     void start() {
+        jobs = new JobsDAO(vertx, config())
         uploadsDirectory = config().getString("uploads.directory")
-        def jobsRedisConfig = config().copy()
-        if (config().getJsonObject("jobs_server") != null) {
-            jobsRedisConfig = config().getJsonObject("jobs_server")
-        }
-        def jobsRedis = new RedisDAO(RedisHelper.client(vertx, jobsRedisConfig))
         def redis = new RedisDAO(RedisHelper.client(vertx, config()))
-        def jobs = new JobsDAO(kue, jobsRedis)
         def refStorage = redis
         if (config().getJsonObject("storage") != null) {
             refStorage = new PostgresDAO(vertx, config().getJsonObject("storage"), redis)
@@ -87,7 +74,7 @@ class GitDetectiveService extends AbstractVerticle {
                     log.info "Import job processing enabled"
                     def grakn = makeGraknDAO(redis)
                     def importerOptions = new DeploymentOptions().setConfig(config())
-                    vertx.deployVerticle(new GraknImporter(kue, redis, refStorage, grakn, uploadsDirectory), importerOptions)
+                    vertx.deployVerticle(new GraknImporter(jobs.kue, redis, refStorage, grakn, uploadsDirectory), importerOptions)
                 } else {
                     log.info "Import job processing disabled"
                 }
@@ -103,7 +90,7 @@ class GitDetectiveService extends AbstractVerticle {
                 log.info "Launching GitDetective website"
                 def options = new DeploymentOptions().setConfig(config())
                 vertx.deployVerticle(new GitDetectiveWebsite(jobs, redis, refStorage, router), options)
-                vertx.deployVerticle(new GHArchiveSync(jobs, jobsRedis), options)
+                vertx.deployVerticle(new GHArchiveSync(jobs), options)
             }
         }, false, {
             if (it.failed()) {
@@ -149,7 +136,7 @@ class GitDetectiveService extends AbstractVerticle {
             def context = timer.time()
             log.debug "Getting active jobs"
 
-            kue.jobRangeByState("active", 0, Integer.MAX_VALUE, "asc").setHandler({
+            jobs.kue.jobRangeByState("active", 0, Integer.MAX_VALUE, "asc").setHandler({
                 if (it.failed()) {
                     it.cause().printStackTrace()
                     request.reply(it.cause())
@@ -471,22 +458,8 @@ class GitDetectiveService extends AbstractVerticle {
         int graknPort = config().getInteger("grakn.port")
         String graknKeyspace = config().getString("grakn.keyspace")
         def keyspace = Keyspace.of(graknKeyspace)
-        def session = Grakn.session(graknHost + ":" + graknPort, keyspace)
-        if (SystemUtils.IS_OS_WINDOWS) {
-            //start of hacks because Grakn doesn't make things easy for Windows :/
-            try {
-                GraknConfig config = Reflect.on(session).get("config")
-                config.setConfigProperty(GraknConfigKey.STORAGE_HOSTNAME, "192.168.99.100")
-
-                CtClass clazz = ClassPool.getDefault().get("org.apache.cassandra.thrift.EndpointDetails")
-                CtMethod originalMethod = clazz.getDeclaredMethod("getHost")
-                originalMethod.setBody("return \"" + graknHost + "\";")
-                clazz.toClass()
-            } catch (Exception e) {
-                e.printStackTrace()
-            }
-            //end of hacks because Grakn didn't make things easy for Windows :/
-        }
+        def grakn = new Grakn(new SimpleURI(graknHost + ":" + graknPort))
+        def session = grakn.session(keyspace)
         return new GraknDAO(vertx, redis, session)
     }
 
@@ -496,24 +469,9 @@ class GitDetectiveService extends AbstractVerticle {
         int graknPort = config().getInteger("grakn.port")
         String graknKeyspace = config().getString("grakn.keyspace")
         def keyspace = Keyspace.of(graknKeyspace)
-        def session = Grakn.session(graknHost + ":" + graknPort, keyspace)
-        if (SystemUtils.IS_OS_WINDOWS) {
-            //start of hacks because Grakn doesn't make things easy for Windows :/
-            try {
-                GraknConfig config = Reflect.on(session).get("config")
-                config.setConfigProperty(GraknConfigKey.STORAGE_HOSTNAME, "192.168.99.100")
-
-                CtClass clazz = ClassPool.getDefault().get("org.apache.cassandra.thrift.EndpointDetails")
-                CtMethod originalMethod = clazz.getDeclaredMethod("getHost")
-                originalMethod.setBody("return \"" + graknHost + "\";")
-                clazz.toClass()
-            } catch (Exception e) {
-                e.printStackTrace()
-            }
-            //end of hacks because Grakn didn't make things easy for Windows :/
-        }
-
-        def tx = session.open(GraknTxType.WRITE)
+        def grakn = new Grakn(new SimpleURI(graknHost, graknPort))
+        def session = grakn.session(keyspace)
+        def tx = session.transaction(GraknTxType.WRITE)
         def graql = tx.graql()
         def query = graql.parse(Resources.toString(Resources.getResource("gitdetective-schema.gql"), Charsets.UTF_8))
         query.execute()
@@ -549,7 +507,7 @@ class GitDetectiveService extends AbstractVerticle {
         Job job = new Job(jobData)
         jobData.put("github_repository", job.data.getString("github_repository"))
 
-        kue.createJob(GraknImporter.GRAKN_INDEX_IMPORT_JOB_TYPE, jobData)
+        jobs.kue.createJob(GraknImporter.GRAKN_INDEX_IMPORT_JOB_TYPE, jobData)
                 .setMax_attempts(0)
                 .setRemoveOnComplete(true)
                 .setPriority(job.priority)

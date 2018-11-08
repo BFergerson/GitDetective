@@ -1,11 +1,7 @@
 package io.gitdetective.tools
 
 import io.gitdetective.web.dao.JobsDAO
-import io.gitdetective.web.dao.RedisDAO
 import io.gitdetective.web.work.GHArchiveSync
-import io.vertx.blueprint.kue.Kue
-import io.vertx.blueprint.kue.queue.KueVerticle
-import io.vertx.blueprint.kue.util.RedisHelper
 import io.vertx.core.AbstractVerticle
 import io.vertx.core.DeploymentOptions
 import io.vertx.core.Vertx
@@ -39,47 +35,20 @@ class FindProjects extends AbstractVerticle {
         }
 
         def config = new JsonObject(IOUtils.toString(configFile.newInputStream(), StandardCharsets.UTF_8))
-        DeploymentOptions options = new DeploymentOptions().setConfig(config)
-        VertxOptions vertxOptions = new VertxOptions()
+        def vertxOptions = new VertxOptions()
         vertxOptions.setBlockedThreadCheckInterval(Integer.MAX_VALUE)
-        Vertx vertx = Vertx.vertx(vertxOptions)
-        def kueOptions = new DeploymentOptions().setConfig(config)
-        if (config.getJsonObject("jobs_server") != null) {
-            kueOptions.config = config.getJsonObject("jobs_server")
-        }
-
-        vertx.deployVerticle(new KueVerticle(), kueOptions, {
+        Vertx.vertx(vertxOptions).deployVerticle(new FindProjects(), new DeploymentOptions().setConfig(config), {
             if (it.failed()) {
                 it.cause().printStackTrace()
                 System.exit(-1)
             }
-
-            def kue = Kue.createQueue(vertx, kueOptions.config)
-            vertx.deployVerticle(new FindProjects(kue), options, {
-                if (it.failed()) {
-                    it.cause().printStackTrace()
-                    System.exit(-1)
-                }
-            })
         })
-    }
-
-    private final Kue kue
-
-    FindProjects(Kue kue) {
-        this.kue = kue
     }
 
     @Override
     void start() throws Exception {
-        def jobsRedisConfig = config().copy()
-        if (config().getJsonObject("jobs_server") != null) {
-            jobsRedisConfig = config().getJsonObject("jobs_server")
-        }
-        def redisClient = RedisHelper.client(vertx, jobsRedisConfig)
-        def redis = new RedisDAO(redisClient)
-        def jobs = new JobsDAO(kue, redis)
-        vertx.deployVerticle(new GHArchiveSync(jobs, redis), new DeploymentOptions()
+        def jobs = new JobsDAO(vertx, config())
+        vertx.deployVerticle(new GHArchiveSync(jobs), new DeploymentOptions()
                 .setConfig(config().put("gh_sync_standalone_mode", true)), {
             if (it.failed()) {
                 it.cause().printStackTrace()

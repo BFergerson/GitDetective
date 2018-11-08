@@ -53,15 +53,23 @@ class PostgresDAO implements ReferenceStorage {
             "queries/sql/storage/project_has_reference.sql"), Charsets.UTF_8)
     public final static String GET_FUNCTION_LEADERBOARD = Resources.toString(Resources.getResource(
             "queries/sql/storage/get_function_leaderboard.sql"), Charsets.UTF_8)
+    public final static String BATCH_IMPORT_PROJECT_FILES = Resources.toString(Resources.getResource(
+            "queries/sql/storage/batch_import_project_files.sql"), Charsets.UTF_8)
+    public final static String BATCH_IMPORT_PROJECT_DEFINITIONS = Resources.toString(Resources.getResource(
+            "queries/sql/storage/batch_import_project_definitions.sql"), Charsets.UTF_8)
+    public final static String BATCH_IMPORT_PROJECT_REFERENCES = Resources.toString(Resources.getResource(
+            "queries/sql/storage/batch_import_project_references.sql"), Charsets.UTF_8)
     private final static Logger log = LoggerFactory.getLogger(PostgresDAO.class)
-    private AsyncSQLClient client
-    private RedisDAO redis
+    private final AsyncSQLClient client
+    private final RedisDAO redis
+    private final boolean batchSupported
     private final Cache<String, JsonArray> projectRankedFunctionsCache = CacheBuilder.newBuilder()
             .expireAfterWrite(15, TimeUnit.MINUTES).build()
 
     PostgresDAO(Vertx vertx, JsonObject config, RedisDAO redis) {
         this.client = PostgreSQLClient.createShared(vertx, config)
         this.redis = redis
+        this.batchSupported = config.getBoolean("batch_supported", false)
 
         //verify postgres connection
         client.getConnection({ conn ->
@@ -461,6 +469,7 @@ class PostgresDAO implements ReferenceStorage {
 
     @Override
     void getProjectFileId(String project, String fileName, Handler<AsyncResult<Optional<String>>> handler) {
+        log.trace "Getting project '$project' file id for file: $fileName"
         client.getConnection({
             if (it.failed()) {
                 handler.handle(Future.failedFuture(it.cause()))
@@ -476,8 +485,11 @@ class PostgresDAO implements ReferenceStorage {
                     } else {
                         def rs = it.result()
                         if (!rs.rows.isEmpty()) {
-                            handler.handle(Future.succeededFuture(Optional.of(rs.rows.get(0).getString("file_id"))))
+                            def fileId = rs.rows.get(0).getString("file_id")
+                            log.trace "Found function id '$fileId' for file '$fileName' in project '$project'"
+                            handler.handle(Future.succeededFuture(Optional.of(fileId)))
                         } else {
+                            log.trace "Could not find file id for file '$fileName' in project '$project'"
                             handler.handle(Future.succeededFuture(Optional.empty()))
                         }
                     }
@@ -489,6 +501,7 @@ class PostgresDAO implements ReferenceStorage {
 
     @Override
     void getProjectFunctionId(String project, String functionName, Handler<AsyncResult<Optional<String>>> handler) {
+        log.trace "Getting project '$project' function id for function: $functionName"
         client.getConnection({
             if (it.failed()) {
                 handler.handle(Future.failedFuture(it.cause()))
@@ -504,8 +517,11 @@ class PostgresDAO implements ReferenceStorage {
                     } else {
                         def rs = it.result()
                         if (!rs.rows.isEmpty()) {
-                            handler.handle(Future.succeededFuture(Optional.of(rs.rows.get(0).getString("function_id"))))
+                            def functionId = rs.rows.get(0).getString("function_id")
+                            log.trace "Found function id '$functionId' for function '$functionName' in project '$project'"
+                            handler.handle(Future.succeededFuture(Optional.of(functionId)))
                         } else {
+                            log.trace "Could not find function id for function '$functionName' in project '$project'"
                             handler.handle(Future.succeededFuture(Optional.empty()))
                         }
                     }
@@ -517,6 +533,7 @@ class PostgresDAO implements ReferenceStorage {
 
     @Override
     void projectHasDefinition(String fileId, String functionId, Handler<AsyncResult<Boolean>> handler) {
+        log.trace "Checking project for definition between $fileId and $functionId"
         client.getConnection({
             if (it.failed()) {
                 handler.handle(Future.failedFuture(it.cause()))
@@ -530,7 +547,13 @@ class PostgresDAO implements ReferenceStorage {
                     if (it.failed()) {
                         handler.handle(Future.failedFuture(it.cause()))
                     } else {
-                        handler.handle(Future.succeededFuture(!it.result().rows.isEmpty()))
+                        def foundDef = !it.result().rows.isEmpty()
+                        if (foundDef) {
+                            log.trace "Found definition between $fileId and $functionId"
+                        } else {
+                            log.trace "Could not find definition between $fileId and $functionId"
+                        }
+                        handler.handle(Future.succeededFuture(foundDef))
                     }
                     conn.close()
                 })
@@ -540,6 +563,7 @@ class PostgresDAO implements ReferenceStorage {
 
     @Override
     void projectHasReference(String fileOrFunctionId, String functionId, Handler<AsyncResult<Boolean>> handler) {
+        log.trace "Checking project for reference between $fileOrFunctionId and $functionId"
         client.getConnection({
             if (it.failed()) {
                 handler.handle(Future.failedFuture(it.cause()))
@@ -553,7 +577,13 @@ class PostgresDAO implements ReferenceStorage {
                     if (it.failed()) {
                         handler.handle(Future.failedFuture(it.cause()))
                     } else {
-                        handler.handle(Future.succeededFuture(!it.result().rows.isEmpty()))
+                        def foundRef = !it.result().rows.isEmpty()
+                        if (foundRef) {
+                            log.trace "Found reference between $fileOrFunctionId and $functionId"
+                        } else {
+                            log.trace "Could not find reference between $fileOrFunctionId and $functionId"
+                        }
+                        handler.handle(Future.succeededFuture(foundRef))
                     }
                     conn.close()
                 })
@@ -588,4 +618,78 @@ class PostgresDAO implements ReferenceStorage {
             }
         })
     }
+
+    @Override
+    void batchImportProjectFiles(File inputFile, File outputFile, Handler<AsyncResult> handler) {
+        client.getConnection({
+            if (it.failed()) {
+                handler.handle(Future.failedFuture(it.cause()))
+            } else {
+                def query = BATCH_IMPORT_PROJECT_FILES
+                        .replace("<inputFile>", inputFile.absolutePath)
+                        .replace("<outputFile>", outputFile.absolutePath)
+
+                def conn = it.result()
+                conn.query(query, {
+                    if (it.failed()) {
+                        handler.handle(Future.failedFuture(it.cause()))
+                    } else {
+                        handler.handle(Future.succeededFuture())
+                    }
+                    conn.close()
+                })
+            }
+        })
+    }
+
+    @Override
+    void batchImportProjectDefinitions(File inputFile, File outputFile, Handler<AsyncResult> handler) {
+        client.getConnection({
+            if (it.failed()) {
+                handler.handle(Future.failedFuture(it.cause()))
+            } else {
+                def query = BATCH_IMPORT_PROJECT_DEFINITIONS
+                        .replace("<inputFile>", inputFile.absolutePath)
+                        .replace("<outputFile>", outputFile.absolutePath)
+
+                def conn = it.result()
+                conn.query(query, {
+                    if (it.failed()) {
+                        handler.handle(Future.failedFuture(it.cause()))
+                    } else {
+                        handler.handle(Future.succeededFuture())
+                    }
+                    conn.close()
+                })
+            }
+        })
+    }
+
+    @Override
+    void batchImportProjectReferences(File inputFile, File outputFile, Handler<AsyncResult> handler) {
+        client.getConnection({
+            if (it.failed()) {
+                handler.handle(Future.failedFuture(it.cause()))
+            } else {
+                def query = BATCH_IMPORT_PROJECT_REFERENCES
+                        .replace("<inputFile>", inputFile.absolutePath)
+                        .replace("<outputFile>", outputFile.absolutePath)
+
+                def conn = it.result()
+                conn.query(query, {
+                    if (it.failed()) {
+                        handler.handle(Future.failedFuture(it.cause()))
+                    } else {
+                        handler.handle(Future.succeededFuture())
+                    }
+                    conn.close()
+                })
+            }
+        })
+    }
+
+    boolean isBatchSupported() {
+        return batchSupported
+    }
+
 }

@@ -1,9 +1,12 @@
 package io.gitdetective.web.work.importer
 
-import ai.grakn.*
-import ai.grakn.engine.GraknConfig
+import ai.grakn.GraknSession
+import ai.grakn.GraknTxType
+import ai.grakn.Keyspace
+import ai.grakn.client.Grakn
 import ai.grakn.graql.Query
-import ai.grakn.graql.internal.query.QueryAnswer
+import ai.grakn.graql.answer.ConceptMap
+import ai.grakn.util.SimpleURI
 import com.google.common.base.Charsets
 import com.google.common.io.Resources
 import com.jcraft.jsch.ChannelSftp
@@ -19,11 +22,6 @@ import io.vertx.core.*
 import io.vertx.core.json.JsonObject
 import io.vertx.core.logging.Logger
 import io.vertx.core.logging.LoggerFactory
-import javassist.ClassPool
-import javassist.CtClass
-import javassist.CtMethod
-import org.apache.commons.lang.SystemUtils
-import org.joor.Reflect
 
 import java.nio.file.Files
 import java.nio.file.Paths
@@ -89,22 +87,8 @@ class GraknImporter extends AbstractVerticle {
         int graknPort = config().getInteger("grakn.port")
         String graknKeyspace = config().getString("grakn.keyspace")
         def keyspace = Keyspace.of(graknKeyspace)
-        graknSession = Grakn.session(graknHost + ":" + graknPort, keyspace)
-        if (SystemUtils.IS_OS_WINDOWS) {
-            //start of hacks because Grakn doesn't make things easy for Windows :/
-            try {
-                GraknConfig config = Reflect.on(graknSession).get("config")
-                config.setConfigProperty(GraknConfigKey.STORAGE_HOSTNAME, "192.168.99.100")
-
-                CtClass clazz = ClassPool.getDefault().get("org.apache.cassandra.thrift.EndpointDetails")
-                CtMethod originalMethod = clazz.getDeclaredMethod("getHost")
-                originalMethod.setBody("return \"" + graknHost + "\";")
-                clazz.toClass()
-            } catch (Exception e) {
-                e.printStackTrace()
-            }
-            //end of hacks because Grakn didn't make things easy for Windows :/
-        }
+        def grakn = new Grakn(new SimpleURI(graknHost + ":" + graknPort))
+        graknSession = grakn.session(keyspace)
 
         def importerConfig = config().getJsonObject("importer")
         def graknImportMeter = WebLauncher.metrics.meter("GraknImportJobProcessSpeed")
@@ -173,24 +157,27 @@ class GraknImporter extends AbstractVerticle {
         boolean newProject = false
         String projectId = null
 
-        def tx = graknSession.open(GraknTxType.WRITE)
+        def tx = graknSession.transaction(GraknTxType.WRITE)
         try {
             def graql = tx.graql()
             def res = graql.parse(GraknDAO.GET_PROJECT
-                    .replace("<githubRepo>", githubRepository)).execute() as List<QueryAnswer>
+                    .replace("<githubRepo>", githubRepository)).execute() as List<ConceptMap>
             if (!res.isEmpty()) {
                 logPrintln(job, "Updating existing project")
-                projectId = res.get(0).get("p").asEntity().id.toString()
+                projectId = res.get(0).get("p").asEntity().id().toString()
             } else {
                 newProject = true
                 logPrintln(job, "Creating new project")
                 def query = graql.parse(GraknDAO.CREATE_PROJECT
                         .replace("<githubRepo>", githubRepository)
                         .replace("<createDate>", Instant.now().toString()))
-                projectId = (query.execute() as List<QueryAnswer>).get(0).get("p").asEntity().id.toString()
+                projectId = (query.execute() as List<ConceptMap>).get(0).get("p").asEntity().id().toString()
                 WebLauncher.metrics.counter("CreateProject").inc()
             }
             tx.commit()
+        } catch (all) {
+            handler.handle(Future.failedFuture(all))
+            return
         } finally {
             tx.close()
         }
@@ -241,7 +228,7 @@ class GraknImporter extends AbstractVerticle {
         logPrintln(job, "Importing open source functions")
         def importOSFTimer = WebLauncher.metrics.timer("ImportingOSFunctions")
         def importOSFContext = importOSFTimer.time()
-        tx = graknSession.open(GraknTxType.BATCH)
+        tx = graknSession.transaction(GraknTxType.BATCH)
         try {
             def graql = tx.graql()
             def lineNumber = 0
@@ -272,7 +259,7 @@ class GraknImporter extends AbstractVerticle {
         logPrintln(job, "Importing files")
         def importFilesTimer = WebLauncher.metrics.timer("ImportingFiles")
         def importFilesContext = importFilesTimer.time()
-        tx = graknSession.open(GraknTxType.BATCH)
+        tx = graknSession.transaction(GraknTxType.BATCH)
         try {
             def graql = tx.graql()
             def lineNumber = 0
@@ -288,10 +275,10 @@ class GraknImporter extends AbstractVerticle {
                         def query = graql.parse(GET_FILE
                                 .replace("<filename>", lineData[1])
                                 .replace("<projectId>", projectId))
-                        def match = query.execute() as List<QueryAnswer>
+                        def match = query.execute() as List<ConceptMap>
                         importFile = match.isEmpty()
                         if (!importFile) {
-                            def existingFileId = match.get(0).get("x").asEntity().id.toString()
+                            def existingFileId = match.get(0).get("x").asEntity().id().toString()
                             def fut = Future.future()
                             cacheFutures.add(fut)
                             referenceStorage.addProjectImportedFile(githubRepository, lineData[1], existingFileId, fut.completer())
@@ -305,8 +292,8 @@ class GraknImporter extends AbstractVerticle {
                                 .replace("<createDate>", Instant.now().toString())
                                 .replace("<fileLocation>", lineData[0])
                                 .replace("<filename>", lineData[1])
-                                .replace("<qualifiedName>", lineData[2])).execute() as List<QueryAnswer>
-                        def importedFileId = importedFile.get(0).get("f").asEntity().id.toString()
+                                .replace("<qualifiedName>", lineData[2])).execute() as List<ConceptMap>
+                        def importedFileId = importedFile.get(0).get("f").asEntity().id().toString()
                         importData.importedFiles.put(lineData[1], importedFileId)
                         WebLauncher.metrics.counter("ImportFile").inc()
                         fileCount++
@@ -339,7 +326,7 @@ class GraknImporter extends AbstractVerticle {
         def importDefinitionsTimer = WebLauncher.metrics.timer("ImportingDefinedFunctions")
         def importDefinitionsContext = importDefinitionsTimer.time()
         def importFutures = new ArrayList<Future>()
-        tx = graknSession.open(GraknTxType.BATCH)
+        tx = graknSession.transaction(GraknTxType.BATCH)
         try {
             def graql = tx.graql()
             def lineNumber = 0
@@ -355,12 +342,12 @@ class GraknImporter extends AbstractVerticle {
                         //find existing defined function
                         def existingDef = graql.parse(GET_DEFINITION_BY_FILE_NAME
                                 .replace("<functionName>", lineData[2])
-                                .replace("<filename>", lineData[0])).execute() as List<QueryAnswer>
+                                .replace("<filename>", lineData[0])).execute() as List<ConceptMap>
                         importDefinition = existingDef.isEmpty()
                         if (!importDefinition) {
-                            def existingFileId = existingDef.get(0).get("x").asEntity().id.toString()
-                            def existingFunctionInstanceId = existingDef.get(0).get("y").asEntity().id.toString()
-                            def existingFunctionId = existingDef.get(0).get("z").asEntity().id.toString()
+                            def existingFileId = existingDef.get(0).get("x").asEntity().id().toString()
+                            def existingFunctionInstanceId = existingDef.get(0).get("y").asEntity().id().toString()
+                            def existingFunctionId = existingDef.get(0).get("z").asEntity().id().toString()
                             def fut1 = Future.future()
                             def fut2 = Future.future()
                             cacheFutures.addAll(fut1, fut2)
@@ -409,6 +396,9 @@ class GraknImporter extends AbstractVerticle {
                 }
             }
             tx.commit()
+        } catch (all) {
+            handler.handle(Future.failedFuture(all))
+            return
         } finally {
             tx.close()
         }
@@ -418,12 +408,12 @@ class GraknImporter extends AbstractVerticle {
                 handler.handle(Future.failedFuture(it.cause()))
             } else {
                 log.debug "Executing insert queries"
-                tx = graknSession.open(GraknTxType.BATCH)
+                tx = graknSession.transaction(GraknTxType.BATCH)
                 try {
                     def futures = it.result().list() as List<ImportableSourceCode>
                     for (def importCode : futures) {
-                        def result = importCode.insertQuery.execute() as List<QueryAnswer>
-                        importCode.functionInstanceId = result.get(0).get("y").asEntity().id.toString()
+                        def result = importCode.insertQuery.withTx(tx).execute() as List<ConceptMap>
+                        importCode.functionInstanceId = result.get(0).get("y").asEntity().id().toString()
                         importData.definedFunctions.put(importCode.functionName, importCode.functionId)
                         importData.definedFunctionInstances.put(importCode.functionId, importCode.functionInstanceId)
                         WebLauncher.metrics.counter("ImportDefinedFunction").inc()
@@ -439,6 +429,9 @@ class GraknImporter extends AbstractVerticle {
                         referenceStorage.addFunctionOwner(importCode.functionId, importCode.functionQualifiedName, githubRepository, fut3.completer())
                     }
                     tx.commit()
+                } catch (all) {
+                    handler.handle(Future.failedFuture(all))
+                    return
                 } finally {
                     tx.close()
                 }
@@ -460,7 +453,7 @@ class GraknImporter extends AbstractVerticle {
         def importReferencesTimer = WebLauncher.metrics.timer("ImportingReferences")
         def importReferencesContext = importReferencesTimer.time()
         def importFutures = new ArrayList<Future<Query>>()
-        tx = graknSession.open(GraknTxType.BATCH)
+        tx = graknSession.transaction(GraknTxType.BATCH)
         try {
             def graql = tx.graql()
             def lineNumber = 0
@@ -487,11 +480,11 @@ class GraknImporter extends AbstractVerticle {
                             if (isExternal) {
                                 def existingRef = graql.parse(GET_EXTERNAL_REFERENCE_BY_FILE_NAME
                                         .replace("<xFileName>", refFile)
-                                        .replace("<yFuncRefsId>", osFunc.functionReferencesId)).execute() as List<QueryAnswer>
+                                        .replace("<yFuncRefsId>", osFunc.functionReferencesId)).execute() as List<ConceptMap>
                                 importReference = existingRef.isEmpty()
                                 if (!importReference) {
-                                    def fileId = existingRef.get(0).get("file").asEntity().id.toString()
-                                    def functionId = existingRef.get(0).get("func").asEntity().id.toString()
+                                    def fileId = existingRef.get(0).get("file").asEntity().id().toString()
+                                    def functionId = existingRef.get(0).get("func").asEntity().id().toString()
                                     def fut = Future.future()
                                     cacheFutures.addAll(fut)
                                     referenceStorage.addProjectImportedReference(fileId, functionId, fut.completer())
@@ -499,11 +492,11 @@ class GraknImporter extends AbstractVerticle {
                             } else {
                                 def existingRef = graql.parse(GET_INTERNAL_REFERENCE_BY_FILE_NAME
                                         .replace("<xFileName>", refFile)
-                                        .replace("<yFuncDefsId>", osFunc.functionDefinitionsId)).execute() as List<QueryAnswer>
+                                        .replace("<yFuncDefsId>", osFunc.functionDefinitionsId)).execute() as List<ConceptMap>
                                 importReference = existingRef.isEmpty()
                                 if (!importReference) {
-                                    def fileId = existingRef.get(0).get("file").asEntity().id.toString()
-                                    def functionId = existingRef.get(0).get("func").asEntity().id.toString()
+                                    def fileId = existingRef.get(0).get("file").asEntity().id().toString()
+                                    def functionId = existingRef.get(0).get("func").asEntity().id().toString()
                                     def fut = Future.future()
                                     cacheFutures.addAll(fut)
                                     referenceStorage.addProjectImportedReference(fileId, functionId, fut.completer())
@@ -522,11 +515,11 @@ class GraknImporter extends AbstractVerticle {
                                 def existingRef = graql.parse(GET_EXTERNAL_REFERENCE
                                         .replace("<projectId>", projectId)
                                         .replace("<funcDefsId>", defOsFunc.functionDefinitionsId)
-                                        .replace("<funcRefsId>", osFunc.functionReferencesId)).execute() as List<QueryAnswer>
+                                        .replace("<funcRefsId>", osFunc.functionReferencesId)).execute() as List<ConceptMap>
                                 importReference = existingRef.isEmpty()
                                 if (!importReference) {
-                                    def function1Id = existingRef.get(0).get("yFunc").asEntity().id.toString()
-                                    def function2Id = existingRef.get(0).get("func").asEntity().id.toString()
+                                    def function1Id = existingRef.get(0).get("yFunc").asEntity().id().toString()
+                                    def function2Id = existingRef.get(0).get("func").asEntity().id().toString()
                                     def fut1 = Future.future()
                                     def fut2 = Future.future()
                                     cacheFutures.addAll(fut1, fut2)
@@ -538,11 +531,11 @@ class GraknImporter extends AbstractVerticle {
                                 if (refFunctionId == null) {
                                     def existingRef = graql.parse(GET_INTERNAL_REFERENCE_BY_FUNCTION_NAME
                                             .replace("<funcName1>", lineData[1])
-                                            .replace("<funcName2>", lineData[3])).execute() as List<QueryAnswer>
+                                            .replace("<funcName2>", lineData[3])).execute() as List<ConceptMap>
                                     importReference = existingRef.isEmpty()
                                     if (!importReference) {
-                                        def existingFunc1Id = existingRef.get(0).get("func1").asEntity().id.toString()
-                                        def existingFunc2Id = existingRef.get(0).get("func2").asEntity().id.toString()
+                                        def existingFunc1Id = existingRef.get(0).get("func1").asEntity().id().toString()
+                                        def existingFunc2Id = existingRef.get(0).get("func2").asEntity().id().toString()
                                         def fut = Future.future()
                                         cacheFutures.addAll(fut)
                                         referenceStorage.addProjectImportedReference(existingFunc1Id, existingFunc2Id, fut.completer())
@@ -557,7 +550,7 @@ class GraknImporter extends AbstractVerticle {
 
                                     def existingRef = graql.parse(GET_INTERNAL_REFERENCE
                                             .replace("<xFunctionInstanceId>", importData.definedFunctionInstances.get(refFunctionId))
-                                            .replace("<yFunctionInstanceId>", importData.definedFunctionInstances.get(funcId))).execute() as List<QueryAnswer>
+                                            .replace("<yFunctionInstanceId>", importData.definedFunctionInstances.get(funcId))).execute() as List<ConceptMap>
                                     importReference = existingRef.isEmpty()
                                     if (!importReference) {
                                         def fut = Future.future()
@@ -691,6 +684,9 @@ class GraknImporter extends AbstractVerticle {
                 }
             }
             tx.commit()
+        } catch (all) {
+            handler.handle(Future.failedFuture(all))
+            return
         } finally {
             tx.close()
         }
@@ -700,11 +696,11 @@ class GraknImporter extends AbstractVerticle {
                 handler.handle(Future.failedFuture(it.cause()))
             } else {
                 log.debug "Executing insert queries"
-                tx = graknSession.open(GraknTxType.BATCH)
+                tx = graknSession.transaction(GraknTxType.BATCH)
                 try {
                     def futures = it.result().list() as List<ImportableSourceCode>
                     for (def importCode : futures) {
-                        importCode.insertQuery.execute() as List<QueryAnswer>
+                        importCode.insertQuery.withTx(tx).execute() as List<ConceptMap>
 
                         if (importCode.isFileReferencing) {
                             if (importCode.isExternalReference) {
@@ -767,6 +763,9 @@ class GraknImporter extends AbstractVerticle {
                         }
                     }
                     tx.commit()
+                } catch (all) {
+                    handler.handle(Future.failedFuture(all))
+                    return
                 } finally {
                     tx.close()
                 }

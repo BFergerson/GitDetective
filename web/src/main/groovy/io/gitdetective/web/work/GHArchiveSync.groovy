@@ -29,11 +29,9 @@ class GHArchiveSync extends AbstractVerticle {
     public final static String STANDALONE_MODE = "GHArchiveStandaloneMode"
     private final static Logger log = LoggerFactory.getLogger(GHArchiveSync.class)
     private final JobsDAO jobs
-    private final RedisDAO redis
 
-    GHArchiveSync(JobsDAO jobs, RedisDAO redis) {
+    GHArchiveSync(JobsDAO jobs) {
         this.jobs = jobs
-        this.redis = redis
     }
 
     @Override
@@ -85,7 +83,7 @@ class GHArchiveSync extends AbstractVerticle {
         }
 
         log.info "Syncing GitHub Archive"
-        redis.getLastArchiveSync({
+        jobs.getLastArchiveSync({
             if (it.failed()) {
                 it.cause().printStackTrace()
                 return
@@ -112,7 +110,7 @@ class GHArchiveSync extends AbstractVerticle {
 
             def dlFile = downloadArchive(nextStr)
             if (dlFile != null) {
-                redis.setLastArchiveSync(nextStr, {
+                jobs.setLastArchiveSync(nextStr, {
                     if (it.failed()) {
                         it.cause().printStackTrace()
                     }

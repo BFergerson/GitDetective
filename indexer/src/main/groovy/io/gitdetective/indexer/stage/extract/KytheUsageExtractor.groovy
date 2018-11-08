@@ -73,8 +73,8 @@ class KytheUsageExtractor extends AbstractVerticle {
             sourceUsage.definedFiles = db.hashSet("definedFiles", Serializer.STRING).create()
             sourceUsage.indexDataLimits = config().getJsonObject("index_data_limits")
 
-            filesOutput.append("fileLocation|filename|qualifiedName\n")
-            functionDefinitions.append("file|name|qualifiedName|startOffset|endOffset\n")
+            filesOutput.append("fileLocation|file|qualifiedName\n")
+            functionDefinitions.append("file|function|qualifiedName|startOffset|endOffset\n")
             functionReferences.append("fileLocation|xFileOrFunction|xQualifiedName|yFunction|yQualifiedName|startOffset|endOffset|isExternal|isJdk\n")
             preprocessEntities(job, sourceUsage)
             processEntities(job, sourceUsage, filesOutput)

@@ -3,7 +3,6 @@ package io.gitdetective.web
 import com.google.common.cache.Cache
 import com.google.common.cache.CacheBuilder
 import com.google.common.collect.Lists
-import io.gitdetective.GitDetectiveVersion
 import io.gitdetective.web.dao.JobsDAO
 import io.gitdetective.web.dao.RedisDAO
 import io.gitdetective.web.dao.storage.ReferenceStorage
@@ -20,6 +19,8 @@ import io.vertx.ext.web.RoutingContext
 import io.vertx.ext.web.handler.StaticHandler
 import io.vertx.ext.web.templ.HandlebarsTemplateEngine
 
+import javax.net.ssl.SSLException
+import java.nio.channels.ClosedChannelException
 import java.util.concurrent.TimeUnit
 
 import static io.gitdetective.web.WebServices.*
@@ -32,6 +33,7 @@ import static io.gitdetective.web.WebServices.*
 class GitDetectiveWebsite extends AbstractVerticle {
 
     private final static Logger log = LoggerFactory.getLogger(GitDetectiveWebsite.class)
+    private final static ResourceBundle buildBundle = ResourceBundle.getBundle("gitdetective_build")
     private static volatile long CURRENTLY_INDEXING_COUNT = 0
     private static volatile long CURRENTLY_IMPORTING_COUNT = 0
     private static volatile long TOTAL_COMPUTE_TIME = 0
@@ -44,6 +46,7 @@ class GitDetectiveWebsite extends AbstractVerticle {
     private final RedisDAO redis
     private final ReferenceStorage storage
     private final Router router
+    private final HandlebarsTemplateEngine engine
     private final Cache<String, Boolean> autoBuildCache = CacheBuilder.newBuilder()
             .expireAfterWrite(1, TimeUnit.MINUTES).build()
 
@@ -52,6 +55,7 @@ class GitDetectiveWebsite extends AbstractVerticle {
         this.redis = redis
         this.storage = storage
         this.router = router
+        this.engine = HandlebarsTemplateEngine.create()
     }
 
     @Override
@@ -88,6 +92,15 @@ class GitDetectiveWebsite extends AbstractVerticle {
         router.route().last().handler({
             it.response().putHeader("location", "/")
                     .setStatusCode(302).end()
+        })
+        router.route().failureHandler({
+            if ((it.failure() instanceof IllegalStateException && it.failure().message == "Response is closed")
+                    || (it.failure() instanceof SSLException && it.failure().message == "SSLEngine closed already")
+                    || it.failure() instanceof ClosedChannelException) {
+                //ignore; //todo: why do these happen?
+            } else {
+                it.failure().printStackTrace()
+            }
         })
 
         //set initial db stats
@@ -157,19 +170,20 @@ class GitDetectiveWebsite extends AbstractVerticle {
     private void handleIndexPage(RoutingContext ctx) {
         ctx.put("gitdetective_url", config().getString("gitdetective_url"))
         ctx.put("gitdetective_eventbus_url", config().getString("gitdetective_url") + "backend/services/eventbus")
-        ctx.put("gitdetective_version", GitDetectiveVersion.version)
+        ctx.put("gitdetective_version", buildBundle.getString("version"))
 
         //load and send page data
-        log.info "Displaying index page"
+        log.debug "Loading index page"
         CompositeFuture.all(Lists.asList(
                 getActiveJobs(ctx),
                 getProjectReferenceLeaderboard(ctx, 5),
                 getFunctionReferenceLeaderboard(ctx, 5),
                 getDatabaseStatistics(ctx)
         )).setHandler({
-            HandlebarsTemplateEngine engine = HandlebarsTemplateEngine.create()
-            engine.render(ctx, "webroot/index.hbs", { res ->
+            log.debug "Rendering index page"
+            engine.render(ctx, "webroot", "/index.hbs", { res ->
                 if (res.succeeded()) {
+                    log.info "Displaying index page"
                     ctx.response().end(res.result())
                 } else {
                     ctx.fail(res.cause())
@@ -181,17 +195,18 @@ class GitDetectiveWebsite extends AbstractVerticle {
     private void handleProjectLeaderboardPage(RoutingContext ctx) {
         ctx.put("gitdetective_url", config().getString("gitdetective_url"))
         ctx.put("gitdetective_eventbus_url", config().getString("gitdetective_url") + "backend/services/eventbus")
-        ctx.put("gitdetective_version", GitDetectiveVersion.version)
+        ctx.put("gitdetective_version", buildBundle.getString("version"))
 
         //load and send page data
-        log.info "Displaying project leaderboard page"
+        log.debug "Loading project leaderboard page"
         getProjectReferenceLeaderboard(ctx, 100).setHandler({
             if (it.failed()) {
                 ctx.fail(it.cause())
             } else {
-                HandlebarsTemplateEngine engine = HandlebarsTemplateEngine.create()
-                engine.render(ctx, "webroot/project_leaderboard.hbs", { res ->
+                log.debug "Rendering project leaderboard page"
+                engine.render(ctx, "webroot", "/project_leaderboard.hbs", { res ->
                     if (res.succeeded()) {
+                        log.info "Displaying project leaderboard page"
                         ctx.response().end(res.result())
                     } else {
                         ctx.fail(res.cause())
@@ -204,17 +219,18 @@ class GitDetectiveWebsite extends AbstractVerticle {
     private void handleFunctionLeaderboardPage(RoutingContext ctx) {
         ctx.put("gitdetective_url", config().getString("gitdetective_url"))
         ctx.put("gitdetective_eventbus_url", config().getString("gitdetective_url") + "backend/services/eventbus")
-        ctx.put("gitdetective_version", GitDetectiveVersion.version)
+        ctx.put("gitdetective_version", buildBundle.getString("version"))
 
         //load and send page data
-        log.info "Displaying function leaderboard page"
+        log.debug "Loading function leaderboard page"
         getFunctionReferenceLeaderboard(ctx, 100).setHandler({
             if (it.failed()) {
                 ctx.fail(it.cause())
             } else {
-                HandlebarsTemplateEngine engine = HandlebarsTemplateEngine.create()
-                engine.render(ctx, "webroot/function_leaderboard.hbs", { res ->
+                log.debug "Rendering function leaderboard page"
+                engine.render(ctx, "webroot", "/function_leaderboard.hbs", { res ->
                     if (res.succeeded()) {
+                        log.info "Displaying function leaderboard page"
                         ctx.response().end(res.result())
                     } else {
                         ctx.fail(res.cause())
@@ -315,10 +331,10 @@ class GitDetectiveWebsite extends AbstractVerticle {
         }
         ctx.put("gitdetective_url", config().getString("gitdetective_url"))
         ctx.put("gitdetective_eventbus_url", config().getString("gitdetective_url") + "backend/services/eventbus")
-        ctx.put("gitdetective_version", GitDetectiveVersion.version)
+        ctx.put("gitdetective_version", buildBundle.getString("version"))
 
         //load and send page data
-        log.info "Displaying project page: $username/$project"
+        log.debug "Loading project page: $username/$project"
         def repo = new JsonObject().put("github_repository", "$username/$project")
         CompositeFuture.all(Lists.asList(
                 getLatestBuildLog(ctx, repo),
@@ -329,10 +345,10 @@ class GitDetectiveWebsite extends AbstractVerticle {
                 getProjectLastIndexedCommitInformation(ctx, repo),
                 getProjectMostReferencedFunctions(ctx, repo)
         )).setHandler({
-            HandlebarsTemplateEngine engine = HandlebarsTemplateEngine.create()
-            engine.render(ctx, "webroot/project.hbs", { res ->
+            log.debug "Rendering project page: $username/$project"
+            engine.render(ctx, "webroot", "/project.hbs", { res ->
                 if (res.succeeded()) {
-                    //todo: got a response already written here (make issue)
+                    log.info "Displaying project page: $username/$project"
                     ctx.response().end(res.result())
                 } else {
                     ctx.fail(res.cause())
@@ -340,19 +356,21 @@ class GitDetectiveWebsite extends AbstractVerticle {
             })
         })
 
-        //schedule build/recalculate if can
-        def autoBuilt = autoBuildCache.getIfPresent(githubRepository)
-        if (autoBuilt == null) {
-            log.debug "Checking repository: $githubRepository"
-            autoBuildCache.put(githubRepository, true)
+        if (config().getBoolean("auto_build_enabled")) {
+            //schedule build/recalculate if can
+            def autoBuilt = autoBuildCache.getIfPresent(githubRepository)
+            if (autoBuilt == null) {
+                log.debug "Checking repository: $githubRepository"
+                autoBuildCache.put(githubRepository, true)
 
-            vertx.eventBus().send(GET_TRIGGER_INFORMATION, repo, {
-                def triggerInformation = it.result().body() as JsonObject
-                if (triggerInformation.getBoolean("can_build")) {
-                    log.info "Auto-building: " + repo.getString("github_repository")
-                    vertx.eventBus().send(CREATE_JOB, repo)
-                }
-            })
+                vertx.eventBus().send(GET_TRIGGER_INFORMATION, repo, {
+                    def triggerInformation = it.result().body() as JsonObject
+                    if (triggerInformation.getBoolean("can_build")) {
+                        log.info "Auto-building: " + repo.getString("github_repository")
+                        vertx.eventBus().send(CREATE_JOB, repo)
+                    }
+                })
+            }
         }
     }
 
