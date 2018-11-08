@@ -4,7 +4,6 @@ import com.codahale.metrics.ConsoleReporter
 import com.codahale.metrics.CsvReporter
 import com.codahale.metrics.MetricRegistry
 import com.codahale.metrics.SharedMetricRegistries
-import io.gitdetective.GitDetectiveVersion
 import io.vertx.blueprint.kue.queue.Job
 import io.vertx.core.DeploymentOptions
 import io.vertx.core.Vertx
@@ -33,9 +32,10 @@ class WebLauncher {
 
     public static final MetricRegistry metrics = new MetricRegistry()
     private final static Logger log = LoggerFactory.getLogger(WebLauncher.class)
+    private static ResourceBundle buildBundle = ResourceBundle.getBundle("gitdetective_build")
 
     static void main(String[] args) {
-        log.info "GitDetective Web - Version: " + GitDetectiveVersion.version
+        log.info "GitDetective Web - Version: " + buildBundle.getString("version")
         def configInputStream = new File("web-config.json").newInputStream()
         def config = new JsonObject(IOUtils.toString(configInputStream, StandardCharsets.UTF_8))
         def deployOptions = new DeploymentOptions().setConfig(config)

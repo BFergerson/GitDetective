@@ -1,7 +1,6 @@
 package io.gitdetective.indexer
 
 import com.codahale.metrics.MetricRegistry
-import io.gitdetective.GitDetectiveVersion
 import io.gitdetective.indexer.stage.GitDetectiveImportFilter
 import io.gitdetective.indexer.stage.GithubRepositoryCloner
 import io.gitdetective.indexer.stage.KytheIndexAugment
@@ -38,9 +37,10 @@ class GitDetectiveIndexer extends AbstractVerticle {
 
     public static final MetricRegistry metrics = new MetricRegistry()
     private final static Logger log = LoggerFactory.getLogger(GitDetectiveIndexer.class)
+    private final static ResourceBundle buildBundle = ResourceBundle.getBundle("gitdetective_build")
 
     static void main(String[] args) {
-        log.info "GitDetective Indexer - Version: " + GitDetectiveVersion.version
+        log.info "GitDetective Indexer - Version: " + buildBundle.getString("version")
         System.setProperty("vertx.disableFileCPResolving", "true")
         def configInputStream = new File("indexer-config.json").newInputStream()
         def config = new JsonObject(IOUtils.toString(configInputStream, StandardCharsets.UTF_8))

@@ -3,7 +3,6 @@ package io.gitdetective.web
 import com.google.common.cache.Cache
 import com.google.common.cache.CacheBuilder
 import com.google.common.collect.Lists
-import io.gitdetective.GitDetectiveVersion
 import io.gitdetective.web.dao.JobsDAO
 import io.gitdetective.web.dao.RedisDAO
 import io.gitdetective.web.dao.storage.ReferenceStorage
@@ -34,6 +33,7 @@ import static io.gitdetective.web.WebServices.*
 class GitDetectiveWebsite extends AbstractVerticle {
 
     private final static Logger log = LoggerFactory.getLogger(GitDetectiveWebsite.class)
+    private final static ResourceBundle buildBundle = ResourceBundle.getBundle("gitdetective_build")
     private static volatile long CURRENTLY_INDEXING_COUNT = 0
     private static volatile long CURRENTLY_IMPORTING_COUNT = 0
     private static volatile long TOTAL_COMPUTE_TIME = 0
@@ -170,7 +170,7 @@ class GitDetectiveWebsite extends AbstractVerticle {
     private void handleIndexPage(RoutingContext ctx) {
         ctx.put("gitdetective_url", config().getString("gitdetective_url"))
         ctx.put("gitdetective_eventbus_url", config().getString("gitdetective_url") + "backend/services/eventbus")
-        ctx.put("gitdetective_version", GitDetectiveVersion.version)
+        ctx.put("gitdetective_version", buildBundle.getString("version"))
 
         //load and send page data
         log.debug "Loading index page"
@@ -195,7 +195,7 @@ class GitDetectiveWebsite extends AbstractVerticle {
     private void handleProjectLeaderboardPage(RoutingContext ctx) {
         ctx.put("gitdetective_url", config().getString("gitdetective_url"))
         ctx.put("gitdetective_eventbus_url", config().getString("gitdetective_url") + "backend/services/eventbus")
-        ctx.put("gitdetective_version", GitDetectiveVersion.version)
+        ctx.put("gitdetective_version", buildBundle.getString("version"))
 
         //load and send page data
         log.debug "Loading project leaderboard page"
@@ -219,7 +219,7 @@ class GitDetectiveWebsite extends AbstractVerticle {
     private void handleFunctionLeaderboardPage(RoutingContext ctx) {
         ctx.put("gitdetective_url", config().getString("gitdetective_url"))
         ctx.put("gitdetective_eventbus_url", config().getString("gitdetective_url") + "backend/services/eventbus")
-        ctx.put("gitdetective_version", GitDetectiveVersion.version)
+        ctx.put("gitdetective_version", buildBundle.getString("version"))
 
         //load and send page data
         log.debug "Loading function leaderboard page"
@@ -331,7 +331,7 @@ class GitDetectiveWebsite extends AbstractVerticle {
         }
         ctx.put("gitdetective_url", config().getString("gitdetective_url"))
         ctx.put("gitdetective_eventbus_url", config().getString("gitdetective_url") + "backend/services/eventbus")
-        ctx.put("gitdetective_version", GitDetectiveVersion.version)
+        ctx.put("gitdetective_version", buildBundle.getString("version"))
 
         //load and send page data
         log.debug "Loading project page: $username/$project"

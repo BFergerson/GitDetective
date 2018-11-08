@@ -21,22 +21,17 @@ subprojects {
         compile 'org.mapdb:mapdb:3.0.5'
     }
 
-    task generateSources {
-        def outputDir = file("$buildDir/generated-sources")
-        outputs.dir outputDir
-        doFirst {
-            def srcFile = new File(outputDir, "io/gitdetective/GitDetectiveVersion.groovy")
-            srcFile.parentFile.mkdirs()
-            srcFile.write("""package io.gitdetective
-                
-class GitDetectiveVersion {
-    static String getVersion() {
-        return "$project.version"
-    }
-}
-                """)
+    task createProperties(dependsOn: processResources) {
+        doLast {
+            new File("$buildDir/resources/main/gitdetective_build.properties").withWriter { w ->
+                Properties p = new Properties()
+                p['version'] = project.version.toString()
+                p.store w, null
+            }
         }
     }
-    compileGroovy.dependsOn generateSources
-    sourceSets.main.groovy.srcDirs = ['build/generated-sources', 'src/main/groovy']
+
+    classes {
+        dependsOn createProperties
+    }
 }
