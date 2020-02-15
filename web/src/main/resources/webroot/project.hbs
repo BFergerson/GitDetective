@@ -10,14 +10,14 @@
     <meta name="author" content="">
     <title>{{github_repository}} - GitDetective</title>
     <!-- Bootstrap Core CSS -->
-    <link href="{{gitdetective_url}}static/assets/plugins/bootstrap/css/bootstrap.min.css" rel="stylesheet">
-    <link href="{{gitdetective_url}}static/assets/plugins/bootstrap-switch/bootstrap-switch.min.css" rel="stylesheet">
+    <link href="{{gitdetective_static_url}}assets/plugins/bootstrap/css/bootstrap.min.css" rel="stylesheet">
+    <link href="{{gitdetective_static_url}}assets/plugins/bootstrap-switch/bootstrap-switch.min.css" rel="stylesheet">
     <!-- Custom CSS -->
-    <link href="{{gitdetective_url}}static/css/style.css" rel="stylesheet">
+    <link href="{{gitdetective_static_url}}css/style.css" rel="stylesheet">
     <!-- You can change the theme colors from here -->
-    <link href="{{gitdetective_url}}static/css/colors/purple-dark.css" id="theme" rel="stylesheet">
-    <link href="{{gitdetective_url}}static/stylesheet.css" rel="stylesheet">
-    <script src="{{gitdetective_url}}static/moment.min.js"></script>
+    <link href="{{gitdetective_static_url}}css/colors/purple-dark.css" id="theme" rel="stylesheet">
+    <link href="{{gitdetective_static_url}}stylesheet.css" rel="stylesheet">
+    <script src="{{gitdetective_static_url}}moment.min.js"></script>
     <!-- HTML5 Shim and Respond.js IE8 support of HTML5 elements and media queries -->
     <!-- WARNING: Respond.js doesn't work if you view the page via file:// -->
     <!--[if lt IE 9]>
@@ -334,23 +334,23 @@
 <!-- ============================================================== -->
 <!-- All Jquery -->
 <!-- ============================================================== -->
-<script src="{{gitdetective_url}}static/assets/plugins/jquery/jquery.min.js"></script>
+<script src="{{gitdetective_static_url}}assets/plugins/jquery/jquery.min.js"></script>
 <!-- Bootstrap tether Core JavaScript -->
-<script src="{{gitdetective_url}}static/assets/plugins/popper/popper.min.js"></script>
-<script src="{{gitdetective_url}}static/assets/plugins/bootstrap/js/bootstrap.min.js"></script>
+<script src="{{gitdetective_static_url}}assets/plugins/popper/popper.min.js"></script>
+<script src="{{gitdetective_static_url}}assets/plugins/bootstrap/js/bootstrap.min.js"></script>
 <!-- slimscrollbar scrollbar JavaScript -->
-<script src="{{gitdetective_url}}static/js/jquery.slimscroll.js"></script>
+<script src="{{gitdetective_static_url}}js/jquery.slimscroll.js"></script>
 <!--Wave Effects -->
-<script src="{{gitdetective_url}}static/js/waves.js"></script>
+<script src="{{gitdetective_static_url}}js/waves.js"></script>
 <!--Menu sidebar -->
-<script src="{{gitdetective_url}}static/js/sidebarmenu.js"></script>
+<script src="{{gitdetective_static_url}}js/sidebarmenu.js"></script>
 <!--stickey kit -->
-<script src="{{gitdetective_url}}static/assets/plugins/sticky-kit-master/dist/sticky-kit.min.js"></script>
-<script src="{{gitdetective_url}}static/assets/plugins/sparkline/jquery.sparkline.min.js"></script>
+<script src="{{gitdetective_static_url}}assets/plugins/sticky-kit-master/dist/sticky-kit.min.js"></script>
+<script src="{{gitdetective_static_url}}assets/plugins/sparkline/jquery.sparkline.min.js"></script>
 <!--Custom JavaScript -->
-<script src="{{gitdetective_url}}static/js/custom.min.js"></script>
+<script src="{{gitdetective_static_url}}js/custom.min.js"></script>
 <!-- This is data table -->
-<script src="{{gitdetective_url}}static/assets/plugins/datatables/jquery.dataTables.min.js"></script>
+<script src="{{gitdetective_static_url}}assets/plugins/datatables/jquery.dataTables.min.js"></script>
 <script>
     String.prototype.toHtmlEntities = function () {
         return this.replace(/./gm, function (s) {
@@ -361,7 +361,7 @@
 <!-- ============================================================== -->
 <!-- Style switcher -->
 <!-- ============================================================== -->
-<script src="{{gitdetective_url}}static/assets/plugins/styleswitcher/jQuery.style.switcher.js"></script>
+<script src="{{gitdetective_static_url}}assets/plugins/styleswitcher/jQuery.style.switcher.js"></script>
 <script>
     $('#app-search').submit(function (event) {
         window.location = '{{gitdetective_url}}' + document.getElementById('app-search-data').value
@@ -381,7 +381,7 @@
     gtag('config', 'UA-117514928-1')
 </script>
 <!-- bt-switch -->
-<script src="{{gitdetective_url}}static/assets/plugins/bootstrap-switch/bootstrap-switch.min.js"></script>
+<script src="{{gitdetective_static_url}}assets/plugins/bootstrap-switch/bootstrap-switch.min.js"></script>
 <script type="text/javascript">
     $('.bt-switch input[type=\'checkbox\'], .bt-switch input[type=\'radio\']').bootstrapSwitch()
     var radioswitch = function () {
@@ -410,8 +410,8 @@
         $('#display_reference_amount_information').hide()
     })
 </script>
-<script src="{{gitdetective_url}}static/sockjs.min.js"></script>
-<script src='{{gitdetective_url}}static/vertx-eventbus.min.js'></script>
+<script src="{{gitdetective_static_url}}sockjs.min.js"></script>
+<script src="{{gitdetective_static_url}}vertx-eventbus.min.js"></script>
 <script>
     console.log('Connecting to event bus...')
     var eb = new EventBus('{{gitdetective_eventbus_url}}')
@@ -421,6 +421,6 @@
     var logPositionIndex = {{latest_job_log_position}}
     var latestJobLogId = {{latest_job_log_id}}
 </script>
-<script src="{{gitdetective_url}}static/project_helper.js"></script>
+<script src="{{gitdetective_url}}helper/project_helper.js"></script>
 </body>
 </html>

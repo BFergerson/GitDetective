@@ -169,6 +169,7 @@ class GitDetectiveWebsite extends AbstractVerticle {
 
     private void handleIndexPage(RoutingContext ctx) {
         ctx.put("gitdetective_url", config().getString("gitdetective_url"))
+        ctx.put("gitdetective_static_url", config().getString("gitdetective_static_url"))
         ctx.put("gitdetective_eventbus_url", config().getString("gitdetective_url") + "backend/services/eventbus")
         ctx.put("gitdetective_version", buildBundle.getString("version"))
 
@@ -194,6 +195,7 @@ class GitDetectiveWebsite extends AbstractVerticle {
 
     private void handleProjectLeaderboardPage(RoutingContext ctx) {
         ctx.put("gitdetective_url", config().getString("gitdetective_url"))
+        ctx.put("gitdetective_static_url", config().getString("gitdetective_static_url"))
         ctx.put("gitdetective_eventbus_url", config().getString("gitdetective_url") + "backend/services/eventbus")
         ctx.put("gitdetective_version", buildBundle.getString("version"))
 
@@ -218,6 +220,7 @@ class GitDetectiveWebsite extends AbstractVerticle {
 
     private void handleFunctionLeaderboardPage(RoutingContext ctx) {
         ctx.put("gitdetective_url", config().getString("gitdetective_url"))
+        ctx.put("gitdetective_static_url", config().getString("gitdetective_static_url"))
         ctx.put("gitdetective_eventbus_url", config().getString("gitdetective_url") + "backend/services/eventbus")
         ctx.put("gitdetective_version", buildBundle.getString("version"))
 
@@ -330,6 +333,7 @@ class GitDetectiveWebsite extends AbstractVerticle {
             ctx.put("github_repository", githubRepository)
         }
         ctx.put("gitdetective_url", config().getString("gitdetective_url"))
+        ctx.put("gitdetective_static_url", config().getString("gitdetective_static_url"))
         ctx.put("gitdetective_eventbus_url", config().getString("gitdetective_url") + "backend/services/eventbus")
         ctx.put("gitdetective_version", buildBundle.getString("version"))
 
