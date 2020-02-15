@@ -12,6 +12,8 @@ import io.vertx.ext.web.client.HttpRequest
 import io.vertx.ext.web.client.WebClient
 import io.vertx.ext.web.client.WebClientOptions
 
+import java.nio.file.Files
+import java.nio.file.attribute.PosixFilePermission
 import java.util.zip.ZipEntry
 import java.util.zip.ZipOutputStream
 
@@ -50,43 +52,82 @@ class GitDetectiveImportFilter extends AbstractVerticle {
     }
 
     private void doFilter(Job job, Handler<AsyncResult> handler) {
-        def skipFilter = job.data.getBoolean("skip_filter", false)
         def githubRepository = job.data.getString("github_repository")
         def outputDirectory = job.data.getString("output_directory")
-        def readyFunctionDefinitions = new File(outputDirectory, "functions_definition_ready.txt")
-        def readyFunctionReferences = new File(outputDirectory, "functions_reference_ready.txt")
+        def skipFilter = job.data.getBoolean("skip_filter", false)
+        if (skipFilter) {
+            def filesOutput = new File(outputDirectory, "files_raw.txt")
+            def filesOutputFinal = new File(outputDirectory, "files.txt")
+            filesOutput.renameTo(filesOutputFinal)
+            def readyFunctionReferences = new File(outputDirectory, "functions_reference_ready.txt")
+            def functionReferencesFinal = new File(outputDirectory, "functions_reference.txt")
+            readyFunctionReferences.renameTo(functionReferencesFinal)
+            def readyFunctionDefinitions = new File(outputDirectory, "functions_definition_ready.txt")
+            def functionDefinitionsFinal = new File(outputDirectory, "functions_definition.txt")
+            readyFunctionDefinitions.renameTo(functionDefinitionsFinal)
 
-        filterFiles(githubRepository, job, outputDirectory, skipFilter, {
-            if (it.failed()) {
-                handler.handle(Future.failedFuture(it.cause()))
-            } else {
-                filterDefinitions(githubRepository, job, outputDirectory, readyFunctionDefinitions, skipFilter, {
-                    if (it.failed()) {
-                        handler.handle(Future.failedFuture(it.cause()))
-                    } else {
-                        filterReferences(githubRepository, job, outputDirectory, readyFunctionReferences, skipFilter, handler)
-                    }
-                })
-            }
-        })
+            //finish without any filtering
+            handler.handle(Future.succeededFuture())
+            return
+        }
+
+        if (referenceStorage.batchSupported) {
+            batchFilterFiles(job, outputDirectory, {
+                if (it.failed()) {
+                    handler.handle(Future.failedFuture(it.cause()))
+                } else {
+                    batchFilterDefinitions(job, outputDirectory, {
+                        if (it.failed()) {
+                            handler.handle(Future.failedFuture(it.cause()))
+                        } else {
+                            batchFilterReferences(job, outputDirectory, handler)
+                        }
+                    })
+                }
+            })
+        } else {
+            filterFiles(githubRepository, job, outputDirectory, {
+                if (it.failed()) {
+                    handler.handle(Future.failedFuture(it.cause()))
+                } else {
+                    filterDefinitions(githubRepository, job, outputDirectory, {
+                        if (it.failed()) {
+                            handler.handle(Future.failedFuture(it.cause()))
+                        } else {
+                            filterReferences(githubRepository, job, outputDirectory, handler)
+                        }
+                    })
+                }
+            })
+        }
     }
 
-    private void filterReferences(String githubRepository, Job job, String outputDirectory, File readyFunctionReferences,
-                                  boolean skipFilter, Handler<AsyncResult> handler) {
-        if (!skipFilter) logPrintln(job, "Filtering already imported references")
+    private void batchFilterReferences(Job job, String outputDirectory, Handler<AsyncResult> handler) {
+        logPrintln(job, "Filtering already imported references")
+        def readyFunctionReferences = new File(outputDirectory, "functions_reference_ready.txt")
+        def functionReferencesFinal = new File(outputDirectory, "functions_reference.txt")
+        functionReferencesFinal.createNewFile()
+
+        Set<PosixFilePermission> perms = new HashSet<>()
+        perms.add(PosixFilePermission.OTHERS_READ)
+        perms.add(PosixFilePermission.OTHERS_WRITE)
+        Files.setPosixFilePermissions(readyFunctionReferences.toPath(), perms)
+        Files.setPosixFilePermissions(functionReferencesFinal.toPath(), perms)
+        referenceStorage.batchImportProjectReferences(readyFunctionReferences, functionReferencesFinal, handler)
+    }
+
+    private void filterReferences(String githubRepository, Job job, String outputDirectory,
+                                  Handler<AsyncResult> handler) {
+        logPrintln(job, "Filtering already imported references")
         def futures = new ArrayList<Future>()
         def lineNumber = 0
+        def readyFunctionReferences = new File(outputDirectory, "functions_reference_ready.txt")
         def functionReferencesFinal = new File(outputDirectory, "functions_reference.txt")
         readyFunctionReferences.eachLine { line ->
             lineNumber++
             if (lineNumber > 1) {
-                if (skipFilter) {
-                    functionReferencesFinal.append("$line\n") //do import
-                    return
-                }
                 def lineData = line.split("\\|")
 
-                //replace everything with ids (if possible)
                 def fileOrFuncFut = Future.future()
                 if (lineData[1].contains("#")) {
                     referenceStorage.getProjectFunctionId(githubRepository, lineData[1], fileOrFuncFut.completer())
@@ -133,22 +174,32 @@ class GitDetectiveImportFilter extends AbstractVerticle {
         CompositeFuture.all(futures).setHandler(handler)
     }
 
-    private void filterDefinitions(String githubRepository, Job job, String outputDirectory, File readyFunctionDefinitions,
-                                   boolean skipFilter, Handler<AsyncResult> handler) {
-        if (!skipFilter) logPrintln(job, "Filtering already imported definitions")
+    private void batchFilterDefinitions(Job job, String outputDirectory, Handler<AsyncResult> handler) {
+        logPrintln(job, "Filtering already imported definitions")
+        def readyFunctionDefinitions = new File(outputDirectory, "functions_definition_ready.txt")
+        def functionDefinitionsFinal = new File(outputDirectory, "functions_definition.txt")
+        functionDefinitionsFinal.createNewFile()
+
+        Set<PosixFilePermission> perms = new HashSet<>()
+        perms.add(PosixFilePermission.OTHERS_READ)
+        perms.add(PosixFilePermission.OTHERS_WRITE)
+        Files.setPosixFilePermissions(readyFunctionDefinitions.toPath(), perms)
+        Files.setPosixFilePermissions(functionDefinitionsFinal.toPath(), perms)
+        referenceStorage.batchImportProjectDefinitions(readyFunctionDefinitions, functionDefinitionsFinal, handler)
+    }
+
+    private void filterDefinitions(String githubRepository, Job job, String outputDirectory,
+                                   Handler<AsyncResult> handler) {
+        logPrintln(job, "Filtering already imported definitions")
         def futures = new ArrayList<Future>()
         def lineNumber = 0
+        def readyFunctionDefinitions = new File(outputDirectory, "functions_definition_ready.txt")
         def functionDefinitionsFinal = new File(outputDirectory, "functions_definition.txt")
         readyFunctionDefinitions.eachLine { line ->
             lineNumber++
             if (lineNumber > 1) {
-                if (skipFilter) {
-                    functionDefinitionsFinal.append("$line\n") //do import
-                    return
-                }
                 def lineData = line.split("\\|")
 
-                //replace everything with ids (if possible)
                 def fileFut = Future.future()
                 referenceStorage.getProjectFileId(githubRepository, lineData[0], fileFut.completer())
                 def funcFut = Future.future()
@@ -191,20 +242,29 @@ class GitDetectiveImportFilter extends AbstractVerticle {
         CompositeFuture.all(futures).setHandler(handler)
     }
 
-    private void filterFiles(String githubRepository, Job job, String outputDirectory, boolean skipFilter,
-                             Handler<AsyncResult> handler) {
-        if (!skipFilter) logPrintln(job, "Filtering already imported files")
-        def futures = new ArrayList<Future>()
+    private void batchFilterFiles(Job job, String outputDirectory, Handler<AsyncResult> handler) {
+        logPrintln(job, "Filtering already imported files")
         def filesOutput = new File(outputDirectory, "files_raw.txt")
+        def filesOutputFinal = new File(outputDirectory, "files.txt")
+        filesOutputFinal.createNewFile()
+
+        Set<PosixFilePermission> perms = new HashSet<>()
+        perms.add(PosixFilePermission.OTHERS_READ)
+        perms.add(PosixFilePermission.OTHERS_WRITE)
+        Files.setPosixFilePermissions(filesOutput.toPath(), perms)
+        Files.setPosixFilePermissions(filesOutputFinal.toPath(), perms)
+        referenceStorage.batchImportProjectFiles(filesOutput, filesOutputFinal, handler)
+    }
+
+    private void filterFiles(String githubRepository, Job job, String outputDirectory, Handler<AsyncResult> handler) {
+        logPrintln(job, "Filtering already imported files")
+        def futures = new ArrayList<Future>()
         def lineNumber = 0
+        def filesOutput = new File(outputDirectory, "files_raw.txt")
         def filesOutputFinal = new File(outputDirectory, "files.txt")
         filesOutput.eachLine { line ->
             lineNumber++
             if (lineNumber > 1) {
-                if (skipFilter) {
-                    filesOutputFinal.append("$line\n") //do import
-                    return
-                }
                 def lineData = line.split("\\|")
 
                 def fut = Future.future()

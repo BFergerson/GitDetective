@@ -3,7 +3,7 @@ package io.gitdetective.web.dao
 import ai.grakn.GraknSession
 import ai.grakn.GraknTxType
 import ai.grakn.graql.QueryBuilder
-import ai.grakn.graql.internal.query.QueryAnswer
+import ai.grakn.graql.answer.ConceptMap
 import com.google.common.base.Charsets
 import com.google.common.cache.Cache
 import com.google.common.cache.CacheBuilder
@@ -63,11 +63,11 @@ class GraknDAO {
         boolean created = false
         def query = graql.parse(GET_OPEN_SOURCE_FUNCTION
                 .replace("<name>", functionName))
-        def match = query.execute() as List<QueryAnswer>
+        def match = query.execute() as List<ConceptMap>
         if (match.isEmpty()) {
             match = graql.parse(CREATE_OPEN_SOURCE_FUNCTION
                     .replace("<name>", functionName)
-                    .replace("<createDate>", Instant.now().toString())).execute() as List<QueryAnswer>
+                    .replace("<createDate>", Instant.now().toString())).execute() as List<ConceptMap>
             created = true
         }
         def functionId = match.get(0).get("func").asEntity().id.toString()
@@ -90,14 +90,14 @@ class GraknDAO {
         vertx.executeBlocking({ blocking ->
             def tx = null
             try {
-                tx = session.open(GraknTxType.READ)
+                tx = session.transaction(GraknTxType.READ)
                 def graql = tx.graql()
                 def query = graql.parse(GET_FUNCTION_QUALIFIED_NAME
                         .replace("<id>", functionId))
 
-                def result = query.execute() as List<QueryAnswer>
+                def result = query.execute() as List<ConceptMap>
                 if (!result.isEmpty()) {
-                    blocking.complete(result.get(0).get("qualifiedName").asAttribute().value as String)
+                    blocking.complete(result.get(0).get("qualifiedName").asAttribute().value() as String)
                 } else {
                     blocking.complete()
                 }

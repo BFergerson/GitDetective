@@ -91,10 +91,17 @@ class RedisDAO implements ReferenceStorage {
     }
 
     void appendJobToBuildHistory(String githubRepository, long jobId, Handler<AsyncResult<Void>> handler) {
+        log.trace "Adding job $jobId from '$githubRepository' build history"
         redis.lpush("gitdetective:project:$githubRepository:build_history", jobId as String, handler)
     }
 
+    void removeLatestJobFromBuildHistory(String githubRepository, long jobId, Handler<AsyncResult<Void>> handler) {
+        log.info "Removing job $jobId from '$githubRepository' build history"
+        redis.lrem("gitdetective:project:$githubRepository:build_history", 1, jobId as String, handler)
+    }
+
     void getLatestJobId(String githubRepository, Handler<AsyncResult<Optional<Long>>> handler) {
+        log.trace "Getting latest job id for project $githubRepository"
         redis.lrange("gitdetective:project:$githubRepository:build_history", 0, 1, {
             if (it.failed()) {
                 handler.handle(Future.failedFuture(it.cause()))
@@ -173,7 +180,11 @@ class RedisDAO implements ReferenceStorage {
                 if (it.result() == null) {
                     handler.handle(Future.succeededFuture(new JsonArray()))
                 } else {
-                    handler.handle(Future.succeededFuture(new JsonArray(it.result().toString())))
+                    def rtnArray = new JsonArray()
+                    for (int i = 0; i < it.result().size(); i++) {
+                        rtnArray.add(new JsonObject(it.result().getString(i)))
+                    }
+                    handler.handle(Future.succeededFuture(rtnArray))
                 }
             }
         })
@@ -245,7 +256,7 @@ class RedisDAO implements ReferenceStorage {
         })
     }
 
-    void getLastArchiveSync(Handler<AsyncResult<String>> handler) {
+    protected void getLastArchiveSync(Handler<AsyncResult<String>> handler) {
         redis.get("gitdetective:last_archive_sync", {
             if (it.failed()) {
                 handler.handle(Future.failedFuture(it.cause()))
@@ -256,7 +267,7 @@ class RedisDAO implements ReferenceStorage {
         })
     }
 
-    void setLastArchiveSync(String now, Handler<AsyncResult> handler) {
+    protected void setLastArchiveSync(String now, Handler<AsyncResult> handler) {
         redis.set("gitdetective:last_archive_sync", now, handler)
     }
 
@@ -324,7 +335,7 @@ class RedisDAO implements ReferenceStorage {
         })
     }
 
-    void setProjectLastBuilt(String githubRepository, Instant lastBuilt, Handler<AsyncResult> handler) {
+    protected void setProjectLastBuilt(String githubRepository, Instant lastBuilt, Handler<AsyncResult> handler) {
         redis.set("gitdetective:project:$githubRepository:project_last_built", lastBuilt.toString(), handler)
     }
 
@@ -722,6 +733,25 @@ class RedisDAO implements ReferenceStorage {
 
     RedisClient getClient() {
         return redis
+    }
+
+    boolean isBatchSupported() {
+        return false
+    }
+
+    @Override
+    void batchImportProjectFiles(File inputFile, File outputFile, Handler<AsyncResult> handler) {
+        throw new UnsupportedOperationException()
+    }
+
+    @Override
+    void batchImportProjectDefinitions(File inputFile, File outputFile, Handler<AsyncResult> handler) {
+        throw new UnsupportedOperationException()
+    }
+
+    @Override
+    void batchImportProjectReferences(File inputFile, File outputFile, Handler<AsyncResult> handler) {
+        throw new UnsupportedOperationException()
     }
 
 }
