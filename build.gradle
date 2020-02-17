@@ -16,6 +16,7 @@ subprojects {
     dependencies {
         compile 'org.codehaus.groovy:groovy-all:3.0.0'
         compile group: 'io.vertx', name: 'vertx-core', version: '3.8.5'
+        compile group: 'com.google.guava', name: 'guava', version: '28.2-jre'
         compile 'com.github.bfergerson:vertx-kue:d12017800'
     }
 

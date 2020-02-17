@@ -1,5 +1,6 @@
 package io.gitdetective.web
 
+import com.google.common.collect.Lists
 import io.gitdetective.web.dao.JobsDAO
 import io.gitdetective.web.dao.RedisDAO
 import io.gitdetective.web.dao.storage.ReferenceStorage
@@ -13,11 +14,10 @@ import io.vertx.core.logging.LoggerFactory
 import io.vertx.ext.web.Router
 import io.vertx.ext.web.RoutingContext
 import io.vertx.ext.web.handler.StaticHandler
-import io.vertx.ext.web.templ.HandlebarsTemplateEngine
+import io.vertx.ext.web.templ.handlebars.HandlebarsTemplateEngine
 
 import javax.net.ssl.SSLException
 import java.nio.channels.ClosedChannelException
-import java.util.concurrent.TimeUnit
 
 import static io.gitdetective.web.WebServices.*
 
@@ -42,7 +42,7 @@ class GitDetectiveWebsite extends AbstractVerticle {
     private final RedisDAO redis
     private final ReferenceStorage storage
     private final Router router
-    private final HandlebarsTemplateEngine engine
+    private HandlebarsTemplateEngine engine
 //    private final Cache<String, Boolean> autoBuildCache = CacheBuilder.newBuilder()
 //            .expireAfterWrite(1, TimeUnit.MINUTES).build()
 
@@ -51,12 +51,12 @@ class GitDetectiveWebsite extends AbstractVerticle {
         this.redis = redis
         this.storage = storage
         this.router = router
-        this.engine = HandlebarsTemplateEngine.create()
     }
 
     @Override
     void start() throws Exception {
         //website
+        engine = HandlebarsTemplateEngine.create(vertx)
         router.route("/static/*").handler(StaticHandler.create()
                 .setWebRoot("webroot/static")
                 .setCachingEnabled(true))
@@ -99,13 +99,13 @@ class GitDetectiveWebsite extends AbstractVerticle {
             }
         })
 
-        //set initial db stats
-        updateDatabaseStatistics(true)
-        //update every minute
-        vertx.setPeriodic(TimeUnit.MINUTES.toMillis(1), {
-            updateDatabaseStatistics(false)
-            log.info "Updated database statistics"
-        })
+//        //set initial db stats
+//        updateDatabaseStatistics(true)
+//        //update every minute
+//        vertx.setPeriodic(TimeUnit.MINUTES.toMillis(1), {
+//            updateDatabaseStatistics(false)
+//            log.info "Updated database statistics"
+//        })
         log.info "GitDetectiveWebsite started"
     }
 
@@ -172,13 +172,13 @@ class GitDetectiveWebsite extends AbstractVerticle {
         //load and send page data
         log.debug "Loading index page"
         CompositeFuture.all(Lists.asList(
-                getActiveJobs(ctx),
-                getProjectReferenceLeaderboard(ctx, 5),
-                getFunctionReferenceLeaderboard(ctx, 5),
+//                getActiveJobs(ctx),
+//                getProjectReferenceLeaderboard(ctx, 5),
+//                getFunctionReferenceLeaderboard(ctx, 5),
                 getDatabaseStatistics(ctx)
         )).setHandler({
             log.debug "Rendering index page"
-            engine.render(ctx, "webroot", "/index.hbs", { res ->
+            engine.render(ctx.data(), "webroot/index.hbs", { res ->
                 if (res.succeeded()) {
                     log.info "Displaying index page"
                     ctx.response().end(res.result())

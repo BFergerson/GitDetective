@@ -2,6 +2,7 @@ package io.gitdetective.web
 
 import io.gitdetective.web.dao.JobsDAO
 import io.gitdetective.web.dao.RedisDAO
+import io.gitdetective.web.work.GHArchiveSync
 import io.vertx.blueprint.kue.queue.Job
 import io.vertx.blueprint.kue.queue.Priority
 import io.vertx.blueprint.kue.util.RedisHelper
@@ -48,10 +49,10 @@ class GitDetectiveService extends AbstractVerticle {
 //        if (config().getJsonObject("storage") != null) {
 //            refStorage = new PostgresDAO(vertx, config().getJsonObject("storage"), redis)
 //        }
-//
-//        vertx.executeBlocking({
-//            def importJobEnabled = config().getJsonObject("importer").getBoolean("enabled")
-//            if (config().getBoolean("grakn.enabled")) {
+
+        vertx.executeBlocking({
+            def importJobEnabled = config().getJsonObject("importer").getBoolean("enabled")
+            if (config().getBoolean("grakn.enabled")) {
 //                log.info "Grakn integration enabled"
 //                setupOntology()
 //
@@ -67,26 +68,26 @@ class GitDetectiveService extends AbstractVerticle {
 //                } else {
 //                    log.info "Import job processing disabled"
 //                }
-//            } else if (importJobEnabled) {
-//                log.error "Job processing cannot be enabled with Grakn disabled"
-//                System.exit(-1)
-//            } else {
-//                log.info "Grakn integration disabled"
-//            }
-//            it.complete()
-//
-//            if (config().getBoolean("launch_website")) {
-//                log.info "Launching GitDetective website"
-//                def options = new DeploymentOptions().setConfig(config())
-//                vertx.deployVerticle(new GitDetectiveWebsite(jobs, redis, refStorage, router), options)
-//                vertx.deployVerticle(new GHArchiveSync(jobs), options)
-//            }
-//        }, false, {
-//            if (it.failed()) {
-//                it.cause().printStackTrace()
-//                System.exit(-1)
-//            }
-//        })
+            } else if (importJobEnabled) {
+                log.error "Job processing cannot be enabled with Grakn disabled"
+                System.exit(-1)
+            } else {
+                log.info "Grakn integration disabled"
+            }
+            it.complete()
+
+            if (config().getBoolean("launch_website")) {
+                log.info "Launching GitDetective website"
+                def options = new DeploymentOptions().setConfig(config())
+                vertx.deployVerticle(new GitDetectiveWebsite(jobs, redis, refStorage, router), options)
+                vertx.deployVerticle(new GHArchiveSync(jobs), options)
+            }
+        }, false, {
+            if (it.failed()) {
+                it.cause().printStackTrace()
+                System.exit(-1)
+            }
+        })
 
         //routes
         router.post("/indexes").handler(this.&downloadIndexFile)
