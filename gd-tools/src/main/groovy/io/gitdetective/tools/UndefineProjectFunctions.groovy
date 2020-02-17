@@ -1,6 +1,5 @@
 package io.gitdetective.tools
 
-import io.gitdetective.web.dao.PostgresDAO
 import io.gitdetective.web.dao.RedisDAO
 import io.vertx.blueprint.kue.Kue
 import io.vertx.blueprint.kue.queue.KueVerticle
@@ -63,9 +62,9 @@ class UndefineProjectFunctions extends AbstractVerticle {
     void start() throws Exception {
         def redis = new RedisDAO(RedisHelper.client(vertx, config()))
         def refStorage = redis
-        if (config().getJsonObject("storage") != null) {
-            refStorage = new PostgresDAO(vertx, config().getJsonObject("storage"), redis)
-        }
+//        if (config().getJsonObject("storage") != null) {
+//            refStorage = new PostgresDAO(vertx, config().getJsonObject("storage"), redis)
+//        }
 
         refStorage.getOwnedFunctions(projectName, {
             if (it.failed()) {

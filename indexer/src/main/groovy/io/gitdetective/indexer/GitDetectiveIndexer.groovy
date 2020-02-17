@@ -1,15 +1,7 @@
 package io.gitdetective.indexer
 
 import com.codahale.metrics.MetricRegistry
-import io.gitdetective.indexer.stage.GitDetectiveImportFilter
-import io.gitdetective.indexer.stage.GithubRepositoryCloner
-import io.gitdetective.indexer.stage.KytheIndexAugment
-import io.gitdetective.indexer.stage.KytheIndexOutput
-import io.gitdetective.indexer.stage.extract.KytheUsageExtractor
-import io.gitdetective.indexer.support.KytheGradleBuilder
-import io.gitdetective.indexer.support.KytheMavenBuilder
 import io.gitdetective.web.dao.JobsDAO
-import io.gitdetective.web.dao.PostgresDAO
 import io.gitdetective.web.dao.RedisDAO
 import io.vertx.blueprint.kue.Kue
 import io.vertx.blueprint.kue.queue.Job
@@ -85,20 +77,20 @@ class GitDetectiveIndexer extends AbstractVerticle {
         deployOptions.config = config()
 
         def refStorage = redis
-        if (config().getJsonObject("storage") != null) {
-            refStorage = new PostgresDAO(vertx, config().getJsonObject("storage"), redis)
-        }
+//        if (config().getJsonObject("storage") != null) {
+//            refStorage = new PostgresDAO(vertx, config().getJsonObject("storage"), redis)
+//        }
+//
+//        //core
+//        vertx.deployVerticle(new GithubRepositoryCloner(kue, jobs), deployOptions)
+//        vertx.deployVerticle(new KytheIndexOutput(), deployOptions)
+//        vertx.deployVerticle(new KytheUsageExtractor(), deployOptions)
+//        vertx.deployVerticle(new GitDetectiveImportFilter(refStorage), deployOptions)
+//        vertx.deployVerticle(new KytheIndexAugment(redis), deployOptions)
 
-        //core
-        vertx.deployVerticle(new GithubRepositoryCloner(kue, jobs), deployOptions)
-        vertx.deployVerticle(new KytheIndexOutput(), deployOptions)
-        vertx.deployVerticle(new KytheUsageExtractor(), deployOptions)
-        vertx.deployVerticle(new GitDetectiveImportFilter(refStorage), deployOptions)
-        vertx.deployVerticle(new KytheIndexAugment(redis), deployOptions)
-
-        //project builders
-        vertx.deployVerticle(new KytheMavenBuilder(), deployOptions)
-        vertx.deployVerticle(new KytheGradleBuilder(), deployOptions)
+//        //project builders
+//        vertx.deployVerticle(new KytheMavenBuilder(), deployOptions)
+//        vertx.deployVerticle(new KytheGradleBuilder(), deployOptions)
     }
 
 }

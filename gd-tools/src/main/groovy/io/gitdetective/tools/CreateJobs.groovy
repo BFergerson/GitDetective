@@ -1,7 +1,6 @@
 package io.gitdetective.tools
 
 import io.gitdetective.web.dao.JobsDAO
-import io.gitdetective.web.work.importer.GraknImporter
 import io.vertx.blueprint.kue.queue.Priority
 import io.vertx.core.*
 import io.vertx.core.json.JsonObject
@@ -31,7 +30,7 @@ class CreateJobs extends AbstractVerticle {
         if (jobType == "index") {
             jobType = "IndexGithubProject"
         } else if (jobType == "import") {
-            jobType = GraknImporter.GRAKN_INDEX_IMPORT_JOB_TYPE
+           // jobType = GraknImporter.GRAKN_INDEX_IMPORT_JOB_TYPE
         } else {
             throw new IllegalArgumentException("Invalid job type: " + jobType)
         }

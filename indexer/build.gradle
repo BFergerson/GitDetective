@@ -9,11 +9,21 @@ repositories {
 
 dependencies {
     compile project(":web")
-    compile group: 'org.apache.maven.shared', name: 'maven-invoker', version: '3.0.0'
-    compile group: 'org.gradle', name: 'gradle-tooling-api', version: '4.9'
-    compile group: 'org.kohsuke', name: 'github-api', version: '1.92'
-    compile group: 'com.fasterxml.jackson.core', name: 'jackson-annotations', version: '2.9.2'
-    compile 'io.vertx:vertx-web-client:3.5.3'
+//    compile group: 'org.apache.maven.shared', name: 'maven-invoker', version: '3.0.0'
+//    compile group: 'org.gradle', name: 'gradle-tooling-api', version: '4.9'
+//    compile group: 'org.kohsuke', name: 'github-api', version: '1.92'
+    compile group: 'com.fasterxml.jackson.core', name: 'jackson-annotations', version: '2.10.2'
+    compile 'io.vertx:vertx-web-client:3.8.5'
     compile group: 'org.eclipse.jgit', name: 'org.eclipse.jgit', version: '5.0.1.201806211838-r'
     compile files("../indexer/opt/kythe-v0.0.28/indexers/java_indexer.jar")
+    compile(group: 'com.github.codebrig', name: 'phenomena', version: '1f4f1b1d97') {
+        exclude group: 'io.grakn.client', module: 'grakn-client'
+        exclude group: 'io.grakn.client', module: 'api'
+        exclude group: 'io.graql', module: 'graql-lang'
+    }
+    compile (group: 'com.github.codebrig', name: 'kythe-phenomenon', version: '6b5e392d0b') {
+        exclude group: 'io.grakn.client', module: 'grakn-client'
+        exclude group: 'io.grakn.client', module: 'api'
+        exclude group: 'io.graql', module: 'graql-lang'
+    }
 }

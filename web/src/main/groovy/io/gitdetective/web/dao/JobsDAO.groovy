@@ -16,7 +16,7 @@ import java.time.Instant
  */
 class JobsDAO {
 
-    private final RedisDAO redis
+//    private final RedisDAO redis
     private Kue kue
 
     JobsDAO(Vertx vertx, JsonObject config) {
@@ -24,26 +24,26 @@ class JobsDAO {
     }
 
     JobsDAO(Vertx vertx, JsonObject config, Handler<AsyncResult> handler) {
-        if (config.getJsonObject("jobs_server") != null) {
-            def redisClient = RedisHelper.client(vertx, config.getJsonObject("jobs_server"))
-            redis = new RedisDAO(redisClient)
-        } else {
-            def redisClient = RedisHelper.client(vertx, config)
-            redis = new RedisDAO(redisClient)
-        }
-
-        def kueOptions = new DeploymentOptions().setConfig(config)
-        if (config.getJsonObject("jobs_server") != null) {
-            kueOptions.config = config.getJsonObject("jobs_server")
-        }
-        vertx.deployVerticle(new KueVerticle(), kueOptions, {
-            if (it.failed()) {
-                it.cause().printStackTrace()
-                System.exit(-1)
-            }
-            kue = Kue.createQueue(vertx, kueOptions.config)
-            handler.handle(Future.succeededFuture())
-        })
+//        if (config.getJsonObject("jobs_server") != null) {
+//            def redisClient = RedisHelper.client(vertx, config.getJsonObject("jobs_server"))
+//            redis = new RedisDAO(redisClient)
+//        } else {
+//            def redisClient = RedisHelper.client(vertx, config)
+//            redis = new RedisDAO(redisClient)
+//        }
+//
+//        def kueOptions = new DeploymentOptions().setConfig(config)
+//        if (config.getJsonObject("jobs_server") != null) {
+//            kueOptions.config = config.getJsonObject("jobs_server")
+//        }
+//        vertx.deployVerticle(new KueVerticle(), kueOptions, {
+//            if (it.failed()) {
+//                it.cause().printStackTrace()
+//                System.exit(-1)
+//            }
+//            kue = Kue.createQueue(vertx, kueOptions.config)
+//            handler.handle(Future.succeededFuture())
+//        })
     }
 
     void createJob(String jobType, String initialMessage, String githubRepository, Handler<AsyncResult<Job>> handler) {

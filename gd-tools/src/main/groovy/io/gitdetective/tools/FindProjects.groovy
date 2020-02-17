@@ -1,7 +1,6 @@
 package io.gitdetective.tools
 
 import io.gitdetective.web.dao.JobsDAO
-import io.gitdetective.web.work.GHArchiveSync
 import io.vertx.core.AbstractVerticle
 import io.vertx.core.DeploymentOptions
 import io.vertx.core.Vertx
@@ -48,24 +47,24 @@ class FindProjects extends AbstractVerticle {
     @Override
     void start() throws Exception {
         def jobs = new JobsDAO(vertx, config())
-        vertx.deployVerticle(new GHArchiveSync(jobs), new DeploymentOptions()
-                .setConfig(config().put("gh_sync_standalone_mode", true)), {
-            if (it.failed()) {
-                it.cause().printStackTrace()
-                System.exit(-1)
-            }
-
-            vertx.eventBus().send(GHArchiveSync.STANDALONE_MODE, new JsonObject()
-                    .put("from_date", fromDate.toString())
-                    .put("to_date", toDate.toString()), new DeliveryOptions().setSendTimeout(Integer.MAX_VALUE), {
-                if (it.failed()) {
-                    it.cause().printStackTrace()
-                    System.exit(-1)
-                }
-
-                vertx.close()
-            })
-        })
+//        vertx.deployVerticle(new GHArchiveSync(jobs), new DeploymentOptions()
+//                .setConfig(config().put("gh_sync_standalone_mode", true)), {
+//            if (it.failed()) {
+//                it.cause().printStackTrace()
+//                System.exit(-1)
+//            }
+//
+//            vertx.eventBus().send(GHArchiveSync.STANDALONE_MODE, new JsonObject()
+//                    .put("from_date", fromDate.toString())
+//                    .put("to_date", toDate.toString()), new DeliveryOptions().setSendTimeout(Integer.MAX_VALUE), {
+//                if (it.failed()) {
+//                    it.cause().printStackTrace()
+//                    System.exit(-1)
+//                }
+//
+//                vertx.close()
+//            })
+//        })
     }
 
 }

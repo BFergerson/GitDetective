@@ -1,7 +1,6 @@
 package io.gitdetective.web.dao
 
 import io.gitdetective.web.dao.storage.ReferenceStorage
-import io.gitdetective.web.work.importer.OpenSourceFunction
 import io.vertx.core.AsyncResult
 import io.vertx.core.CompositeFuture
 import io.vertx.core.Future
@@ -477,27 +476,27 @@ class RedisDAO implements ReferenceStorage {
         return methodCount
     }
 
-    void cacheOpenSourceFunction(String functionName, OpenSourceFunction osFunc, Handler<AsyncResult> handler) {
-        redis.set("gitdetective:osf:" + functionName, Json.encode(osFunc), handler)
-    }
-
-    void getOpenSourceFunction(String functionName, Handler<AsyncResult<Optional<OpenSourceFunction>>> handler) {
-        redis.get("gitdetective:osf:" + functionName, {
-            if (it.failed()) {
-                handler.handle(Future.failedFuture(it.cause()))
-            } else {
-                def result = it.result()
-                if (result == null) {
-                    handler.handle(Future.succeededFuture(Optional.empty()))
-                } else {
-                    def ob = new JsonObject(it.result())
-                    def osFunc = new OpenSourceFunction(ob.getString("functionId"),
-                            ob.getString("functionDefinitionsId"), ob.getString("functionReferencesId"))
-                    handler.handle(Future.succeededFuture(Optional.of(osFunc)))
-                }
-            }
-        })
-    }
+//    void cacheOpenSourceFunction(String functionName, OpenSourceFunction osFunc, Handler<AsyncResult> handler) {
+//        redis.set("gitdetective:osf:" + functionName, Json.encode(osFunc), handler)
+//    }
+//
+//    void getOpenSourceFunction(String functionName, Handler<AsyncResult<Optional<OpenSourceFunction>>> handler) {
+//        redis.get("gitdetective:osf:" + functionName, {
+//            if (it.failed()) {
+//                handler.handle(Future.failedFuture(it.cause()))
+//            } else {
+//                def result = it.result()
+//                if (result == null) {
+//                    handler.handle(Future.succeededFuture(Optional.empty()))
+//                } else {
+//                    def ob = new JsonObject(it.result())
+//                    def osFunc = new OpenSourceFunction(ob.getString("functionId"),
+//                            ob.getString("functionDefinitionsId"), ob.getString("functionReferencesId"))
+//                    handler.handle(Future.succeededFuture(Optional.of(osFunc)))
+//                }
+//            }
+//        })
+//    }
 
     @Override
     void addProjectImportedFile(String githubRepository, String filename, String fileId, Handler<AsyncResult> handler) {

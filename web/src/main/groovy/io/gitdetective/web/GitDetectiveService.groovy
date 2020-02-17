@@ -1,18 +1,7 @@
 package io.gitdetective.web
 
-import ai.grakn.GraknTxType
-import ai.grakn.Keyspace
-import ai.grakn.client.Grakn
-import ai.grakn.util.SimpleURI
-import com.google.common.base.Charsets
-import com.google.common.io.Resources
-import io.gitdetective.web.dao.GraknDAO
 import io.gitdetective.web.dao.JobsDAO
-import io.gitdetective.web.dao.PostgresDAO
 import io.gitdetective.web.dao.RedisDAO
-import io.gitdetective.web.task.RefreshFunctionLeaderboard
-import io.gitdetective.web.work.GHArchiveSync
-import io.gitdetective.web.work.importer.GraknImporter
 import io.vertx.blueprint.kue.queue.Job
 import io.vertx.blueprint.kue.queue.Priority
 import io.vertx.blueprint.kue.util.RedisHelper
@@ -56,48 +45,48 @@ class GitDetectiveService extends AbstractVerticle {
         uploadsDirectory = config().getString("uploads.directory")
         def redis = new RedisDAO(RedisHelper.client(vertx, config()))
         def refStorage = redis
-        if (config().getJsonObject("storage") != null) {
-            refStorage = new PostgresDAO(vertx, config().getJsonObject("storage"), redis)
-        }
-
-        vertx.executeBlocking({
-            def importJobEnabled = config().getJsonObject("importer").getBoolean("enabled")
-            if (config().getBoolean("grakn.enabled")) {
-                log.info "Grakn integration enabled"
-                setupOntology()
-
-                //todo: better placement
-                vertx.deployVerticle(new RefreshFunctionLeaderboard(redis, refStorage, makeGraknDAO(redis)),
-                        new DeploymentOptions().setConfig(config()))
-
-                if (importJobEnabled) {
-                    log.info "Import job processing enabled"
-                    def grakn = makeGraknDAO(redis)
-                    def importerOptions = new DeploymentOptions().setConfig(config())
-                    vertx.deployVerticle(new GraknImporter(jobs.kue, redis, refStorage, grakn, uploadsDirectory), importerOptions)
-                } else {
-                    log.info "Import job processing disabled"
-                }
-            } else if (importJobEnabled) {
-                log.error "Job processing cannot be enabled with Grakn disabled"
-                System.exit(-1)
-            } else {
-                log.info "Grakn integration disabled"
-            }
-            it.complete()
-
-            if (config().getBoolean("launch_website")) {
-                log.info "Launching GitDetective website"
-                def options = new DeploymentOptions().setConfig(config())
-                vertx.deployVerticle(new GitDetectiveWebsite(jobs, redis, refStorage, router), options)
-                vertx.deployVerticle(new GHArchiveSync(jobs), options)
-            }
-        }, false, {
-            if (it.failed()) {
-                it.cause().printStackTrace()
-                System.exit(-1)
-            }
-        })
+//        if (config().getJsonObject("storage") != null) {
+//            refStorage = new PostgresDAO(vertx, config().getJsonObject("storage"), redis)
+//        }
+//
+//        vertx.executeBlocking({
+//            def importJobEnabled = config().getJsonObject("importer").getBoolean("enabled")
+//            if (config().getBoolean("grakn.enabled")) {
+//                log.info "Grakn integration enabled"
+//                setupOntology()
+//
+//                //todo: better placement
+//                vertx.deployVerticle(new RefreshFunctionLeaderboard(redis, refStorage, makeGraknDAO(redis)),
+//                        new DeploymentOptions().setConfig(config()))
+//
+//                if (importJobEnabled) {
+//                    log.info "Import job processing enabled"
+//                    def grakn = makeGraknDAO(redis)
+//                    def importerOptions = new DeploymentOptions().setConfig(config())
+//                    vertx.deployVerticle(new GraknImporter(jobs.kue, redis, refStorage, grakn, uploadsDirectory), importerOptions)
+//                } else {
+//                    log.info "Import job processing disabled"
+//                }
+//            } else if (importJobEnabled) {
+//                log.error "Job processing cannot be enabled with Grakn disabled"
+//                System.exit(-1)
+//            } else {
+//                log.info "Grakn integration disabled"
+//            }
+//            it.complete()
+//
+//            if (config().getBoolean("launch_website")) {
+//                log.info "Launching GitDetective website"
+//                def options = new DeploymentOptions().setConfig(config())
+//                vertx.deployVerticle(new GitDetectiveWebsite(jobs, redis, refStorage, router), options)
+//                vertx.deployVerticle(new GHArchiveSync(jobs), options)
+//            }
+//        }, false, {
+//            if (it.failed()) {
+//                it.cause().printStackTrace()
+//                System.exit(-1)
+//            }
+//        })
 
         //routes
         router.post("/indexes").handler(this.&downloadIndexFile)
@@ -453,32 +442,32 @@ class GitDetectiveService extends AbstractVerticle {
         log.info "GitDetectiveService started"
     }
 
-    private GraknDAO makeGraknDAO(RedisDAO redis) {
-        String graknHost = config().getString("grakn.host")
-        int graknPort = config().getInteger("grakn.port")
-        String graknKeyspace = config().getString("grakn.keyspace")
-        def keyspace = Keyspace.of(graknKeyspace)
-        def grakn = new Grakn(new SimpleURI(graknHost + ":" + graknPort))
-        def session = grakn.session(keyspace)
-        return new GraknDAO(vertx, redis, session)
-    }
-
-    private void setupOntology() {
-        log.info "Setting up Grakn ontology"
-        String graknHost = config().getString("grakn.host")
-        int graknPort = config().getInteger("grakn.port")
-        String graknKeyspace = config().getString("grakn.keyspace")
-        def keyspace = Keyspace.of(graknKeyspace)
-        def grakn = new Grakn(new SimpleURI(graknHost, graknPort))
-        def session = grakn.session(keyspace)
-        def tx = session.transaction(GraknTxType.WRITE)
-        def graql = tx.graql()
-        def query = graql.parse(Resources.toString(Resources.getResource("gitdetective-schema.gql"), Charsets.UTF_8))
-        query.execute()
-        tx.commit()
-        session.close()
-        log.info "Ontology setup"
-    }
+//    private GraknDAO makeGraknDAO(RedisDAO redis) {
+//        String graknHost = config().getString("grakn.host")
+//        int graknPort = config().getInteger("grakn.port")
+//        String graknKeyspace = config().getString("grakn.keyspace")
+//        def keyspace = Keyspace.of(graknKeyspace)
+//        def grakn = new Grakn(new SimpleURI(graknHost + ":" + graknPort))
+//        def session = grakn.session(keyspace)
+//        return new GraknDAO(vertx, redis, session)
+//    }
+//
+//    private void setupOntology() {
+//        log.info "Setting up Grakn ontology"
+//        String graknHost = config().getString("grakn.host")
+//        int graknPort = config().getInteger("grakn.port")
+//        String graknKeyspace = config().getString("grakn.keyspace")
+//        def keyspace = Keyspace.of(graknKeyspace)
+//        def grakn = new Grakn(new SimpleURI(graknHost, graknPort))
+//        def session = grakn.session(keyspace)
+//        def tx = session.transaction(GraknTxType.WRITE)
+//        def graql = tx.graql()
+//        def query = graql.parse(Resources.toString(Resources.getResource("gitdetective-schema.gql"), Charsets.UTF_8))
+//        query.execute()
+//        tx.commit()
+//        session.close()
+//        log.info "Ontology setup"
+//    }
 
     private void downloadIndexFile(RoutingContext routingContext) {
         def uuid = randomUUID() as String

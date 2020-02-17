@@ -1,12 +1,8 @@
 package io.gitdetective.web
 
-import com.google.common.cache.Cache
-import com.google.common.cache.CacheBuilder
-import com.google.common.collect.Lists
 import io.gitdetective.web.dao.JobsDAO
 import io.gitdetective.web.dao.RedisDAO
 import io.gitdetective.web.dao.storage.ReferenceStorage
-import io.gitdetective.web.work.importer.GraknImporter
 import io.vertx.core.AbstractVerticle
 import io.vertx.core.CompositeFuture
 import io.vertx.core.Future
@@ -47,8 +43,8 @@ class GitDetectiveWebsite extends AbstractVerticle {
     private final ReferenceStorage storage
     private final Router router
     private final HandlebarsTemplateEngine engine
-    private final Cache<String, Boolean> autoBuildCache = CacheBuilder.newBuilder()
-            .expireAfterWrite(1, TimeUnit.MINUTES).build()
+//    private final Cache<String, Boolean> autoBuildCache = CacheBuilder.newBuilder()
+//            .expireAfterWrite(1, TimeUnit.MINUTES).build()
 
     GitDetectiveWebsite(JobsDAO jobs, RedisDAO redis, ReferenceStorage storage, Router router) {
         this.jobs = jobs

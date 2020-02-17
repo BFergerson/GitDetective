@@ -1,11 +1,5 @@
 package io.gitdetective.tools
 
-import ai.grakn.GraknSession
-import ai.grakn.GraknTxType
-import ai.grakn.Keyspace
-import ai.grakn.client.Grakn
-import ai.grakn.graql.answer.ConceptMap
-import ai.grakn.util.SimpleURI
 import io.vertx.core.json.JsonObject
 import org.apache.commons.io.IOUtils
 
@@ -26,23 +20,23 @@ class GetProjects {
             throw new IllegalStateException("Grakn is disabled")
         }
 
-        def grakn = new Grakn(new SimpleURI(config.getString("grakn.host"), config.getInteger("grakn.port")))
-        GraknSession session = grakn.session(Keyspace.of(config.getString("grakn.keyspace")))
-        def tx = session.transaction(GraknTxType.READ)
-        def graql = tx.graql()
-        def query = graql.parse('match $x isa project has project_name $name; get $name;')
-        def answers = query.execute() as List<ConceptMap>
-        if (answers.isEmpty()) {
-            println "Found no projects"
-        } else {
-            println "Found projects:"
-            for (def answer : answers) {
-                def projectName = answer.get("name").asAttribute().value().toString()
-                println projectName
-            }
-        }
-        tx.close()
-        session.close()
+//        def grakn = new Grakn(new SimpleURI(config.getString("grakn.host"), config.getInteger("grakn.port")))
+//        GraknSession session = grakn.session(Keyspace.of(config.getString("grakn.keyspace")))
+//        def tx = session.transaction(GraknTxType.READ)
+//        def graql = tx.graql()
+//        def query = graql.parse('match $x isa project has project_name $name; get $name;')
+//        def answers = query.execute() as List<ConceptMap>
+//        if (answers.isEmpty()) {
+//            println "Found no projects"
+//        } else {
+//            println "Found projects:"
+//            for (def answer : answers) {
+//                def projectName = answer.get("name").asAttribute().value().toString()
+//                println projectName
+//            }
+//        }
+//        tx.close()
+//        session.close()
     }
 
 }
