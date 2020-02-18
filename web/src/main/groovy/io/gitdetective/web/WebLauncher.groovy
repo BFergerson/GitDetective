@@ -72,7 +72,7 @@ class WebLauncher {
             })
             addHttpRedirection(vertx, deployOptions.config)
         } else {
-            vertx.createHttpServer().requestHandler(router.&accept).listen(80, {
+            vertx.createHttpServer().requestHandler(router).listen(80, {
                 if (it.failed()) {
                     if (it.cause() instanceof BindException) {
                         log.error "Failed to bind to port: 80"
