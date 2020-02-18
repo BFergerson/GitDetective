@@ -172,7 +172,7 @@ class GitDetectiveWebsite extends AbstractVerticle {
         //load and send page data
         log.debug "Loading index page"
         CompositeFuture.all(Lists.asList(
-//                getActiveJobs(ctx),
+                getActiveJobs(ctx),
 //                getProjectReferenceLeaderboard(ctx, 5),
 //                getFunctionReferenceLeaderboard(ctx, 5),
                 getDatabaseStatistics(ctx)
@@ -202,7 +202,7 @@ class GitDetectiveWebsite extends AbstractVerticle {
                 ctx.fail(it.cause())
             } else {
                 log.debug "Rendering project leaderboard page"
-                engine.render(ctx, "webroot", "/project_leaderboard.hbs", { res ->
+                engine.render(ctx.data(), "webroot/project_leaderboard.hbs", { res ->
                     if (res.succeeded()) {
                         log.info "Displaying project leaderboard page"
                         ctx.response().end(res.result())
@@ -227,7 +227,7 @@ class GitDetectiveWebsite extends AbstractVerticle {
                 ctx.fail(it.cause())
             } else {
                 log.debug "Rendering function leaderboard page"
-                engine.render(ctx, "webroot", "/function_leaderboard.hbs", { res ->
+                engine.render(ctx.data(), "webroot/function_leaderboard.hbs", { res ->
                     if (res.succeeded()) {
                         log.info "Displaying function leaderboard page"
                         ctx.response().end(res.result())
@@ -242,7 +242,7 @@ class GitDetectiveWebsite extends AbstractVerticle {
     private Future getActiveJobs(RoutingContext ctx) {
         def future = Future.future()
         def handler = future.completer()
-        vertx.eventBus().send(GET_ACTIVE_JOBS, new JsonObject(), {
+        vertx.eventBus().request(GET_ACTIVE_JOBS, new JsonObject(), {
             if (it.failed()) {
                 ctx.fail(it.cause())
             } else {
@@ -254,11 +254,11 @@ class GitDetectiveWebsite extends AbstractVerticle {
                 //add pretty job type
                 for (int i = 0; i < activeJobs.size(); i++) {
                     def job = activeJobs.getJsonObject(i)
-                    if (job.getString("type") == GraknImporter.GRAKN_INDEX_IMPORT_JOB_TYPE) {
-                        job.getJsonObject("data").put("job_type", "Importing")
-                    } else {
+//                    if (job.getString("type") == GraknImporter.GRAKN_INDEX_IMPORT_JOB_TYPE) {
+//                        job.getJsonObject("data").put("job_type", "Importing")
+//                    } else {
                         job.getJsonObject("data").put("job_type", "Indexing")
-                    }
+//                    }
                 }
 
                 ctx.put("active_jobs", activeJobs)
@@ -337,16 +337,16 @@ class GitDetectiveWebsite extends AbstractVerticle {
         log.debug "Loading project page: $username/$project"
         def repo = new JsonObject().put("github_repository", "$username/$project")
         CompositeFuture.all(Lists.asList(
-                getLatestBuildLog(ctx, repo),
-                getProjectFileCount(ctx, repo),
-                getProjectMethodVersionCount(ctx, repo),
-                getProjectFirstIndexed(ctx, repo),
-                getProjectLastIndexed(ctx, repo),
-                getProjectLastIndexedCommitInformation(ctx, repo),
-                getProjectMostReferencedFunctions(ctx, repo)
+                getLatestBuildLog(ctx, repo)
+//                getProjectFileCount(ctx, repo),
+//                getProjectMethodVersionCount(ctx, repo),
+//                getProjectFirstIndexed(ctx, repo),
+//                getProjectLastIndexed(ctx, repo),
+//                getProjectLastIndexedCommitInformation(ctx, repo),
+//                getProjectMostReferencedFunctions(ctx, repo)
         )).setHandler({
             log.debug "Rendering project page: $username/$project"
-            engine.render(ctx, "webroot", "/project.hbs", { res ->
+            engine.render(ctx.data(), "webroot/project.hbs", { res ->
                 if (res.succeeded()) {
                     log.info "Displaying project page: $username/$project"
                     ctx.response().end(res.result())
@@ -356,22 +356,22 @@ class GitDetectiveWebsite extends AbstractVerticle {
             })
         })
 
-        if (config().getBoolean("auto_build_enabled")) {
-            //schedule build/recalculate if can
-            def autoBuilt = autoBuildCache.getIfPresent(githubRepository)
-            if (autoBuilt == null) {
-                log.debug "Checking repository: $githubRepository"
-                autoBuildCache.put(githubRepository, true)
-
-                vertx.eventBus().send(GET_TRIGGER_INFORMATION, repo, {
-                    def triggerInformation = it.result().body() as JsonObject
-                    if (triggerInformation.getBoolean("can_build")) {
-                        log.info "Auto-building: " + repo.getString("github_repository")
-                        vertx.eventBus().send(CREATE_JOB, repo)
-                    }
-                })
-            }
-        }
+//        if (config().getBoolean("auto_build_enabled")) {
+//            //schedule build/recalculate if can
+//            def autoBuilt = autoBuildCache.getIfPresent(githubRepository)
+//            if (autoBuilt == null) {
+//                log.debug "Checking repository: $githubRepository"
+//                autoBuildCache.put(githubRepository, true)
+//
+//                vertx.eventBus().send(GET_TRIGGER_INFORMATION, repo, {
+//                    def triggerInformation = it.result().body() as JsonObject
+//                    if (triggerInformation.getBoolean("can_build")) {
+//                        log.info "Auto-building: " + repo.getString("github_repository")
+//                        vertx.eventBus().send(CREATE_JOB, repo)
+//                    }
+//                })
+//            }
+//        }
     }
 
     private Future getLatestBuildLog(RoutingContext ctx, JsonObject githubRepository) {

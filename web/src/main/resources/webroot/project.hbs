@@ -157,14 +157,26 @@
                                                 <tbody>
                                                 <tr>
                                                     <td><h5>Indexed files</h5></td>
-                                                    <td><span id="project_file_count"
-                                                              class="label label-primary">{{project_file_count}}</span>
+                                                    <td>
+                                                    <span id="project_file_count" class="label label-primary">
+                                                        {{#if project_file_count}}
+                                                            {{project_file_count}}
+                                                        {{else}}
+                                                            n/a
+                                                        {{/if}}
+                                                    </span>
                                                     </td>
                                                 </tr>
                                                 <tr>
                                                     <td><h5>Indexed methods</h5></td>
-                                                    <td><span id="project_method_version_count"
-                                                              class="label label-primary">{{project_method_version_count}}</span>
+                                                    <td>
+                                                    <span id="project_method_version_count" class="label label-primary">
+                                                    {{#if project_method_version_count}}
+                                                        {{project_method_version_count}}
+                                                    {{else}}
+                                                        n/a
+                                                    {{/if}}
+                                                    </span>
                                                     </td>
                                                 </tr>
                                                 </tbody>
@@ -277,19 +289,20 @@
                                 </table>
                             </div>
                             <span id="display_reference_amount_information" class="float-right"></span>
-                            <!--<nav aria-label="Page navigation example">-->
-                            <!--<ul class="pagination justify-content-center">-->
-                            <!--<li class="page-item disabled">-->
-                            <!--<a class="page-link" href="#" tabindex="-1">Previous</a>-->
-                            <!--</li>-->
-                            <!--<li class="page-item"><a class="page-link" href="#">1</a></li>-->
-                            <!--<li class="page-item"><a class="page-link" href="#">2</a></li>-->
-                            <!--<li class="page-item"><a class="page-link" href="#">3</a></li>-->
-                            <!--<li class="page-item">-->
-                            <!--<a class="page-link" href="#">Next</a>-->
-                            <!--</li>-->
-                            <!--</ul>-->
-                            <!--</nav>-->
+                            <br><hr style="padding-bottom: 15px">
+                            <nav aria-label="Page navigation example">
+                                <ul class="pagination justify-content-center">
+                                    <li class="page-item disabled">
+                                        <a class="page-link" href="#" tabindex="-1">Previous</a>
+                                    </li>
+                                    <li class="page-item disabled">
+                                        <a class="page-link" href="#" tabindex="-1">1</a>
+                                    </li>
+                                    <li class="page-item disabled">
+                                        <a class="page-link" href="#" tabindex="-1">Next</a>
+                                    </li>
+                                </ul>
+                            </nav>
                         </div>
                     </div>
                 </div>
@@ -312,8 +325,8 @@
                     <a href="https://github.com/codebrig/gitdetective"><i
                             style="margin-top: -5px; font-size: 30px; color: #99abb4" class="fa fa-github"></i></a>
                 </div>
-                © 2018 <a href="https://codebrig.com">CodeBrig, LLC</a> /
-                Powered by: <a href="https://grakn.ai">Grakn</a> & <a href="https://kythe.io">Kythe</a> /
+                © 2020 <a href="https://codebrig.com">CodeBrig, LLC</a> /
+                Powered by: <a href="https://grakn.ai">Grakn</a> &amp; <a href="https://kythe.io">Kythe</a> /
                 <a href="https://github.com/CodeBrig/GitDetective/issues/new">Report issue</a>
                 <div style="float: right">
                     ver. {{gitdetective_version}}

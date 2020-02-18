@@ -1,6 +1,7 @@
 package io.gitdetective.web.dao
 
 import io.gitdetective.web.dao.storage.ReferenceStorage
+import io.vertx.blueprint.kue.util.RedisHelper
 import io.vertx.core.AsyncResult
 import io.vertx.core.CompositeFuture
 import io.vertx.core.Future
@@ -104,11 +105,11 @@ class RedisDAO implements ReferenceStorage {
 
     void getLatestJobId(String githubRepository, Handler<AsyncResult<Optional<Long>>> handler) {
         log.trace "Getting latest job id for project $githubRepository"
-        redis.lrange("gitdetective:project:$githubRepository:build_history", 0, 1, {
+        redis.lrange("gitdetective:project:$githubRepository:build_history", "0", "1", {
             if (it.failed()) {
                 handler.handle(Future.failedFuture(it.cause()))
             } else {
-                def jsonArray = it.result() as JsonArray
+                def jsonArray = RedisHelper.toJsonArray(it.result())
                 if (jsonArray.isEmpty()) {
                     handler.handle(Future.succeededFuture(Optional.empty()))
                 } else {
@@ -241,11 +242,12 @@ class RedisDAO implements ReferenceStorage {
     }
 
     void getProjectReferenceLeaderboard(int topCount, Handler<AsyncResult<JsonArray>> handler) {
-        redis.zrevrange("gitdetective:project_reference_leaderboard", 0, topCount - 1, RangeOptions.WITHSCORES, {
+        redis.zrevrange(Arrays.asList("gitdetective:project_reference_leaderboard", "0", Long.toString(topCount - 1),
+                RangeOptions.WITHSCORES.toString()), {
             if (it.failed()) {
                 handler.handle(Future.failedFuture(it.cause()))
             } else {
-                def list = it.result() as JsonArray
+                def list = RedisHelper.toJsonArray(it.result())
                 def rtnArray = new JsonArray()
                 for (int i = 0; i < list.size(); i += 2) {
                     rtnArray.add(new JsonObject()
@@ -548,7 +550,7 @@ class RedisDAO implements ReferenceStorage {
                 handler.handle(Future.failedFuture(it.cause()))
             } else {
                 def decodedArray = new JsonArray()
-                def results = it.result() as JsonArray
+                def results = RedisHelper.toJsonArray(it.result())
                 for (int i = 0; i < results.size(); i++) {
                     decodedArray.add(new JsonObject(results.getString(i)))
                 }
