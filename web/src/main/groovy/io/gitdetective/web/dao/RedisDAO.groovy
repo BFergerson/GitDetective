@@ -5,12 +5,13 @@ import io.vertx.core.AsyncResult
 import io.vertx.core.CompositeFuture
 import io.vertx.core.Future
 import io.vertx.core.Handler
-import io.vertx.core.json.Json
 import io.vertx.core.json.JsonArray
 import io.vertx.core.json.JsonObject
 import io.vertx.core.logging.Logger
 import io.vertx.core.logging.LoggerFactory
 import io.vertx.redis.RedisClient
+import io.vertx.redis.client.Redis
+import io.vertx.redis.client.RedisAPI
 import io.vertx.redis.op.RangeOptions
 
 import java.time.Instant
@@ -23,16 +24,18 @@ import static io.gitdetective.web.WebServices.*
 class RedisDAO implements ReferenceStorage {
 
     private final static Logger log = LoggerFactory.getLogger(RedisDAO.class)
-    private final RedisClient redis
+    private final RedisAPI redis
 
-    RedisDAO(RedisClient redis) {
-        this.redis = redis
+    RedisDAO(Redis redis) {
+        this.redis = RedisAPI.api(redis)
 
         //verify redis connection
-        redis.ping({
-            if (it.failed()) {
-                throw new RuntimeException(it.cause())
-            }
+        redis.connect({
+            this.redis.ping(Collections.emptyList(), {
+                if (it.failed()) {
+                    throw new RuntimeException(it.cause())
+                }
+            })
         })
     }
 
@@ -91,7 +94,7 @@ class RedisDAO implements ReferenceStorage {
 
     void appendJobToBuildHistory(String githubRepository, long jobId, Handler<AsyncResult<Void>> handler) {
         log.trace "Adding job $jobId from '$githubRepository' build history"
-        redis.lpush("gitdetective:project:$githubRepository:build_history", jobId as String, handler)
+        redis.lpush(Arrays.asList("gitdetective:project:$githubRepository:build_history".toString(), Long.toString(jobId)), handler)
     }
 
     void removeLatestJobFromBuildHistory(String githubRepository, long jobId, Handler<AsyncResult<Void>> handler) {
@@ -335,7 +338,7 @@ class RedisDAO implements ReferenceStorage {
     }
 
     protected void setProjectLastBuilt(String githubRepository, Instant lastBuilt, Handler<AsyncResult> handler) {
-        redis.set("gitdetective:project:$githubRepository:project_last_built", lastBuilt.toString(), handler)
+        redis.set(Arrays.asList("gitdetective:project:$githubRepository:project_last_built".toString(), lastBuilt.toString()), handler)
     }
 
     void getComputeTime(Handler<AsyncResult<Long>> handler) {

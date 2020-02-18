@@ -1,5 +1,6 @@
 package io.gitdetective.indexer.stage
 
+import io.gitdetective.indexer.extractor.MavenReferenceExtractor
 import io.gitdetective.web.dao.JobsDAO
 import io.vertx.blueprint.kue.Kue
 import io.vertx.blueprint.kue.queue.Job
@@ -48,7 +49,7 @@ class GithubRepositoryCloner extends AbstractVerticle {
         kue.on("error", {
             log.error "Indexer job error: " + it.body()
         })
-        kue.processBlocking(INDEX_GITHUB_PROJECT_JOB_TYPE, config().getInteger("builder_thread_count"), { job ->
+        kue.process(INDEX_GITHUB_PROJECT_JOB_TYPE, config().getInteger("builder_thread_count"), { job ->
             def githubRepository = job.data.getString("github_repository").toLowerCase()
 
             //skip build if already done in last 24 hours
@@ -172,10 +173,10 @@ class GithubRepositoryCloner extends AbstractVerticle {
             String builderAddress
             if (mavenProject) {
                 logPrintln(job, "Detected Maven build system")
-                builderAddress = KytheMavenBuilder.BUILDER_ADDRESS
+                builderAddress = MavenReferenceExtractor.EXTRACTOR_ADDRESS
             } else {
-                logPrintln(job, "Detected Gradle build system")
-                builderAddress = KytheGradleBuilder.BUILDER_ADDRESS
+//                logPrintln(job, "Detected Gradle build system")
+//                builderAddress = KytheGradleBuilder.BUILDER_ADDRESS
             }
             def latestCommit = repo.getBranch(repo.getDefaultBranch()).SHA1
             def latestCommitDate = repo.getCommit(latestCommit).commitDate.toInstant()
@@ -230,7 +231,7 @@ class GithubRepositoryCloner extends AbstractVerticle {
                         .setTimeout(TimeUnit.MINUTES.toSeconds(CLONE_TIMEOUT_LIMIT_MINUTES) as int)
                         .call()
 
-                if (KytheMavenBuilder.BUILDER_ADDRESS == builderAddress) {
+                if (MavenReferenceExtractor.EXTRACTOR_ADDRESS == builderAddress) {
                     File mavenBuildPomFile = new File(outputDirectory, "pom.xml")
                     if (mavenBuildPomFile.exists()) {
                         logPrintln(job, "Project successfully cloned")
@@ -239,16 +240,18 @@ class GithubRepositoryCloner extends AbstractVerticle {
                         logPrintln(job, "Failed to find pom.xml")
                         blocking.fail("Failed to find pom.xml")
                     }
-                } else if (KytheGradleBuilder.BUILDER_ADDRESS == builderAddress) {
-                    File gradleBuildFile = new File(outputDirectory, "build.gradle")
-                    if (gradleBuildFile.exists()) {
-                        logPrintln(job, "Project successfully cloned")
-                        blocking.complete(gradleBuildFile)
-                    } else {
-                        logPrintln(job, "Failed to find build.gradle")
-                        blocking.fail("Failed to find build.gradle")
-                    }
-                } else {
+                }
+//                else if (KytheGradleBuilder.BUILDER_ADDRESS == builderAddress) {
+//                    File gradleBuildFile = new File(outputDirectory, "build.gradle")
+//                    if (gradleBuildFile.exists()) {
+//                        logPrintln(job, "Project successfully cloned")
+//                        blocking.complete(gradleBuildFile)
+//                    } else {
+//                        logPrintln(job, "Failed to find build.gradle")
+//                        blocking.fail("Failed to find build.gradle")
+//                    }
+//                }
+                else {
                     throw new IllegalArgumentException("Unsupported builder: $builderAddress")
                 }
             } catch (TransportException e) {
@@ -263,7 +266,13 @@ class GithubRepositoryCloner extends AbstractVerticle {
                 job.data.put("commit_date", latestCommitDate)
                 job.data.put("output_directory", outputDirectory.absolutePath)
                 job.data.put("build_target", (res.result() as File).absolutePath)
-                vertx.eventBus().send(builderAddress, job)
+                job.save().setHandler({
+                    if (it.succeeded()) {
+                        vertx.eventBus().send(builderAddress, job)
+                    } else {
+                        job.done(it.cause())
+                    }
+                })
             }
         })
     }

@@ -1,6 +1,9 @@
 package io.gitdetective.indexer
 
 import com.codahale.metrics.MetricRegistry
+import groovy.util.logging.Slf4j
+import io.gitdetective.indexer.extractor.MavenReferenceExtractor
+import io.gitdetective.indexer.stage.GithubRepositoryCloner
 import io.gitdetective.web.dao.JobsDAO
 import io.gitdetective.web.dao.RedisDAO
 import io.vertx.blueprint.kue.Kue
@@ -25,10 +28,10 @@ import static io.gitdetective.indexer.IndexerServices.messageCodec
  *
  * @author <a href="mailto:brandon.fergerson@codebrig.com">Brandon Fergerson</a>
  */
+@Slf4j
 class GitDetectiveIndexer extends AbstractVerticle {
 
     public static final MetricRegistry metrics = new MetricRegistry()
-    private final static Logger log = LoggerFactory.getLogger(GitDetectiveIndexer.class)
     private final static ResourceBundle buildBundle = ResourceBundle.getBundle("gitdetective_build")
 
     static void main(String[] args) {
@@ -47,7 +50,7 @@ class GitDetectiveIndexer extends AbstractVerticle {
         }
 
         def kue = new Kue(vertx, kueOptions.config)
-        vertx.deployVerticle(new KueVerticle(), kueOptions, {
+        vertx.deployVerticle(new KueVerticle(kue), kueOptions, {
             if (it.failed()) {
                 it.cause().printStackTrace()
                 System.exit(-1)
@@ -76,21 +79,10 @@ class GitDetectiveIndexer extends AbstractVerticle {
         def deployOptions = new DeploymentOptions()
         deployOptions.config = config()
 
-        def refStorage = redis
-//        if (config().getJsonObject("storage") != null) {
-//            refStorage = new PostgresDAO(vertx, config().getJsonObject("storage"), redis)
-//        }
-//
-//        //core
-//        vertx.deployVerticle(new GithubRepositoryCloner(kue, jobs), deployOptions)
-//        vertx.deployVerticle(new KytheIndexOutput(), deployOptions)
-//        vertx.deployVerticle(new KytheUsageExtractor(), deployOptions)
-//        vertx.deployVerticle(new GitDetectiveImportFilter(refStorage), deployOptions)
-//        vertx.deployVerticle(new KytheIndexAugment(redis), deployOptions)
+        //core
+        vertx.deployVerticle(new GithubRepositoryCloner(kue, jobs), deployOptions)
 
-//        //project builders
-//        vertx.deployVerticle(new KytheMavenBuilder(), deployOptions)
-//        vertx.deployVerticle(new KytheGradleBuilder(), deployOptions)
+        //extractors
+        vertx.deployVerticle(new MavenReferenceExtractor(), deployOptions)
     }
-
 }
