@@ -1,5 +1,7 @@
 package io.gitdetective.indexer
 
+import ch.qos.logback.classic.Level
+import ch.qos.logback.classic.Logger
 import com.codahale.metrics.MetricRegistry
 import groovy.util.logging.Slf4j
 import io.gitdetective.indexer.extractor.MavenReferenceExtractor
@@ -15,13 +17,13 @@ import io.vertx.core.DeploymentOptions
 import io.vertx.core.Vertx
 import io.vertx.core.VertxOptions
 import io.vertx.core.json.JsonObject
-import io.vertx.core.logging.Logger
-import io.vertx.core.logging.LoggerFactory
 import org.apache.commons.io.IOUtils
+import org.slf4j.LoggerFactory
 
 import java.nio.charset.StandardCharsets
 
 import static io.gitdetective.indexer.IndexerServices.messageCodec
+import static org.slf4j.Logger.ROOT_LOGGER_NAME
 
 /**
  * Indexer main entry
@@ -30,6 +32,12 @@ import static io.gitdetective.indexer.IndexerServices.messageCodec
  */
 @Slf4j
 class GitDetectiveIndexer extends AbstractVerticle {
+
+    static {
+        //disable grakn 'io.netty' DEBUG logging
+        Logger root = (Logger) LoggerFactory.getLogger(ROOT_LOGGER_NAME)
+        root.setLevel(Level.INFO)
+    }
 
     public static final MetricRegistry metrics = new MetricRegistry()
     private final static ResourceBundle buildBundle = ResourceBundle.getBundle("gitdetective_build")

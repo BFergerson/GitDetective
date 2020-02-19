@@ -3,17 +3,13 @@ group = 'io.gitdetective.web'
 apply plugin: 'application'
 mainClassName = 'io.gitdetective.web.WebLauncher'
 
-repositories {
-    maven {
-        url 'https://repo.grakn.ai/repository/maven/'
-    }
-}
-
 dependencies {
     compile group: 'io.dropwizard.metrics', name: 'metrics-core', version: '4.0.2'
     compile group: 'io.vertx', name: 'vertx-web', version: '3.8.5'
     compile group: 'io.vertx', name: 'vertx-web-templ-handlebars', version: '3.8.5'
-    compile 'io.vertx:vertx-mysql-postgresql-client:3.8.5'
+    compile ('io.vertx:vertx-mysql-postgresql-client:3.8.5') {
+        exclude group: 'org.scala-lang', module: 'scala-library'
+    }
     compile 'io.vertx:vertx-dropwizard-metrics:3.8.5'
     compile 'io.vertx:vertx-tcp-eventbus-bridge:3.8.5'
     compile 'io.reactivex.rxjava2:rxjava:2.1.12'

@@ -37,7 +37,7 @@ class WebLauncher {
     static {
         //disable grakn 'io.netty' DEBUG logging
         Logger root = (Logger) LoggerFactory.getLogger(ROOT_LOGGER_NAME)
-        root.setLevel(Level.INFO);
+        root.setLevel(Level.INFO)
     }
 
     public static final MetricRegistry metrics = new MetricRegistry()
