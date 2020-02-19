@@ -56,6 +56,22 @@ class GitDetectiveWebsite extends AbstractVerticle {
         router.route("/static/*").handler(StaticHandler.create()
                 .setWebRoot("webroot/static")
                 .setCachingEnabled(true))
+        router.get("/helper/*").handler(StaticHandler.create()
+                .setWebRoot("webroot/helper")
+                .setCachingEnabled(true))
+        router.getWithRegex(".*js.map").handler({ ctx ->
+            ctx.response().setStatusCode(404).end()
+        })
+        router.get("/static").handler({ ctx ->
+            ctx.response().setStatusCode(404).end()
+        })
+        router.get("/static/").handler({ ctx ->
+            ctx.response().setStatusCode(404).end()
+        })
+        router.get("/favicon.ico").handler({ ctx ->
+            //todo: get favicon
+            ctx.response().setStatusCode(404).end()
+        })
         router.get("/").handler({ ctx ->
             handleIndexPage(ctx)
         })
@@ -76,16 +92,6 @@ class GitDetectiveWebsite extends AbstractVerticle {
         })
         router.get("/:githubUsername/:githubProject/").handler({ ctx ->
             handleProjectPage(ctx)
-        })
-        router.get("/static").handler({ ctx ->
-            ctx.response().setStatusCode(404).end()
-        })
-        router.get("/static/").handler({ ctx ->
-            ctx.response().setStatusCode(404).end()
-        })
-        router.get("/favicon.ico").handler({ ctx ->
-            //todo: get favicon
-            ctx.response().setStatusCode(404).end()
         })
         router.route().last().handler({
             it.response().putHeader("location", "/")
