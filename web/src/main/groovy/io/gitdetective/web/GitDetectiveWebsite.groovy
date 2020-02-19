@@ -69,6 +69,12 @@ class GitDetectiveWebsite extends AbstractVerticle {
         router.get("/functions/leaderboard").handler({ ctx ->
             handleFunctionLeaderboardPage(ctx)
         })
+        router.get("/:githubUsername").handler({ ctx ->
+            handleUserPage(ctx)
+        })
+        router.get("/:githubUsername/").handler({ ctx ->
+            handleUserPage(ctx)
+        })
         router.get("/:githubUsername/:githubProject").handler({ ctx ->
             handleProjectPage(ctx)
         })
@@ -311,6 +317,46 @@ class GitDetectiveWebsite extends AbstractVerticle {
             handler.handle(Future.succeededFuture())
         })
         return future
+    }
+
+    private void handleUserPage(RoutingContext ctx) {
+        def username = ctx.pathParam("githubUsername")
+
+        if (!isValidGithubString(username)) {
+            //invalid github username
+            ctx.response().putHeader("location", "/")
+                    .setStatusCode(302).end()
+            return
+        } else {
+            ctx.put("github_username", username)
+        }
+        ctx.put("gitdetective_url", config().getString("gitdetective_url"))
+        ctx.put("gitdetective_static_url", config().getString("gitdetective_static_url"))
+        ctx.put("gitdetective_eventbus_url", config().getString("gitdetective_url") + "backend/services/eventbus")
+        ctx.put("gitdetective_version", buildBundle.getString("version"))
+
+        //load and send page data
+        log.debug "Loading user page: $username"
+        //def repo = new JsonObject().put("github_repository", "$username/$project")
+//        CompositeFuture.all(Lists.asList(
+////                getLatestBuildLog(ctx, repo)
+////                getProjectFileCount(ctx, repo),
+////                getProjectMethodVersionCount(ctx, repo),
+////                getProjectFirstIndexed(ctx, repo),
+////                getProjectLastIndexed(ctx, repo),
+////                getProjectLastIndexedCommitInformation(ctx, repo),
+////                getProjectMostReferencedFunctions(ctx, repo)
+//        )).setHandler({
+            log.debug "Rendering user page: $username"
+            engine.render(ctx.data(), "webroot/user.hbs", { res ->
+                if (res.succeeded()) {
+                    log.info "Displaying user page: $username"
+                    ctx.response().end(res.result())
+                } else {
+                    ctx.fail(res.cause())
+                }
+            })
+//        })
     }
 
     private void handleProjectPage(RoutingContext ctx) {

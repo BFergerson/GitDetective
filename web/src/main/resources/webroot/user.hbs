@@ -8,16 +8,10 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="description" content="">
     <meta name="author" content="">
-    <title>GitDetective - Find the use and users of open-source code</title>
+    <title>{{github_username}} - GitDetective</title>
     <!-- Bootstrap Core CSS -->
     <link href="{{gitdetective_static_url}}assets/plugins/bootstrap/css/bootstrap.min.css" rel="stylesheet">
-    <!-- chartist CSS -->
-    <link href="{{gitdetective_static_url}}assets/plugins/chartist-js/dist/chartist.min.css" rel="stylesheet">
-    <link href="{{gitdetective_static_url}}assets/plugins/chartist-js/dist/chartist-init.css" rel="stylesheet">
-    <link href="{{gitdetective_static_url}}assets/plugins/chartist-plugin-tooltip-master/dist/chartist-plugin-tooltip.css"
-          rel="stylesheet">
-    <!--This page css - Morris CSS -->
-    <link href="{{gitdetective_static_url}}assets/plugins/c3-master/c3.min.css" rel="stylesheet">
+    <link href="{{gitdetective_static_url}}assets/plugins/bootstrap-switch/bootstrap-switch.min.css" rel="stylesheet">
     <!-- Custom CSS -->
     <link href="{{gitdetective_static_url}}css/style.css" rel="stylesheet">
     <!-- You can change the theme colors from here -->
@@ -32,7 +26,7 @@
     <![endif]-->
 </head>
 
-<body class="fix-header fix-sidebar card-no-border logo-center">
+<body class="fix-header card-no-border logo-center">
 <!-- ============================================================== -->
 <!-- Preloader - style you can find in spinners.css -->
 <!-- ============================================================== -->
@@ -96,7 +90,7 @@
         <div class="scroll-sidebar" align="center">
             <!-- Sidebar navigation-->
             <nav class="sidebar-nav">
-                <ul id="sidebarnav" style="color: white; opacity: 0.8">
+                <ul id="sidebarnav" style="color: white">
                     Find the use and users of open-source code
                 </ul>
             </nav>
@@ -110,151 +104,145 @@
     <!-- ============================================================== -->
     <!-- Page wrapper  -->
     <!-- ============================================================== -->
-    <div class="page-wrapper">
+    <div class="page-wrapper" style="padding-top: 15px">
         <!-- ============================================================== -->
         <!-- Container fluid  -->
         <!-- ============================================================== -->
         <div class="container-fluid">
             <!-- ============================================================== -->
+            <!-- Bread crumb and right sidebar toggle -->
+            <!-- ============================================================== -->
+            <div class="row page-titles">
+                <a href="https://github.com/{{github_username}}" id="user_link" style="color: #272c33; padding-left:15px">
+                     <img src="https://github.com/{{github_username}}.png" style="padding-top: 5px; width: 42.85px; border-radius: 50%">
+                </a>
+                <div class="col-md-5 col-8 align-self-center">
+                    <h3 id="user_name" class="text-themecolor m-b-0 m-t-0"
+                        style="color: #455a64 !important">{{github_username}}</h3>
+                    <ol class="breadcrumb">
+                        <li class="breadcrumb-item active"><a
+                                href="https://github.com/{{github_username}}"><span
+                                id="repo_name">{{github_username}}</span></a></li>
+                    </ol>
+                </div>
+            </div>
+            <!-- ============================================================== -->
+            <!-- End Bread crumb and right sidebar toggle -->
+            <!-- ============================================================== -->
+            <!-- ============================================================== -->
             <!-- Start Page Content -->
             <!-- ============================================================== -->
             <!-- Row -->
             <div class="row">
-                <div class="col-md-5 col-xlg-5">
-                    <!-- Column -->
-                    <div style="background-color: #272c33" class="card">
-                        <div class="card-header">
-                            <h4 style="color: white" class="card-title m-b-0">Database statistics</h4>
-                        </div>
-                        <div style="padding-top: 0; padding-bottom: 0" class="card-body b-t collapse show">
-                            <table style="margin-bottom: 0.5rem" class="table v-middle no-border">
-                                <tbody id="database_statistics">
-                                {{#each database_statistics}}
-                                    <tr>
-                                        <td style="padding: 0.25rem">{{this.stat1}}</td>
-                                        <td align="left" style="padding: 0.25rem">
-                                            <span class="label">{{this.value1}}</span>
-                                        </td>
-                                        <td style="padding: 0.25rem">{{this.stat2}}</td>
-                                        <td align="left" style="padding: 0.25rem">
-                                            <span class="label">{{this.value2}}</span>
-                                        </td>
-                                    </tr>
-                                {{/each}}
-                                </tbody>
-                            </table>
-                        </div>
-                    </div>
-                    <!-- Column -->
-                    <div style="background-color: #272c33" class="card">
-                        <div class="card-header">
-                            <h4 class="card-title m-b-0">
-                                <a href="{{gitdetective_url}}projects/leaderboard">
-                                    Most referenced projects
-                                </a>
-                            </h4>
-                        </div>
-                        <div style="padding-top: 0; padding-bottom: 0" class="card-body b-t collapse show">
-                            <table class="table v-middle no-border">
-                                <tbody id="project_reference_leaderboard">
-                                {{#each project_reference_leaderboard}}
-                                    <tr>
-                                        <td style="max-width: 250px">
-                                            <a href="{{gitdetective_url}}{{this.github_repository}}">{{this.github_repository}}</a>
-                                        </td>
-                                        <td align="right">
-                                            <span class="label label-primary">{{this.value}}</span>
-                                        </td>
-                                    </tr>
-                                {{/each}}
-                                </tbody>
-                            </table>
-                        </div>
-                    </div>
-                    <!-- Column -->
-                    <div style="background-color: #272c33" class="card">
-                        <div class="card-header">
-                            <h4 class="card-title m-b-0">
-                                <a href="{{gitdetective_url}}functions/leaderboard">
-                                    Most referenced functions
-                                </a>
-                            </h4>
-                        </div>
-                        <div style="padding-top: 0; padding-bottom: 0" class="card-body b-t collapse show">
-                            <table class="table v-middle no-border">
-                                <tbody id="function_reference_leaderboard">
-                                {{#each function_reference_leaderboard}}
-                                    <tr>
-                                        <td style="max-width: 250px">
-                                            {{this.short_qualified_name}}
-                                        </td>
-                                        <td align="right">
-                                            <span class="label label-primary">{{this.external_reference_count}}</span>
-                                        </td>
-                                    </tr>
-                                {{/each}}
-                                </tbody>
-                            </table>
-                        </div>
-                    </div>
-                    <!-- Column -->
-                </div>
-                <div class="col-md-7 col-xlg-7">
-                    <!-- Row -->
-                    <div class="row">
-                        <!-- Column -->
-                        <div class="col-md-12">
-                            <div class="card">
-                                <div class="card-header">
-                                    <h4 class="card-title m-b-0">Indexing projects</h4>
-                                </div>
-                                <div class="card-body collapse show">
-                                    <div class="table-responsive">
-                                        <table class="table product-overview">
-                                            <thead>
-                                            <tr>
-                                                <th>Project</th>
-                                                <th>Updated</th>
-                                                <th>Status</th>
-                                            </tr>
-                                            </thead>
-                                            <tbody id="active_jobs">
-                                            {{#each active_jobs}}
-                                                <tr>
-                                                    <td><a href="{{gitdetective_url}}{{this.data.github_repository}}">
-                                                        {{this.data.github_repository}}
-                                                    </a></td>
-                                                    <td class="collapsing">
-                                                        <script>
-                                                            document.write(moment({{this.updated_at}}).fromNow())
-                                                        </script>
-                                                    </td>
-                                                    <td><span class="label label-primary font-weight-100">
-                                                        {{this.data.job_type}}
-                                                    </span></td>
-                                                </tr>
-                                            {{/each}}
-                                            </tbody>
-                                        </table>
+                <!-- Column -->
+                <div class="col-lg-4 col-xlg-4 col-md-5">
+                    <div class="card">
+                        <div class="card-body">
+                            <!-- Nav tabs -->
+                            <ul class="nav nav-tabs" role="tablist">
+                                <li class="nav-item"><a class="nav-link active show" data-toggle="tab" href="#home"
+                                                        role="tab" aria-selected="true"><span class="hidden-sm-up"><i
+                                        class="ti-home"></i></span> <span class="hidden-xs-down">Information</span></a>
+                                </li>
+                            </ul>
+                            <!-- Tab panes -->
+                            <div class="tab-content tabcontent-border">
+                                <div class="tab-pane active show" id="home" role="tabpanel">
+                                    <div class="p-20">
+                                        <div class="table-responsive">
+                                            <table class="table">
+                                                <tbody>
+                                                    <tr>
+                                                        <td><h5>Indexed projects</h5></td>
+                                                        <td>
+                                                            <span id="user_project_count" class="label label-primary"
+                                                                style="float: right">
+                                                                {{#if user_project_count}}
+                                                                    {{user_project_count}}
+                                                                {{else}}
+                                                                    n/a
+                                                                {{/if}}
+                                                            </span>
+                                                        </td>
+                                                    </tr>
+                                                </tbody>
+                                            </table>
+                                        </div>
                                     </div>
                                 </div>
                             </div>
                         </div>
-                        <!-- Column -->
                     </div>
                 </div>
+                <!-- Column -->
+                <!-- Column -->
+                <div class="col-lg-8 col-xlg-8 col-md-7">
+                    <div class="card">
+                        <div class="card-body">
+                            <ol style="background-color: #272c33 !important;" id="referenced_projects_breadcrumbs"
+                                class="breadcrumb bc-colored m-b-10 bg-primary">
+                                <li id="most_referenced_projects_breadcrumb" class="breadcrumb-item active">
+                                    <a id="most_referenced_projects_breadcrumb_link"
+                                       onclick="displayMostReferencedProjects()"><b>Most referenced projects</b></a>
+                                </li>
+                            </ol>
+                            <div class="d-flex no-block">
+                                <h4 id="references_main_title" class="card-title"></h4>
+                            </div>
+                            <div class="table-responsive">
+                                <table id="most_referenced_projects_table" class="table stylish-table"
+                                    style="margin-bottom: 0">
+                                    <thead>
+                                    <tr>
+                                        <th>Project</th>
+                                        <th>External references</th>
+                                    </tr>
+                                    </thead>
+                                    <tbody id="most_referenced_projects">
+{{!--                                     {{#each project_most_referenced_projects}} --}}
+                                        <tr onclick="window.location='#';">
+                                            <td>
+                                                <h4 style="margin-bottom: 0">test</h4>
+                                            </td>
+                                            <td>
+                                                <span class="label label-primary">
+                                                    n/a
+                                                </span>
+                                            </td>
+                                        </tr>
+{{!--                                     {{/each}} --}}
+                                    </tbody>
+                                </table>
+                            </div>
+                            <hr style="padding-bottom: 5px; margin-top: 0">
+                            <nav aria-label="Page navigation example">
+                                <ul class="pagination justify-content-center">
+                                    <li class="page-item disabled">
+                                        <a class="page-link" href="#" tabindex="-1">Previous</a>
+                                    </li>
+                                    <li class="page-item disabled">
+                                        <a class="page-link" href="#" tabindex="-1">1</a>
+                                    </li>
+                                    <li class="page-item disabled">
+                                        <a class="page-link" href="#" tabindex="-1">Next</a>
+                                    </li>
+                                </ul>
+                            </nav>
+                        </div>
+                    </div>
+                </div>
+                <!-- Column -->
             </div>
             <!-- Row -->
             <!-- ============================================================== -->
             <!-- End Page Content -->
-            <!-- ============================================================== -->
             <!-- ============================================================== -->
         </div>
         <!-- ============================================================== -->
         <!-- End Container fluid  -->
         <!-- ============================================================== -->
         <!-- ============================================================== -->
-        <!-- footer -->
+        <!-- Footer -->
         <!-- ============================================================== -->
         <footer class="footer" style="background-color: #272c33">
             <b>
@@ -297,26 +285,22 @@
 <!--stickey kit -->
 <script src="{{gitdetective_static_url}}assets/plugins/sticky-kit-master/dist/sticky-kit.min.js"></script>
 <script src="{{gitdetective_static_url}}assets/plugins/sparkline/jquery.sparkline.min.js"></script>
-<script src="{{gitdetective_static_url}}assets/plugins/sparkline/jquery.sparkline.min.js"></script>
 <!--Custom JavaScript -->
 <script src="{{gitdetective_static_url}}js/custom.min.js"></script>
-<!-- ============================================================== -->
-<!-- This page plugins -->
-<!-- ============================================================== -->
-<!-- chartist chart -->
-<script src="{{gitdetective_static_url}}assets/plugins/chartist-js/dist/chartist.min.js"></script>
-<script src="{{gitdetective_static_url}}assets/plugins/chartist-plugin-tooltip-master/dist/chartist-plugin-tooltip.min.js"></script>
-<!--c3 JavaScript -->
-<script src="{{gitdetective_static_url}}assets/plugins/d3/d3.min.js"></script>
-<script src="{{gitdetective_static_url}}assets/plugins/c3-master/c3.min.js"></script>
-<!-- Chart JS -->
-<script src="{{gitdetective_static_url}}js/dashboard6.js"></script>
+<!-- This is data table -->
+<script src="{{gitdetective_static_url}}assets/plugins/datatables/jquery.dataTables.min.js"></script>
+<script>
+    String.prototype.toHtmlEntities = function () {
+        return this.replace(/./gm, function (s) {
+            return '&#' + s.charCodeAt(0) + ';'
+        })
+    }
+</script>
 <!-- ============================================================== -->
 <!-- Style switcher -->
 <!-- ============================================================== -->
 <script src="{{gitdetective_static_url}}assets/plugins/styleswitcher/jQuery.style.switcher.js"></script>
 <script>
-    //buttons
     $('#app-search').submit(function (event) {
         window.location = '{{gitdetective_url}}' + document.getElementById('app-search-data').value
         event.preventDefault()
@@ -333,6 +317,39 @@
 
     gtag('js', new Date())
     gtag('config', 'UA-117514928-1')
+</script>
+<!-- bt-switch -->
+<script src="{{gitdetective_static_url}}assets/plugins/bootstrap-switch/bootstrap-switch.min.js"></script>
+<script type="text/javascript">
+    $('.bt-switch input[type=\'checkbox\'], .bt-switch input[type=\'radio\']').bootstrapSwitch()
+    var radioswitch = function () {
+        var bt = function () {
+            $('.radio-switch').on('switch-change', function () {
+                $('.radio-switch').bootstrapSwitch('toggleRadioState')
+            }), $('.radio-switch').on('switch-change', function () {
+                $('.radio-switch').bootstrapSwitch('toggleRadioStateAllowUncheck')
+            }), $('.radio-switch').on('switch-change', function () {
+                $('.radio-switch').bootstrapSwitch('toggleRadioStateAllowUncheck', !1)
+            })
+        }
+        return {
+            init: function () {
+                bt()
+            },
+        }
+    }()
+    $(document).ready(function () {
+        radioswitch.init()
+    })
+</script>
+<script src="{{gitdetective_static_url}}sockjs.min.js"></script>
+<script src="{{gitdetective_static_url}}vertx-eventbus.min.js"></script>
+<script>
+    console.log('Connecting to event bus...')
+    var eb = new EventBus('{{gitdetective_eventbus_url}}')
+    eb.enableReconnect(true)
+    var gitdetectiveUrl = '{{gitdetective_url}}'
+    var githubUsername = '{{github_username}}'
 </script>
 </body>
 </html>

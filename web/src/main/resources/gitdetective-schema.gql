@@ -2,15 +2,15 @@ define
 
 ##########---------- Entities ----------##########
 user sub entity,
-    has user_name,
+    key user_name,
     plays has_project;
 project sub entity,
+    key project_name,
     has create_date,
-    has project_name,
     plays is_project,
     plays has_defines_file;
 file sub entity,
-    has create_date,
+    #has create_date,
     has file_name,
     has subkind,
     has file_location,
@@ -55,6 +55,7 @@ user_name sub name, datatype string;
 project_name sub name, datatype string;
 function_name sub name, datatype string;
 file_name sub name, datatype string;
+line_number sub attribute, datatype long;
 start_offset sub attribute, datatype long;
 end_offset sub attribute, datatype long;
 
@@ -65,6 +66,7 @@ owns_project sub relation,
 
 code_link sub relation, abstract,
     has create_date,
+    has line_number,
     has start_offset,
     has end_offset;
 

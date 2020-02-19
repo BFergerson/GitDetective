@@ -21,7 +21,7 @@ dependencies {
         exclude group: 'io.grakn.client', module: 'api'
         exclude group: 'io.graql', module: 'graql-lang'
     }
-    compile (group: 'com.github.codebrig', name: 'kythe-phenomenon', version: '6b5e392d0b') {
+    compile (group: 'com.github.codebrig', name: 'kythe-phenomenon', version: 'd33b555052') {
         exclude group: 'io.grakn.client', module: 'grakn-client'
         exclude group: 'io.grakn.client', module: 'api'
         exclude group: 'io.graql', module: 'graql-lang'

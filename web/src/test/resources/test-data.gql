@@ -1,0 +1,68 @@
+insert
+
+#########################################################################################################################
+$user isa user, has user_name "github:bfergerson";
+$proj isa project,
+    has project_name "github:bfergerson/myproject",
+    has create_date 2018-09-14T17:18:49;
+(has_project: $user, is_project: $proj) isa owns_project;
+
+$fi isa file,
+    #has create_date 2018-09-14T17:18:49,
+    #has commit_sha1 "b0be5053300ef5baabe7706f1cb440e38aa55565",
+    has qualified_name "com.gitdetective.MyClass",
+    has file_name "MyClass.java",
+    has file_location "src/main/java/com/gitdetective/MyClass.java";
+(has_defines_file: $proj, is_defines_file: $fi) isa defines_file;
+
+$func isa function,
+    has create_date 2018-09-14T17:18:49,
+    has function_name "kythe://kythe?lang=java?path=com/gitdetective/MyClass.java#6a69bc35ea8774d37510f3405373b2a65e029a4528321575191a00912b83818f";
+    #has qualified_name "com.gitdetective.App2.main(java.lang.String[])";
+
+$fuInstance isa function-instance,
+    has qualified_name "com.gitdetective.MyClass.myMethod()",
+    has commit_date 2018-09-14T17:18:49,
+    has commit_sha1 "28ea7da14fcf03658721e05a985acaa2b86c8bd5";
+(has_defines_function: $fi, is_defines_function: $fuInstance) isa defines_function;
+
+$func_defs isa function-definitions;
+$func_refs isa function-references;
+(has_function_definition: $func_defs, is_function_definition: $fuInstance) isa function_definition;
+(has_function_reference: $func_refs, is_function_reference: $fuInstance) isa function_reference;
+
+(has_function_definitions: $func, is_function_definitions: $func_defs) isa function_definitions;
+
+
+
+
+########################################################################################################################
+$otherProj isa project,
+    has project_name "github:bfergerson/otherproject",
+    has create_date 2018-09-14T17:18:49;
+(has_project: $user, is_project: $otherProj) isa owns_project;
+
+$otherFi isa file,
+    #has create_date 2018-09-14T17:18:49,
+    has qualified_name "com.gitdetective.App2",
+    has file_name "App2.java",
+    has file_location "src/main/java/com/gitdetective/App2.java";
+(has_defines_file: $otherProj, is_defines_file: $otherFi) isa defines_file;
+
+$otherFunc isa function,
+    has create_date 2018-09-14T17:18:49,
+    has function_name "kythe://kythe?lang=java?path=com/gitdetective/App2.java#d1986b43119e8013b76b5a57426d0ed51d3ef15a8bdb166657ef6aff91d3e6fc";
+
+$otherFuInstance isa function-instance,
+    has qualified_name "com.gitdetective.App2.main(java.lang.String[])",
+    has commit_date 2018-09-14T17:18:49,
+    has commit_sha1 "b0be5053300ef5baabe7706f1cb440e38aa55565";
+(has_defines_function: $otherFi, is_defines_function: $otherFuInstance) isa defines_function;
+
+$otherFuncDefs isa function-definitions;
+$otherFuncRefs isa function-references;
+(has_function_definition: $otherFuncDefs, is_function_definition: $otherFuInstance) isa function_definition;
+(has_function_reference: $otherFuncRefs, is_function_reference: $otherFuInstance) isa function_reference;
+(has_function_definitions: $otherFunc, is_function_definitions: $otherFuncDefs) isa function_definitions;
+
+(has_function_references: $otherFunc, is_function_references: $func_refs) isa function_references;

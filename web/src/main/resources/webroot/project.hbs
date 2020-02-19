@@ -71,7 +71,7 @@
                         <a class="nav-link hidden-sm-down text-muted waves-effect waves-dark" href="javascript:void(0)"><i
                                 class="ti-search"></i></a>
                         <form class="app-search" id="app-search">
-                            <input id="app-search-data" type="text" class="form-control" placeholder="username/project"
+                            <input id="app-search-data" type="text" class="form-control" placeholder="username or username/project"
                                    autofocus>
                             <a class="srh-btn"><i class="ti-close"></i></a></form>
                     </li>
@@ -158,7 +158,8 @@
                                                 <tr>
                                                     <td><h5>Indexed files</h5></td>
                                                     <td>
-                                                    <span id="project_file_count" class="label label-primary">
+                                                    <span id="project_file_count" class="label label-primary"
+                                                        style="float: right">
                                                         {{#if project_file_count}}
                                                             {{project_file_count}}
                                                         {{else}}
@@ -170,7 +171,8 @@
                                                 <tr>
                                                     <td><h5>Indexed methods</h5></td>
                                                     <td>
-                                                    <span id="project_method_version_count" class="label label-primary">
+                                                    <span id="project_method_version_count" class="label label-primary"
+                                                        style="float: right">
                                                     {{#if project_method_version_count}}
                                                         {{project_method_version_count}}
                                                     {{else}}
