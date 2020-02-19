@@ -95,7 +95,9 @@ class GitDetectiveWebsite extends AbstractVerticle {
             if ((it.failure() instanceof IllegalStateException && it.failure().message == "Response is closed")
                     || (it.failure() instanceof SSLException && it.failure().message == "SSLEngine closed already")
                     || it.failure() instanceof ClosedChannelException) {
-                //ignore; //todo: why do these happen?
+                log.warn it.failure().message //todo: why do these happen?
+            } else if (it.failure() instanceof IOException && it.failure().message == "Broken pipe") {
+                log.warn it.failure().message //todo: why do these happen?
             } else {
                 it.failure().printStackTrace()
             }
@@ -304,15 +306,15 @@ class GitDetectiveWebsite extends AbstractVerticle {
 //            if (it.failed()) {
 //                ctx.fail(it.cause())
 //            } else {
-                log.debug "Rendering project leaderboard page"
-                engine.render(ctx.data(), "webroot/project_leaderboard.hbs", { res ->
-                    if (res.succeeded()) {
-                        log.info "Displaying project leaderboard page"
-                        ctx.response().end(res.result())
-                    } else {
-                        ctx.fail(res.cause())
-                    }
-                })
+        log.debug "Rendering project leaderboard page"
+        engine.render(ctx.data(), "webroot/project_leaderboard.hbs", { res ->
+            if (res.succeeded()) {
+                log.info "Displaying project leaderboard page"
+                ctx.response().end(res.result())
+            } else {
+                ctx.fail(res.cause())
+            }
+        })
 //            }
 //        })
     }
@@ -329,15 +331,15 @@ class GitDetectiveWebsite extends AbstractVerticle {
 //            if (it.failed()) {
 //                ctx.fail(it.cause())
 //            } else {
-                log.debug "Rendering function leaderboard page"
-                engine.render(ctx.data(), "webroot/function_leaderboard.hbs", { res ->
-                    if (res.succeeded()) {
-                        log.info "Displaying function leaderboard page"
-                        ctx.response().end(res.result())
-                    } else {
-                        ctx.fail(res.cause())
-                    }
-                })
+        log.debug "Rendering function leaderboard page"
+        engine.render(ctx.data(), "webroot/function_leaderboard.hbs", { res ->
+            if (res.succeeded()) {
+                log.info "Displaying function leaderboard page"
+                ctx.response().end(res.result())
+            } else {
+                ctx.fail(res.cause())
+            }
+        })
 //            }
 //        })
     }
