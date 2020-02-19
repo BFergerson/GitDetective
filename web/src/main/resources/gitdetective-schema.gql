@@ -1,9 +1,13 @@
 define
 
 ##########---------- Entities ----------##########
+user sub entity,
+    has user_name,
+    plays has_project;
 project sub entity,
     has create_date,
     has project_name,
+    plays is_project,
     plays has_defines_file;
 file sub entity,
     has create_date,
@@ -13,8 +17,8 @@ file sub entity,
     has qualified_name,
     plays is_defines_file,
     plays has_defines_function,
-    plays has_ref,
-    plays has_ref_call;
+    plays has_reference,
+    plays has_reference_call;
 function sub entity,
     has create_date,
     has function_name,
@@ -28,10 +32,10 @@ function-instance sub entity,
     plays is_function_definition,
     plays is_function_reference,
     plays is_defines_function,
-    plays is_ref,
-    plays is_ref_call,
-    plays has_ref,
-    plays has_ref_call;
+    plays is_reference,
+    plays is_reference_call,
+    plays has_reference,
+    plays has_reference_call;
 function-definitions sub entity,
     plays is_function_definitions,
     plays has_function_definition;
@@ -47,7 +51,7 @@ subkind sub attribute, datatype string;
 file_location sub attribute, datatype string;
 qualified_name sub name, datatype string;
 commit_sha1 sub attribute, datatype string;
-is_jdk sub attribute, datatype boolean;
+user_name sub name, datatype string;
 project_name sub name, datatype string;
 function_name sub name, datatype string;
 file_name sub name, datatype string;
@@ -55,33 +59,31 @@ start_offset sub attribute, datatype long;
 end_offset sub attribute, datatype long;
 
 ##########---------- Relationships ----------##########
-#todo: can make parent relationship with create_date, start_offset, end_offset
-defines sub relation, abstract,
-    relates has_defines,
-    relates is_defines,
+owns_project sub relation,
+    relates has_project,
+    relates is_project;
+
+code_link sub relation, abstract,
     has create_date,
     has start_offset,
     has end_offset;
 
+defines sub code_link, abstract,
+    relates has_defines,
+    relates is_defines;
 defines_file sub defines,
     relates has_defines_file as has_defines,
     relates is_defines_file as is_defines;
-
 defines_function sub defines,
     relates has_defines_function as has_defines,
     relates is_defines_function as is_defines;
 
-ref sub relation,
-    relates has_ref,
-    relates is_ref,
-    has is_jdk,
-    has create_date,
-    has start_offset,
-    has end_offset;
-
-ref_call sub ref,
-    relates has_ref_call as has_ref,
-    relates is_ref_call as is_ref;
+reference sub code_link,
+    relates has_reference,
+    relates is_reference;
+reference_call sub reference,
+    relates has_reference_call as has_reference,
+    relates is_reference_call as is_reference;
 
 contains_references_and_definitions sub relation,
     relates has_contains_references_and_definitions,
@@ -90,7 +92,6 @@ contains_references_and_definitions sub relation,
 function_references sub contains_references_and_definitions,
     relates has_function_references as has_contains_references_and_definitions,
     relates is_function_references as is_contains_references_and_definitions;
-
 function_definitions sub relation,
     relates has_function_definitions as has_contains_references_and_definitions,
     relates is_function_definitions as is_contains_references_and_definitions;
@@ -102,7 +103,6 @@ contains_function sub relation,
 function_reference sub contains_function,
     relates has_function_reference as has_contains_function,
     relates is_function_reference as is_contains_function;
-
 function_definition sub contains_function,
     relates has_function_definition as has_contains_function,
     relates is_function_definition as is_contains_function;
