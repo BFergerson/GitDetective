@@ -1,5 +1,9 @@
 package io.gitdetective.web
 
+import com.google.common.base.Charsets
+import com.google.common.io.Resources
+import grakn.client.GraknClient
+import graql.lang.Graql
 import io.gitdetective.web.dao.JobsDAO
 import io.gitdetective.web.dao.RedisDAO
 import io.gitdetective.web.work.GHArchiveSync
@@ -14,7 +18,6 @@ import io.vertx.core.logging.Logger
 import io.vertx.core.logging.LoggerFactory
 import io.vertx.ext.bridge.PermittedOptions
 import io.vertx.ext.web.Router
-import io.vertx.ext.web.RoutingContext
 import io.vertx.ext.web.handler.sockjs.BridgeOptions
 import io.vertx.ext.web.handler.sockjs.SockJSHandler
 
@@ -22,7 +25,6 @@ import java.time.Instant
 import java.time.temporal.ChronoUnit
 
 import static io.gitdetective.web.WebServices.*
-import static java.util.UUID.randomUUID
 
 /**
  * todo: description
@@ -53,8 +55,19 @@ class GitDetectiveService extends AbstractVerticle {
         vertx.executeBlocking({
             def importJobEnabled = config().getJsonObject("importer").getBoolean("enabled")
             if (config().getBoolean("grakn.enabled")) {
-//                log.info "Grakn integration enabled"
-//                setupOntology()
+                log.info "Grakn integration enabled"
+                String graknHost = config().getString("grakn.host")
+                int graknPort = config().getInteger("grakn.port")
+                String graknKeyspace = config().getString("grakn.keyspace")
+                def graknClient = new GraknClient("$graknHost:$graknPort")
+                def graknSession
+                try {
+                    graknSession = graknClient.session(graknKeyspace)
+                } catch (all) {
+                    all.printStackTrace()
+                    throw new ConnectException("Connection refused: $graknHost:$graknPort")
+                }
+                setupOntology(graknSession)
 //
 //                //todo: better placement
 //                vertx.deployVerticle(new RefreshFunctionLeaderboard(redis, refStorage, makeGraknDAO(redis)),
@@ -79,7 +92,7 @@ class GitDetectiveService extends AbstractVerticle {
             if (config().getBoolean("launch_website")) {
                 log.info "Launching GitDetective website"
                 def options = new DeploymentOptions().setConfig(config())
-                vertx.deployVerticle(new GitDetectiveWebsite(jobs, redis, refStorage, router), options)
+                vertx.deployVerticle(new GitDetectiveWebsite(jobs, redis, router), options)
                 vertx.deployVerticle(new GHArchiveSync(jobs), options)
             }
         }, false, {
@@ -88,10 +101,6 @@ class GitDetectiveService extends AbstractVerticle {
                 System.exit(-1)
             }
         })
-
-        //routes
-        router.post("/indexes").handler(this.&downloadIndexFile)
-        router.post("/jobs/transfer").handler(this.&transferJob)
 
         //event bus bridge
         SockJSHandler sockJSHandler = SockJSHandler.create(vertx)
@@ -250,74 +259,74 @@ class GitDetectiveService extends AbstractVerticle {
                 context.stop()
             })
         })
-        vertx.eventBus().consumer(GET_PROJECT_MOST_REFERENCED_FUNCTIONS, { request ->
-            def timer = WebLauncher.metrics.timer(GET_PROJECT_MOST_REFERENCED_FUNCTIONS)
-            def context = timer.time()
-            def body = (JsonObject) request.body()
-            def githubRepository = body.getString("github_repository").toLowerCase()
-            log.debug "Getting project most referenced methods"
-
-            refStorage.getProjectMostExternalReferencedFunctions(githubRepository, 10, {
-                if (it.failed()) {
-                    it.cause().printStackTrace()
-                    request.reply(it.cause())
-                } else {
-                    def methodMap = new HashMap<String, JsonObject>()
-                    for (int i = 0; i < it.result().size(); i++) {
-                        def array = it.result()
-                        for (int z = 0; z < array.size(); z++) {
-                            def method = array.getJsonObject(z)
-                            if (methodMap.containsKey(method.getString("id"))) {
-                                methodMap.get(method.getString("id")).mergeIn(method)
-                            } else {
-                                methodMap.put(method.getString("id"), method)
-                            }
-                        }
-                    }
-
-                    //sort methods by external reference count
-                    def result = new JsonArray(methodMap.values().asList().sort {
-                        return it.getLong("external_reference_count")
-                    }.reverse())
-
-                    //method link
-                    for (int i = 0; i < result.size(); i++) {
-                        def ob = result.getJsonObject(i)
-                        if (ob.getLong("external_reference_count") > 0) {
-                            ob.put("has_method_link", true)
-                        } else {
-                            break
-                        }
-
-                        //pretty counts
-                        ob.put("external_reference_count", asPrettyNumber(ob.getLong("external_reference_count")))
-                    }
-
-                    log.debug "Got project most referenced methods - Size: " + result.size()
-                    request.reply(result)
-                }
-                context.stop()
-            })
-        })
-        vertx.eventBus().consumer(GET_FUNCTION_EXTERNAL_REFERENCES, { request ->
-            def timer = WebLauncher.metrics.timer(GET_FUNCTION_EXTERNAL_REFERENCES)
-            def context = timer.time()
-            def body = (JsonObject) request.body()
-            def methodId = body.getString("method_id")
-            def offset = body.getInteger("offset")
-            log.debug "Getting method external references"
-
-            refStorage.getFunctionExternalReferences(methodId, offset, 10, {
-                if (it.failed()) {
-                    it.cause().printStackTrace()
-                    request.reply(it.cause())
-                } else {
-                    log.debug "Got method external references: " + it.result()
-                    request.reply(it.result())
-                }
-                context.stop()
-            })
-        })
+//        vertx.eventBus().consumer(GET_PROJECT_MOST_REFERENCED_FUNCTIONS, { request ->
+//            def timer = WebLauncher.metrics.timer(GET_PROJECT_MOST_REFERENCED_FUNCTIONS)
+//            def context = timer.time()
+//            def body = (JsonObject) request.body()
+//            def githubRepository = body.getString("github_repository").toLowerCase()
+//            log.debug "Getting project most referenced methods"
+//
+//            refStorage.getProjectMostExternalReferencedFunctions(githubRepository, 10, {
+//                if (it.failed()) {
+//                    it.cause().printStackTrace()
+//                    request.reply(it.cause())
+//                } else {
+//                    def methodMap = new HashMap<String, JsonObject>()
+//                    for (int i = 0; i < it.result().size(); i++) {
+//                        def array = it.result()
+//                        for (int z = 0; z < array.size(); z++) {
+//                            def method = array.getJsonObject(z)
+//                            if (methodMap.containsKey(method.getString("id"))) {
+//                                methodMap.get(method.getString("id")).mergeIn(method)
+//                            } else {
+//                                methodMap.put(method.getString("id"), method)
+//                            }
+//                        }
+//                    }
+//
+//                    //sort methods by external reference count
+//                    def result = new JsonArray(methodMap.values().asList().sort {
+//                        return it.getLong("external_reference_count")
+//                    }.reverse())
+//
+//                    //method link
+//                    for (int i = 0; i < result.size(); i++) {
+//                        def ob = result.getJsonObject(i)
+//                        if (ob.getLong("external_reference_count") > 0) {
+//                            ob.put("has_method_link", true)
+//                        } else {
+//                            break
+//                        }
+//
+//                        //pretty counts
+//                        ob.put("external_reference_count", asPrettyNumber(ob.getLong("external_reference_count")))
+//                    }
+//
+//                    log.debug "Got project most referenced methods - Size: " + result.size()
+//                    request.reply(result)
+//                }
+//                context.stop()
+//            })
+//        })
+//        vertx.eventBus().consumer(GET_FUNCTION_EXTERNAL_REFERENCES, { request ->
+//            def timer = WebLauncher.metrics.timer(GET_FUNCTION_EXTERNAL_REFERENCES)
+//            def context = timer.time()
+//            def body = (JsonObject) request.body()
+//            def methodId = body.getString("method_id")
+//            def offset = body.getInteger("offset")
+//            log.debug "Getting method external references"
+//
+//            refStorage.getFunctionExternalReferences(methodId, offset, 10, {
+//                if (it.failed()) {
+//                    it.cause().printStackTrace()
+//                    request.reply(it.cause())
+//                } else {
+//                    log.debug "Got method external references: " + it.result()
+//                    request.reply(it.result())
+//                }
+//                context.stop()
+//            })
+//        })
         vertx.eventBus().consumer(GET_PROJECT_FIRST_INDEXED, { request ->
             def timer = WebLauncher.metrics.timer(GET_PROJECT_FIRST_INDEXED)
             def context = timer.time()
@@ -452,63 +461,14 @@ class GitDetectiveService extends AbstractVerticle {
 //        def session = grakn.session(keyspace)
 //        return new GraknDAO(vertx, redis, session)
 //    }
-//
-//    private void setupOntology() {
-//        log.info "Setting up Grakn ontology"
-//        String graknHost = config().getString("grakn.host")
-//        int graknPort = config().getInteger("grakn.port")
-//        String graknKeyspace = config().getString("grakn.keyspace")
-//        def keyspace = Keyspace.of(graknKeyspace)
-//        def grakn = new Grakn(new SimpleURI(graknHost, graknPort))
-//        def session = grakn.session(keyspace)
-//        def tx = session.transaction(GraknTxType.WRITE)
-//        def graql = tx.graql()
-//        def query = graql.parse(Resources.toString(Resources.getResource("gitdetective-schema.gql"), Charsets.UTF_8))
-//        query.execute()
-//        tx.commit()
-//        session.close()
-//        log.info "Ontology setup"
-//    }
 
-    private void downloadIndexFile(RoutingContext routingContext) {
-        def uuid = randomUUID() as String
-        log.info "Downloading index file. Index id: " + uuid
-
-        def downloadFile = new File(uploadsDirectory, uuid + ".zip")
-        downloadFile.parentFile.mkdirs()
-        downloadFile.createNewFile()
-        vertx.fileSystem().writeFile(downloadFile.absolutePath, routingContext.body,
-                new Handler<AsyncResult<Void>>() {
-                    @Override
-                    void handle(AsyncResult<Void> result) {
-                        if (result.failed()) {
-                            result.cause().printStackTrace()
-                        }
-                    }
-                })
-        routingContext.response().end(uuid)
+    private static void setupOntology(GraknClient.Session graknSession) {
+        log.info "Setting up Grakn ontology"
+        def tx = graknSession.transaction().write()
+        tx.execute(Graql.parse(Resources.toString(Resources.getResource(
+                "gitdetective-schema.gql"), Charsets.UTF_8)))
+        tx.commit()
+        tx.close()
+        log.info "Ontology setup"
     }
-
-    private void transferJob(RoutingContext routingContext) {
-        def jobData = routingContext.bodyAsJson
-        if (jobData instanceof LinkedHashMap) {
-            jobData = JsonObject.mapFrom(jobData)
-        }
-        Job job = new Job(jobData)
-        jobData.put("github_repository", job.data.getString("github_repository"))
-
-        jobs.kue.createJob(GraknImporter.GRAKN_INDEX_IMPORT_JOB_TYPE, jobData)
-                .setMax_attempts(0)
-                .setRemoveOnComplete(true)
-                .setPriority(job.priority)
-                .save().setHandler({
-            if (it.failed()) {
-                it.cause().printStackTrace()
-            } else {
-                logPrintln(job, "Importer received job")
-            }
-        })
-        routingContext.response().end()
-    }
-
 }

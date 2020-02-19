@@ -1,37 +1,46 @@
 package io.gitdetective.web
 
+import ch.qos.logback.classic.Level
+import ch.qos.logback.classic.Logger
 import com.codahale.metrics.ConsoleReporter
 import com.codahale.metrics.CsvReporter
 import com.codahale.metrics.MetricRegistry
 import com.codahale.metrics.SharedMetricRegistries
+import groovy.util.logging.Slf4j
 import io.vertx.blueprint.kue.queue.Job
 import io.vertx.core.DeploymentOptions
 import io.vertx.core.Vertx
 import io.vertx.core.VertxOptions
 import io.vertx.core.http.HttpServerOptions
 import io.vertx.core.json.JsonObject
-import io.vertx.core.logging.Logger
-import io.vertx.core.logging.LoggerFactory
 import io.vertx.core.net.JksOptions
 import io.vertx.ext.dropwizard.DropwizardMetricsOptions
 import io.vertx.ext.web.Router
 import io.vertx.ext.web.handler.BodyHandler
 import org.apache.commons.io.IOUtils
+import org.slf4j.LoggerFactory
 
 import java.nio.charset.StandardCharsets
 import java.util.concurrent.TimeUnit
 
 import static io.gitdetective.web.WebServices.messageCodec
+import static org.slf4j.Logger.ROOT_LOGGER_NAME
 
 /**
  * Web module main entry
  *
  * @author <a href="mailto:brandon.fergerson@codebrig.com">Brandon Fergerson</a>
  */
+@Slf4j
 class WebLauncher {
 
+    static {
+        //disable grakn 'io.netty' DEBUG logging
+        Logger root = (Logger) LoggerFactory.getLogger(ROOT_LOGGER_NAME)
+        root.setLevel(Level.INFO);
+    }
+
     public static final MetricRegistry metrics = new MetricRegistry()
-    private final static Logger log = LoggerFactory.getLogger(WebLauncher.class)
     private static ResourceBundle buildBundle = ResourceBundle.getBundle("gitdetective_build")
 
     static void main(String[] args) {
@@ -57,8 +66,8 @@ class WebLauncher {
             }
             vertx.createHttpServer(new HttpServerOptions().setSsl(deployOptions.config.getBoolean("ssl_enabled"))
                     .setKeyStoreOptions(new JksOptions().setPath("server-keystore.jks")
-                    .setPassword(deployOptions.config.getString("keystore_password"))
-            )).requestHandler(router.&accept).listen(443, {
+                            .setPassword(deployOptions.config.getString("keystore_password"))
+                    )).requestHandler(router).listen(443, {
                 if (it.failed()) {
                     if (it.cause() instanceof BindException) {
                         log.error "Failed to bind to port: 443"
@@ -144,5 +153,4 @@ class WebLauncher {
             }
         })
     }
-
 }

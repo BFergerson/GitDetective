@@ -40,16 +40,12 @@ class GitDetectiveWebsite extends AbstractVerticle {
     private static volatile long TOTAL_REFERENCE_COUNT = 0
     private final JobsDAO jobs
     private final RedisDAO redis
-    private final ReferenceStorage storage
     private final Router router
     private HandlebarsTemplateEngine engine
-//    private final Cache<String, Boolean> autoBuildCache = CacheBuilder.newBuilder()
-//            .expireAfterWrite(1, TimeUnit.MINUTES).build()
 
-    GitDetectiveWebsite(JobsDAO jobs, RedisDAO redis, ReferenceStorage storage, Router router) {
+    GitDetectiveWebsite(JobsDAO jobs, RedisDAO redis, Router router) {
         this.jobs = jobs
         this.redis = redis
-        this.storage = storage
         this.router = router
     }
 
@@ -115,59 +111,59 @@ class GitDetectiveWebsite extends AbstractVerticle {
         log.info "GitDetectiveWebsite started"
     }
 
-    private void updateDatabaseStatistics(boolean initial) {
-        jobs.getActiveCount("IndexGithubProject", {
-            if (it.succeeded()) {
-                CURRENTLY_INDEXING_COUNT = it.result()
-            } else {
-                it.cause().printStackTrace()
-            }
-        })
-        jobs.getActiveCount(GraknImporter.GRAKN_INDEX_IMPORT_JOB_TYPE, {
-            if (it.succeeded()) {
-                CURRENTLY_IMPORTING_COUNT = it.result()
-            } else {
-                it.cause().printStackTrace()
-            }
-        })
-
-        if (config().getBoolean("grakn.enabled")) {
-            if (initial) {
-                redis.getComputeTime({
-                    WebLauncher.metrics.counter("GraknComputeTime").inc(TOTAL_COMPUTE_TIME = it.result())
-                })
-                redis.getProjectCount({
-                    WebLauncher.metrics.counter("CreateProject").inc(TOTAL_PROJECT_COUNT = it.result())
-                })
-                redis.getFileCount({
-                    WebLauncher.metrics.counter("ImportFile").inc(TOTAL_FILE_COUNT = it.result())
-                })
-                redis.getMethodCount({
-                    WebLauncher.metrics.counter("ImportMethod").inc(TOTAL_METHOD_COUNT = it.result())
-                })
-                redis.getDefinitionCount({
-                    WebLauncher.metrics.counter("ImportDefinedFunction").inc(TOTAL_DEFINITION_COUNT = it.result())
-                })
-                redis.getReferenceCount({
-                    WebLauncher.metrics.counter("ImportReferencedFunction").inc(TOTAL_REFERENCE_COUNT = it.result())
-                })
-            } else {
-                redis.cacheComputeTime(TOTAL_COMPUTE_TIME = WebLauncher.metrics.counter("GraknComputeTime").getCount())
-                redis.cacheProjectCount(TOTAL_PROJECT_COUNT = WebLauncher.metrics.counter("CreateProject").getCount())
-                redis.cacheFileCount(TOTAL_FILE_COUNT = WebLauncher.metrics.counter("ImportFile").getCount())
-                redis.cacheMethodCount(TOTAL_METHOD_COUNT = WebLauncher.metrics.counter("ImportMethod").getCount())
-                redis.cacheDefinitionCount(TOTAL_DEFINITION_COUNT = WebLauncher.metrics.counter("ImportDefinedFunction").getCount())
-                redis.cacheReferenceCount(TOTAL_REFERENCE_COUNT = WebLauncher.metrics.counter("ImportReferencedFunction").getCount())
-            }
-        } else {
-            redis.getComputeTime({ TOTAL_COMPUTE_TIME = it.result() })
-            redis.getProjectCount({ TOTAL_PROJECT_COUNT = it.result() })
-            redis.getFileCount({ TOTAL_FILE_COUNT = it.result() })
-            redis.getMethodCount({ TOTAL_METHOD_COUNT = it.result() })
-            redis.getDefinitionCount({ TOTAL_DEFINITION_COUNT = it.result() })
-            redis.getReferenceCount({ TOTAL_REFERENCE_COUNT = it.result() })
-        }
-    }
+//    private void updateDatabaseStatistics(boolean initial) {
+//        jobs.getActiveCount("IndexGithubProject", {
+//            if (it.succeeded()) {
+//                CURRENTLY_INDEXING_COUNT = it.result()
+//            } else {
+//                it.cause().printStackTrace()
+//            }
+//        })
+//        jobs.getActiveCount(GraknImporter.GRAKN_INDEX_IMPORT_JOB_TYPE, {
+//            if (it.succeeded()) {
+//                CURRENTLY_IMPORTING_COUNT = it.result()
+//            } else {
+//                it.cause().printStackTrace()
+//            }
+//        })
+//
+//        if (config().getBoolean("grakn.enabled")) {
+//            if (initial) {
+//                redis.getComputeTime({
+//                    WebLauncher.metrics.counter("GraknComputeTime").inc(TOTAL_COMPUTE_TIME = it.result())
+//                })
+//                redis.getProjectCount({
+//                    WebLauncher.metrics.counter("CreateProject").inc(TOTAL_PROJECT_COUNT = it.result())
+//                })
+//                redis.getFileCount({
+//                    WebLauncher.metrics.counter("ImportFile").inc(TOTAL_FILE_COUNT = it.result())
+//                })
+//                redis.getMethodCount({
+//                    WebLauncher.metrics.counter("ImportMethod").inc(TOTAL_METHOD_COUNT = it.result())
+//                })
+//                redis.getDefinitionCount({
+//                    WebLauncher.metrics.counter("ImportDefinedFunction").inc(TOTAL_DEFINITION_COUNT = it.result())
+//                })
+//                redis.getReferenceCount({
+//                    WebLauncher.metrics.counter("ImportReferencedFunction").inc(TOTAL_REFERENCE_COUNT = it.result())
+//                })
+//            } else {
+//                redis.cacheComputeTime(TOTAL_COMPUTE_TIME = WebLauncher.metrics.counter("GraknComputeTime").getCount())
+//                redis.cacheProjectCount(TOTAL_PROJECT_COUNT = WebLauncher.metrics.counter("CreateProject").getCount())
+//                redis.cacheFileCount(TOTAL_FILE_COUNT = WebLauncher.metrics.counter("ImportFile").getCount())
+//                redis.cacheMethodCount(TOTAL_METHOD_COUNT = WebLauncher.metrics.counter("ImportMethod").getCount())
+//                redis.cacheDefinitionCount(TOTAL_DEFINITION_COUNT = WebLauncher.metrics.counter("ImportDefinedFunction").getCount())
+//                redis.cacheReferenceCount(TOTAL_REFERENCE_COUNT = WebLauncher.metrics.counter("ImportReferencedFunction").getCount())
+//            }
+//        } else {
+//            redis.getComputeTime({ TOTAL_COMPUTE_TIME = it.result() })
+//            redis.getProjectCount({ TOTAL_PROJECT_COUNT = it.result() })
+//            redis.getFileCount({ TOTAL_FILE_COUNT = it.result() })
+//            redis.getMethodCount({ TOTAL_METHOD_COUNT = it.result() })
+//            redis.getDefinitionCount({ TOTAL_DEFINITION_COUNT = it.result() })
+//            redis.getReferenceCount({ TOTAL_REFERENCE_COUNT = it.result() })
+//        }
+//    }
 
     private void handleIndexPage(RoutingContext ctx) {
         ctx.put("gitdetective_url", config().getString("gitdetective_url"))
@@ -193,130 +189,6 @@ class GitDetectiveWebsite extends AbstractVerticle {
                 }
             })
         })
-    }
-
-    private void handleProjectLeaderboardPage(RoutingContext ctx) {
-        ctx.put("gitdetective_url", config().getString("gitdetective_url"))
-        ctx.put("gitdetective_static_url", config().getString("gitdetective_static_url"))
-        ctx.put("gitdetective_eventbus_url", config().getString("gitdetective_url") + "backend/services/eventbus")
-        ctx.put("gitdetective_version", buildBundle.getString("version"))
-
-        //load and send page data
-        log.debug "Loading project leaderboard page"
-        getProjectReferenceLeaderboard(ctx, 100).setHandler({
-            if (it.failed()) {
-                ctx.fail(it.cause())
-            } else {
-                log.debug "Rendering project leaderboard page"
-                engine.render(ctx.data(), "webroot/project_leaderboard.hbs", { res ->
-                    if (res.succeeded()) {
-                        log.info "Displaying project leaderboard page"
-                        ctx.response().end(res.result())
-                    } else {
-                        ctx.fail(res.cause())
-                    }
-                })
-            }
-        })
-    }
-
-    private void handleFunctionLeaderboardPage(RoutingContext ctx) {
-        ctx.put("gitdetective_url", config().getString("gitdetective_url"))
-        ctx.put("gitdetective_static_url", config().getString("gitdetective_static_url"))
-        ctx.put("gitdetective_eventbus_url", config().getString("gitdetective_url") + "backend/services/eventbus")
-        ctx.put("gitdetective_version", buildBundle.getString("version"))
-
-        //load and send page data
-        log.debug "Loading function leaderboard page"
-        getFunctionReferenceLeaderboard(ctx, 100).setHandler({
-            if (it.failed()) {
-                ctx.fail(it.cause())
-            } else {
-                log.debug "Rendering function leaderboard page"
-                engine.render(ctx.data(), "webroot/function_leaderboard.hbs", { res ->
-                    if (res.succeeded()) {
-                        log.info "Displaying function leaderboard page"
-                        ctx.response().end(res.result())
-                    } else {
-                        ctx.fail(res.cause())
-                    }
-                })
-            }
-        })
-    }
-
-    private Future getActiveJobs(RoutingContext ctx) {
-        def future = Future.future()
-        def handler = future.completer()
-        vertx.eventBus().request(GET_ACTIVE_JOBS, new JsonObject(), {
-            if (it.failed()) {
-                ctx.fail(it.cause())
-            } else {
-                def activeJobs = it.result().body() as JsonArray
-                //only most recent 10
-                if (activeJobs.size() > 10) {
-                    activeJobs = new JsonArray(activeJobs.take(10))
-                }
-                //add pretty job type
-                for (int i = 0; i < activeJobs.size(); i++) {
-                    def job = activeJobs.getJsonObject(i)
-//                    if (job.getString("type") == GraknImporter.GRAKN_INDEX_IMPORT_JOB_TYPE) {
-//                        job.getJsonObject("data").put("job_type", "Importing")
-//                    } else {
-                        job.getJsonObject("data").put("job_type", "Indexing")
-//                    }
-                }
-
-                ctx.put("active_jobs", activeJobs)
-            }
-            handler.handle(Future.succeededFuture())
-        })
-        return future
-    }
-
-    private Future getProjectReferenceLeaderboard(RoutingContext ctx, int topCount) {
-        def future = Future.future()
-        def handler = future.completer()
-        vertx.eventBus().send(GET_PROJECT_REFERENCE_LEADERBOARD, new JsonObject().put("top_count", topCount), {
-            if (it.failed()) {
-                ctx.fail(it.cause())
-            } else {
-                def referenceLeaderboard = it.result().body() as JsonArray
-
-                //make counts pretty
-                for (int i = 0; i < referenceLeaderboard.size(); i++) {
-                    def project = referenceLeaderboard.getJsonObject(i)
-                    def count = project.getString("value") as int
-                    project.put("value", asPrettyNumber(count))
-                }
-                ctx.put("project_reference_leaderboard", referenceLeaderboard)
-            }
-            handler.handle(Future.succeededFuture())
-        })
-        return future
-    }
-
-    private Future getFunctionReferenceLeaderboard(RoutingContext ctx, int topCount) {
-        def future = Future.future()
-        def handler = future.completer()
-        redis.getCachedFunctionLeaderboard({
-            if (it.failed()) {
-                ctx.fail(it.cause())
-            } else {
-                def referenceLeaderboard = it.result().take(topCount) as JsonArray
-
-                //make counts pretty
-                for (int i = 0; i < referenceLeaderboard.size(); i++) {
-                    def function = referenceLeaderboard.getJsonObject(i)
-                    function.put("short_qualified_name", getShortQualifiedMethodName(function.getString("qualified_name")))
-                    function.put("external_reference_count", asPrettyNumber(
-                            function.getLong("external_reference_count")))
-                }
-                ctx.put("function_reference_leaderboard", referenceLeaderboard)
-            }
-            handler.handle(Future.succeededFuture())
-        })
-        return future
     }
 
     private void handleUserPage(RoutingContext ctx) {
@@ -347,15 +219,15 @@ class GitDetectiveWebsite extends AbstractVerticle {
 ////                getProjectLastIndexedCommitInformation(ctx, repo),
 ////                getProjectMostReferencedFunctions(ctx, repo)
 //        )).setHandler({
-            log.debug "Rendering user page: $username"
-            engine.render(ctx.data(), "webroot/user.hbs", { res ->
-                if (res.succeeded()) {
-                    log.info "Displaying user page: $username"
-                    ctx.response().end(res.result())
-                } else {
-                    ctx.fail(res.cause())
-                }
-            })
+        log.debug "Rendering user page: $username"
+        engine.render(ctx.data(), "webroot/user.hbs", { res ->
+            if (res.succeeded()) {
+                log.info "Displaying user page: $username"
+                ctx.response().end(res.result())
+            } else {
+                ctx.fail(res.cause())
+            }
+        })
 //        })
     }
 
@@ -420,6 +292,130 @@ class GitDetectiveWebsite extends AbstractVerticle {
 //        }
     }
 
+    private void handleProjectLeaderboardPage(RoutingContext ctx) {
+        ctx.put("gitdetective_url", config().getString("gitdetective_url"))
+        ctx.put("gitdetective_static_url", config().getString("gitdetective_static_url"))
+        ctx.put("gitdetective_eventbus_url", config().getString("gitdetective_url") + "backend/services/eventbus")
+        ctx.put("gitdetective_version", buildBundle.getString("version"))
+
+        //load and send page data
+        log.debug "Loading project leaderboard page"
+//        getProjectReferenceLeaderboard(ctx, 100).setHandler({
+//            if (it.failed()) {
+//                ctx.fail(it.cause())
+//            } else {
+                log.debug "Rendering project leaderboard page"
+                engine.render(ctx.data(), "webroot/project_leaderboard.hbs", { res ->
+                    if (res.succeeded()) {
+                        log.info "Displaying project leaderboard page"
+                        ctx.response().end(res.result())
+                    } else {
+                        ctx.fail(res.cause())
+                    }
+                })
+//            }
+//        })
+    }
+
+    private void handleFunctionLeaderboardPage(RoutingContext ctx) {
+        ctx.put("gitdetective_url", config().getString("gitdetective_url"))
+        ctx.put("gitdetective_static_url", config().getString("gitdetective_static_url"))
+        ctx.put("gitdetective_eventbus_url", config().getString("gitdetective_url") + "backend/services/eventbus")
+        ctx.put("gitdetective_version", buildBundle.getString("version"))
+
+        //load and send page data
+        log.debug "Loading function leaderboard page"
+//        getFunctionReferenceLeaderboard(ctx, 100).setHandler({
+//            if (it.failed()) {
+//                ctx.fail(it.cause())
+//            } else {
+                log.debug "Rendering function leaderboard page"
+                engine.render(ctx.data(), "webroot/function_leaderboard.hbs", { res ->
+                    if (res.succeeded()) {
+                        log.info "Displaying function leaderboard page"
+                        ctx.response().end(res.result())
+                    } else {
+                        ctx.fail(res.cause())
+                    }
+                })
+//            }
+//        })
+    }
+
+    private Future getActiveJobs(RoutingContext ctx) {
+        def future = Future.future()
+        def handler = future.completer()
+        vertx.eventBus().request(GET_ACTIVE_JOBS, new JsonObject(), {
+            if (it.failed()) {
+                ctx.fail(it.cause())
+            } else {
+                def activeJobs = it.result().body() as JsonArray
+                //only most recent 10
+                if (activeJobs.size() > 10) {
+                    activeJobs = new JsonArray(activeJobs.take(10))
+                }
+                //add pretty job type
+                for (int i = 0; i < activeJobs.size(); i++) {
+                    def job = activeJobs.getJsonObject(i)
+//                    if (job.getString("type") == GraknImporter.GRAKN_INDEX_IMPORT_JOB_TYPE) {
+//                        job.getJsonObject("data").put("job_type", "Importing")
+//                    } else {
+                    job.getJsonObject("data").put("job_type", "Indexing")
+//                    }
+                }
+
+                ctx.put("active_jobs", activeJobs)
+            }
+            handler.handle(Future.succeededFuture())
+        })
+        return future
+    }
+
+//    private Future getProjectReferenceLeaderboard(RoutingContext ctx, int topCount) {
+//        def future = Future.future()
+//        def handler = future.completer()
+//        vertx.eventBus().send(GET_PROJECT_REFERENCE_LEADERBOARD, new JsonObject().put("top_count", topCount), {
+//            if (it.failed()) {
+//                ctx.fail(it.cause())
+//            } else {
+//                def referenceLeaderboard = it.result().body() as JsonArray
+//
+//                //make counts pretty
+//                for (int i = 0; i < referenceLeaderboard.size(); i++) {
+//                    def project = referenceLeaderboard.getJsonObject(i)
+//                    def count = project.getString("value") as int
+//                    project.put("value", asPrettyNumber(count))
+//                }
+//                ctx.put("project_reference_leaderboard", referenceLeaderboard)
+//            }
+//            handler.handle(Future.succeededFuture())
+//        })
+//        return future
+//    }
+//
+//    private Future getFunctionReferenceLeaderboard(RoutingContext ctx, int topCount) {
+//        def future = Future.future()
+//        def handler = future.completer()
+//        redis.getCachedFunctionLeaderboard({
+//            if (it.failed()) {
+//                ctx.fail(it.cause())
+//            } else {
+//                def referenceLeaderboard = it.result().take(topCount) as JsonArray
+//
+//                //make counts pretty
+//                for (int i = 0; i < referenceLeaderboard.size(); i++) {
+//                    def function = referenceLeaderboard.getJsonObject(i)
+//                    function.put("short_qualified_name", getShortQualifiedMethodName(function.getString("qualified_name")))
+//                    function.put("external_reference_count", asPrettyNumber(
+//                            function.getLong("external_reference_count")))
+//                }
+//                ctx.put("function_reference_leaderboard", referenceLeaderboard)
+//            }
+//            handler.handle(Future.succeededFuture())
+//        })
+//        return future
+//    }
+
     private Future getLatestBuildLog(RoutingContext ctx, JsonObject githubRepository) {
         def future = Future.future()
         def handler = future.completer()
@@ -437,93 +433,93 @@ class GitDetectiveWebsite extends AbstractVerticle {
         return future
     }
 
-    private Future getProjectFileCount(RoutingContext ctx, JsonObject githubRepository) {
-        def future = Future.future()
-        def handler = future.completer()
-        vertx.eventBus().send(GET_PROJECT_FILE_COUNT, githubRepository, {
-            if (it.failed()) {
-                ctx.fail(it.cause())
-            } else {
-                ctx.put("project_file_count", it.result().body())
-            }
-            handler.handle(Future.succeededFuture())
-        })
-        return future
-    }
-
-    private Future getProjectMethodVersionCount(RoutingContext ctx, JsonObject githubRepository) {
-        def future = Future.future()
-        def handler = future.completer()
-        vertx.eventBus().send(GET_PROJECT_METHOD_INSTANCE_COUNT, githubRepository, {
-            if (it.failed()) {
-                ctx.fail(it.cause())
-            } else {
-                ctx.put("project_method_version_count", it.result().body())
-            }
-            handler.handle(Future.succeededFuture())
-        })
-        return future
-    }
-
-    private Future getProjectMostReferencedFunctions(RoutingContext ctx, JsonObject githubRepository) {
-        def future = Future.future()
-        def handler = future.completer()
-        vertx.eventBus().send(GET_PROJECT_MOST_REFERENCED_FUNCTIONS, githubRepository, {
-            if (it.failed()) {
-                ctx.fail(it.cause())
-            } else {
-                ctx.put("project_most_referenced_methods", it.result().body())
-            }
-            handler.handle(Future.succeededFuture())
-        })
-        return future
-    }
-
-    private Future getProjectFirstIndexed(RoutingContext ctx, JsonObject githubRepository) {
-        def future = Future.future()
-        def handler = future.completer()
-        vertx.eventBus().send(GET_PROJECT_FIRST_INDEXED, githubRepository, {
-            if (it.failed()) {
-                ctx.fail(it.cause())
-            } else {
-                ctx.put("project_first_indexed", it.result().body())
-            }
-            handler.handle(Future.succeededFuture())
-        })
-        return future
-    }
-
-    private Future getProjectLastIndexed(RoutingContext ctx, JsonObject githubRepository) {
-        def future = Future.future()
-        def handler = future.completer()
-        vertx.eventBus().send(GET_PROJECT_LAST_INDEXED, githubRepository, {
-            if (it.failed()) {
-                ctx.fail(it.cause())
-            } else {
-                ctx.put("project_last_indexed", it.result().body())
-            }
-            handler.handle(Future.succeededFuture())
-        })
-        return future
-    }
-
-    private Future getProjectLastIndexedCommitInformation(RoutingContext ctx, JsonObject githubRepository) {
-        def future = Future.future()
-        def handler = future.completer()
-        vertx.eventBus().send(GET_PROJECT_LAST_INDEXED_COMMIT_INFORMATION, githubRepository, {
-            if (it.failed()) {
-                ctx.fail(it.cause())
-            } else {
-                def commitInformation = it.result().body() as JsonObject
-                if (commitInformation != null) {
-                    commitInformation.put("commit_short", commitInformation.getString("commit").substring(0, 7))
-                    ctx.put("project_last_indexed_commit_information", commitInformation)
-                }
-            }
-            handler.handle(Future.succeededFuture())
-        })
-        return future
-    }
+//    private Future getProjectFileCount(RoutingContext ctx, JsonObject githubRepository) {
+//        def future = Future.future()
+//        def handler = future.completer()
+//        vertx.eventBus().send(GET_PROJECT_FILE_COUNT, githubRepository, {
+//            if (it.failed()) {
+//                ctx.fail(it.cause())
+//            } else {
+//                ctx.put("project_file_count", it.result().body())
+//            }
+//            handler.handle(Future.succeededFuture())
+//        })
+//        return future
+//    }
+//
+//    private Future getProjectMethodVersionCount(RoutingContext ctx, JsonObject githubRepository) {
+//        def future = Future.future()
+//        def handler = future.completer()
+//        vertx.eventBus().send(GET_PROJECT_METHOD_INSTANCE_COUNT, githubRepository, {
+//            if (it.failed()) {
+//                ctx.fail(it.cause())
+//            } else {
+//                ctx.put("project_method_version_count", it.result().body())
+//            }
+//            handler.handle(Future.succeededFuture())
+//        })
+//        return future
+//    }
+//
+//    private Future getProjectMostReferencedFunctions(RoutingContext ctx, JsonObject githubRepository) {
+//        def future = Future.future()
+//        def handler = future.completer()
+//        vertx.eventBus().send(GET_PROJECT_MOST_REFERENCED_FUNCTIONS, githubRepository, {
+//            if (it.failed()) {
+//                ctx.fail(it.cause())
+//            } else {
+//                ctx.put("project_most_referenced_methods", it.result().body())
+//            }
+//            handler.handle(Future.succeededFuture())
+//        })
+//        return future
+//    }
+//
+//    private Future getProjectFirstIndexed(RoutingContext ctx, JsonObject githubRepository) {
+//        def future = Future.future()
+//        def handler = future.completer()
+//        vertx.eventBus().send(GET_PROJECT_FIRST_INDEXED, githubRepository, {
+//            if (it.failed()) {
+//                ctx.fail(it.cause())
+//            } else {
+//                ctx.put("project_first_indexed", it.result().body())
+//            }
+//            handler.handle(Future.succeededFuture())
+//        })
+//        return future
+//    }
+//
+//    private Future getProjectLastIndexed(RoutingContext ctx, JsonObject githubRepository) {
+//        def future = Future.future()
+//        def handler = future.completer()
+//        vertx.eventBus().send(GET_PROJECT_LAST_INDEXED, githubRepository, {
+//            if (it.failed()) {
+//                ctx.fail(it.cause())
+//            } else {
+//                ctx.put("project_last_indexed", it.result().body())
+//            }
+//            handler.handle(Future.succeededFuture())
+//        })
+//        return future
+//    }
+//
+//    private Future getProjectLastIndexedCommitInformation(RoutingContext ctx, JsonObject githubRepository) {
+//        def future = Future.future()
+//        def handler = future.completer()
+//        vertx.eventBus().send(GET_PROJECT_LAST_INDEXED_COMMIT_INFORMATION, githubRepository, {
+//            if (it.failed()) {
+//                ctx.fail(it.cause())
+//            } else {
+//                def commitInformation = it.result().body() as JsonObject
+//                if (commitInformation != null) {
+//                    commitInformation.put("commit_short", commitInformation.getString("commit").substring(0, 7))
+//                    ctx.put("project_last_indexed_commit_information", commitInformation)
+//                }
+//            }
+//            handler.handle(Future.succeededFuture())
+//        })
+//        return future
+//    }
 
     private static Future getDatabaseStatistics(RoutingContext ctx) {
         def stats = new JsonArray()
@@ -541,5 +537,4 @@ class GitDetectiveWebsite extends AbstractVerticle {
         handler.handle(Future.succeededFuture())
         return future
     }
-
 }
