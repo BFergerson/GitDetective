@@ -419,7 +419,7 @@ class GitDetectiveWebsite extends AbstractVerticle {
     private Future getLatestBuildLog(RoutingContext ctx, JsonObject githubRepository) {
         def future = Future.future()
         def handler = future.completer()
-        vertx.eventBus().send(GET_LATEST_JOB_LOG, githubRepository, {
+        vertx.eventBus().request(GET_LATEST_JOB_LOG, githubRepository, {
             if (it.failed()) {
                 ctx.fail(it.cause())
             } else {
@@ -455,20 +455,6 @@ class GitDetectiveWebsite extends AbstractVerticle {
 //                ctx.fail(it.cause())
 //            } else {
 //                ctx.put("project_method_version_count", it.result().body())
-//            }
-//            handler.handle(Future.succeededFuture())
-//        })
-//        return future
-//    }
-//
-//    private Future getProjectMostReferencedFunctions(RoutingContext ctx, JsonObject githubRepository) {
-//        def future = Future.future()
-//        def handler = future.completer()
-//        vertx.eventBus().send(GET_PROJECT_MOST_REFERENCED_FUNCTIONS, githubRepository, {
-//            if (it.failed()) {
-//                ctx.fail(it.cause())
-//            } else {
-//                ctx.put("project_most_referenced_methods", it.result().body())
 //            }
 //            handler.handle(Future.succeededFuture())
 //        })

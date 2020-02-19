@@ -259,74 +259,6 @@ class GitDetectiveService extends AbstractVerticle {
                 context.stop()
             })
         })
-//        vertx.eventBus().consumer(GET_PROJECT_MOST_REFERENCED_FUNCTIONS, { request ->
-//            def timer = WebLauncher.metrics.timer(GET_PROJECT_MOST_REFERENCED_FUNCTIONS)
-//            def context = timer.time()
-//            def body = (JsonObject) request.body()
-//            def githubRepository = body.getString("github_repository").toLowerCase()
-//            log.debug "Getting project most referenced methods"
-//
-//            refStorage.getProjectMostExternalReferencedFunctions(githubRepository, 10, {
-//                if (it.failed()) {
-//                    it.cause().printStackTrace()
-//                    request.reply(it.cause())
-//                } else {
-//                    def methodMap = new HashMap<String, JsonObject>()
-//                    for (int i = 0; i < it.result().size(); i++) {
-//                        def array = it.result()
-//                        for (int z = 0; z < array.size(); z++) {
-//                            def method = array.getJsonObject(z)
-//                            if (methodMap.containsKey(method.getString("id"))) {
-//                                methodMap.get(method.getString("id")).mergeIn(method)
-//                            } else {
-//                                methodMap.put(method.getString("id"), method)
-//                            }
-//                        }
-//                    }
-//
-//                    //sort methods by external reference count
-//                    def result = new JsonArray(methodMap.values().asList().sort {
-//                        return it.getLong("external_reference_count")
-//                    }.reverse())
-//
-//                    //method link
-//                    for (int i = 0; i < result.size(); i++) {
-//                        def ob = result.getJsonObject(i)
-//                        if (ob.getLong("external_reference_count") > 0) {
-//                            ob.put("has_method_link", true)
-//                        } else {
-//                            break
-//                        }
-//
-//                        //pretty counts
-//                        ob.put("external_reference_count", asPrettyNumber(ob.getLong("external_reference_count")))
-//                    }
-//
-//                    log.debug "Got project most referenced methods - Size: " + result.size()
-//                    request.reply(result)
-//                }
-//                context.stop()
-//            })
-//        })
-//        vertx.eventBus().consumer(GET_FUNCTION_EXTERNAL_REFERENCES, { request ->
-//            def timer = WebLauncher.metrics.timer(GET_FUNCTION_EXTERNAL_REFERENCES)
-//            def context = timer.time()
-//            def body = (JsonObject) request.body()
-//            def methodId = body.getString("method_id")
-//            def offset = body.getInteger("offset")
-//            log.debug "Getting method external references"
-//
-//            refStorage.getFunctionExternalReferences(methodId, offset, 10, {
-//                if (it.failed()) {
-//                    it.cause().printStackTrace()
-//                    request.reply(it.cause())
-//                } else {
-//                    log.debug "Got method external references: " + it.result()
-//                    request.reply(it.result())
-//                }
-//                context.stop()
-//            })
-//        })
         vertx.eventBus().consumer(GET_PROJECT_FIRST_INDEXED, { request ->
             def timer = WebLauncher.metrics.timer(GET_PROJECT_FIRST_INDEXED)
             def context = timer.time()
@@ -389,7 +321,7 @@ class GitDetectiveService extends AbstractVerticle {
             log.debug "Getting trigger information"
 
             //check if project in any active jobs
-            vertx.eventBus().send(GET_ACTIVE_JOBS, new JsonObject(), {
+            vertx.eventBus().request(GET_ACTIVE_JOBS, new JsonObject(), {
                 if (it.failed()) {
                     it.cause().printStackTrace()
                     context.stop()

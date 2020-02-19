@@ -20,8 +20,6 @@ final class WebServices {
     static final String GET_ACTIVE_JOBS = "GetActiveJobs"
     static final String GET_TRIGGER_INFORMATION = "GetTriggerInformation"
     static final String GET_LATEST_JOB_LOG = "GetLatestJobLog"
-    static final String GET_FUNCTION_EXTERNAL_REFERENCES = "GetFunctionExternalReferences"
-    static final String GET_PROJECT_MOST_REFERENCED_FUNCTIONS = "GetProjectMostReferencedMethods"
     static final String GET_PROJECT_REFERENCE_LEADERBOARD = "GetProjectReferenceLeaderboard"
     static final String GET_PROJECT_FILE_COUNT = "GetProjectFileCount"
     static final String GET_PROJECT_METHOD_INSTANCE_COUNT = "GetProjectFunctionInstanceCount"
