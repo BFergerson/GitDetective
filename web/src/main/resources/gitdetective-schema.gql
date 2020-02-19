@@ -45,8 +45,8 @@ function-references sub entity,
 
 ##########---------- Attributes ----------##########
 name sub attribute, abstract, datatype string;
-create_date sub attribute, datatype string;
-commit_date sub attribute, datatype string;
+create_date sub attribute, datatype date;
+commit_date sub attribute, datatype date;
 subkind sub attribute, datatype string;
 file_location sub attribute, datatype string;
 qualified_name sub name, datatype string;
