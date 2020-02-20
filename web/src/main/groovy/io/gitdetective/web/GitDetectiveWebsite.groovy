@@ -1,8 +1,7 @@
 package io.gitdetective.web
 
 import com.google.common.collect.Lists
-import io.gitdetective.web.dao.JobsDAO
-import io.gitdetective.web.dao.RedisDAO
+import io.gitdetective.web.service.model.FunctionReferenceInformation
 import io.vertx.core.AbstractVerticle
 import io.vertx.core.CompositeFuture
 import io.vertx.core.Future
@@ -37,14 +36,12 @@ class GitDetectiveWebsite extends AbstractVerticle {
     private static volatile long TOTAL_METHOD_COUNT = 0
     private static volatile long TOTAL_DEFINITION_COUNT = 0
     private static volatile long TOTAL_REFERENCE_COUNT = 0
-    private final JobsDAO jobs
-    private final RedisDAO redis
+    private final GitDetectiveService service
     private final Router router
     private HandlebarsTemplateEngine engine
 
-    GitDetectiveWebsite(JobsDAO jobs, RedisDAO redis, Router router) {
-        this.jobs = jobs
-        this.redis = redis
+    GitDetectiveWebsite(GitDetectiveService service, Router router) {
+        this.service = service
         this.router = router
     }
 
@@ -262,14 +259,18 @@ class GitDetectiveWebsite extends AbstractVerticle {
         log.debug "Loading project page: $username/$project"
         def repo = new JsonObject().put("github_repository", "$username/$project")
         CompositeFuture.all(Lists.asList(
-                getLatestBuildLog(ctx, repo)
-//                getProjectFileCount(ctx, repo),
-//                getProjectMethodVersionCount(ctx, repo),
+                getLatestBuildLog(ctx, repo),
+                getProjectFileCount(ctx, githubRepository),
+                getProjectFunctionCount(ctx, githubRepository),
 //                getProjectFirstIndexed(ctx, repo),
 //                getProjectLastIndexed(ctx, repo),
 //                getProjectLastIndexedCommitInformation(ctx, repo),
-//                getProjectMostReferencedFunctions(ctx, repo)
+                getProjectMostReferencedFunctionsInformation(ctx, githubRepository)
         )).setHandler({
+            if (it.failed()) {
+                it.cause().printStackTrace()
+            }
+
             log.debug "Rendering project page: $username/$project"
             engine.render(ctx.data(), "webroot/project.hbs", { res ->
                 if (res.succeeded()) {
@@ -434,6 +435,58 @@ class GitDetectiveWebsite extends AbstractVerticle {
                 ctx.put("latest_job_log", jobLog.getJsonArray("logs"))
                 ctx.put("latest_job_log_id", jobLog.getLong("job_id"))
                 ctx.put("latest_job_log_position", jobLog.getJsonArray("logs").size() - 1)
+            }
+            handler.handle(Future.succeededFuture())
+        })
+        return future
+    }
+
+    private Future getProjectFileCount(RoutingContext ctx, String githubRepository) {
+        def future = Future.future()
+        def handler = future.completer()
+        service.projectService.getFileCount("github:" + githubRepository, {
+            if (it.failed()) {
+                ctx.fail(it.cause())
+            } else {
+                ctx.put("project_file_count", it.result())
+            }
+            handler.handle(Future.succeededFuture())
+        })
+        return future
+    }
+
+    private Future getProjectFunctionCount(RoutingContext ctx, String githubRepository) {
+        def future = Future.future()
+        def handler = future.completer()
+        service.projectService.getFunctionCount("github:" + githubRepository, {
+            if (it.failed()) {
+                ctx.fail(it.cause())
+            } else {
+                ctx.put("project_function_count", it.result())
+            }
+            handler.handle(Future.succeededFuture())
+        })
+        return future
+    }
+
+    private Future getProjectMostReferencedFunctionsInformation(RoutingContext ctx, String githubRepository) {
+        def future = Future.future()
+        def handler = future.completer()
+        service.projectService.getMostReferencedFunctionsInformation("github:" + githubRepository, 10, {
+            if (it.failed()) {
+                ctx.fail(it.cause())
+            } else {
+                def projectFunctionReferences = new JsonArray()
+                def info = it.result() as List<FunctionReferenceInformation>
+                info.each {
+                    def reference = new JsonObject()
+                    reference.put("has_method_link", false)
+                    reference.put("short_class_name", it.shortClassName)
+                    reference.put("short_method_signature", it.shortFunctionSignature)
+                    reference.put("external_reference_count", it.referenceCount)
+                    projectFunctionReferences.add(reference)
+                }
+                ctx.put("project_most_referenced_functions", projectFunctionReferences)
             }
             handler.handle(Future.succeededFuture())
         })

@@ -22,7 +22,7 @@ import static org.slf4j.Logger.ROOT_LOGGER_NAME
 
 @Slf4j
 @RunWith(VertxUnitRunner.class)
-class ProjectServiceTest {
+class UserServiceTest {
 
     static {
         //disable grakn 'io.netty' DEBUG logging
@@ -33,7 +33,7 @@ class ProjectServiceTest {
     private static Vertx vertx
     private static GraknClient client
     private static GraknClient.Session session
-    private static ProjectService projectService
+    private static UserService userService
 
     @BeforeClass
     static void setUp(TestContext test) {
@@ -63,7 +63,7 @@ class ProjectServiceTest {
 
         Async async = test.async()
         vertx = Vertx.vertx()
-        vertx.deployVerticle(projectService = new ProjectService(session), {
+        vertx.deployVerticle(userService = new UserService(session), {
             if (it.succeeded()) {
                 async.complete()
             } else {
@@ -85,37 +85,11 @@ class ProjectServiceTest {
     }
 
     @Test
-    void testGetFileCount(TestContext test) {
+    void testGetProjectCount(TestContext test) {
         def async = test.async()
-        projectService.getFileCount("github:bfergerson/myproject", {
+        userService.getProjectCount("github:bfergerson", {
             if (it.succeeded()) {
-                test.assertEquals(1L, it.result())
-                async.complete()
-            } else {
-                test.fail(it.cause())
-            }
-        })
-    }
-
-    @Test
-    void testGetFunctionCount(TestContext test) {
-        def async = test.async()
-        projectService.getFunctionCount("github:bfergerson/myproject", {
-            if (it.succeeded()) {
-                test.assertEquals(1L, it.result())
-                async.complete()
-            } else {
-                test.fail(it.cause())
-            }
-        })
-    }
-
-    @Test
-    void testGetMostReferencedMethodsInformation(TestContext test) {
-        def async = test.async()
-        projectService.getMostReferencedFunctionsInformation("github:bfergerson/myproject", 1, {
-            if (it.succeeded()) {
-                test.assertEquals(1, it.result().size())
+                test.assertEquals(2L, it.result())
                 async.complete()
             } else {
                 test.fail(it.cause())

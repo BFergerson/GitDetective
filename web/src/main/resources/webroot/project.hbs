@@ -176,10 +176,10 @@
                                                 <tr>
                                                     <td><h5>Indexed functions</h5></td>
                                                     <td>
-                                                    <span id="project_method_version_count" class="label label-primary"
+                                                    <span id="project_function_count" class="label label-primary"
                                                         style="float: right">
-                                                    {{#if project_method_version_count}}
-                                                        {{project_method_version_count}}
+                                                    {{#if project_function_count}}
+                                                        {{project_function_count}}
                                                     {{else}}
                                                         n/a
                                                     {{/if}}
@@ -265,7 +265,7 @@
                                     </tr>
                                     </thead>
                                     <tbody id="most_referenced_methods">
-                                    {{#each project_most_referenced_methods}}
+                                    {{#each project_most_referenced_functions}}
                                         {{#if has_method_link}}
                                             <tr onclick="displayMethodReference({{this}});">
                                         {{else}}
