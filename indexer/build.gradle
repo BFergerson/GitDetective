@@ -47,7 +47,7 @@ test {
 }
 
 dockerCompose {
-    useComposeFiles = ['./indexer-docker-compose.yml']
+    useComposeFiles = ['./docker-compose.yml']
     dockerComposeWorkingDirectory = '../docker/'
     captureContainersOutput = true
     startedServices = ["bblfshd"]

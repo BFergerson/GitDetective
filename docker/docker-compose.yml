@@ -6,3 +6,8 @@ services:
     container_name: bblfshd
     ports:
       - "9432:9432"
+  grakn:
+    image: graknlabs/grakn:1.6.2
+    container_name: grakn
+    ports:
+      - "48555:48555"

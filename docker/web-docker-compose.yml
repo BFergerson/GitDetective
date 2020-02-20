@@ -1,7 +1,0 @@
-version: '3.3'
-services:
-  grakn:
-    image: graknlabs/grakn:1.6.2
-    container_name: grakn
-    ports:
-      - "48555:48555"
