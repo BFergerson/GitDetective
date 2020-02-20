@@ -2,15 +2,17 @@ insert
 
 #########################################################################################################################
 $user isa user,
-    has user_name "github:bfergerson",
+    has username "github:bfergerson",
     has create_date 2018-09-14T17:18:49;
 $proj isa project,
     has project_name "github:bfergerson/myproject",
+    has reference_count 1,
     has create_date 2018-09-14T17:18:49;
 (has_project: $user, is_project: $proj) isa owns_project;
 
 $fi isa file,
     has qualified_name "com.gitdetective.MyClass",
+    has reference_count 1,
     has file_location "src/main/java/com/gitdetective/MyClass.java";
 (has_defines_file: $proj, is_defines_file: $fi) isa defines_file;
 
@@ -29,11 +31,13 @@ $func isa function,
 ########################################################################################################################
 $otherProj isa project,
     has project_name "github:bfergerson/otherproject",
+    has reference_count 0,
     has create_date 2018-09-14T17:18:49;
 (has_project: $user, is_project: $otherProj) isa owns_project;
 
 $otherFi isa file,
     has qualified_name "com.gitdetective.App2",
+    has reference_count 0,
     has file_location "src/main/java/com/gitdetective/App2.java";
 (has_defines_file: $otherProj, is_defines_file: $otherFi) isa defines_file;
 
