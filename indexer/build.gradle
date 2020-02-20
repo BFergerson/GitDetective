@@ -1,3 +1,7 @@
+plugins {
+    id "com.avast.gradle.docker-compose" version "0.6.6"
+}
+
 group = 'io.gitdetective.indexer'
 
 apply plugin: 'application'
@@ -27,4 +31,23 @@ dependencies {
         exclude group: 'io.graql', module: 'graql-lang'
     }
     compile group: 'ch.qos.logback', name: 'logback-classic', version: '1.2.3'
+}
+
+test {
+    dependsOn "composeUp"
+    finalizedBy "composeDown"
+
+    testLogging {
+        events "passed", "skipped", "failed"
+        setExceptionFormat("full")
+
+        outputs.upToDateWhen { false }
+        showStandardStreams = true
+    }
+}
+
+dockerCompose {
+    useComposeFiles = ['./indexer-docker-compose.yml']
+    dockerComposeWorkingDirectory = '../docker/'
+    captureContainersOutput = true
 }

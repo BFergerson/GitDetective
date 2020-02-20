@@ -1,3 +1,7 @@
+plugins {
+    id "com.avast.gradle.docker-compose" version "0.6.6"
+}
+
 group = 'io.gitdetective.web'
 
 apply plugin: 'application'
@@ -15,4 +19,23 @@ dependencies {
     compile 'io.reactivex.rxjava2:rxjava:2.1.12'
     implementation group: 'io.grakn.client', name: 'grakn-client', version: "1.6.2"
     implementation group: 'io.graql', name: 'graql-lang', version: "1.0.6"
+}
+
+test {
+    dependsOn "composeUp"
+    finalizedBy "composeDown"
+
+    testLogging {
+        events "passed", "skipped", "failed"
+        setExceptionFormat("full")
+
+        outputs.upToDateWhen { false }
+        showStandardStreams = true
+    }
+}
+
+dockerCompose {
+    useComposeFiles = ['./web-docker-compose.yml']
+    dockerComposeWorkingDirectory = '../docker/'
+    captureContainersOutput = true
 }

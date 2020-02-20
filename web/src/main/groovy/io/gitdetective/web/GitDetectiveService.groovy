@@ -394,7 +394,7 @@ class GitDetectiveService extends AbstractVerticle {
 //        return new GraknDAO(vertx, redis, session)
 //    }
 
-    private static void setupOntology(GraknClient.Session graknSession) {
+    static void setupOntology(GraknClient.Session graknSession) {
         log.info "Setting up Grakn ontology"
         def tx = graknSession.transaction().write()
         tx.execute(Graql.parse(Resources.toString(Resources.getResource(

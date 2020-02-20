@@ -8,12 +8,14 @@ user sub entity,
 project sub entity,
     key project_name,
     has create_date,
+    has reference_count,
     plays is_project,
     plays has_defines_file;
 file sub entity,
     has subkind,
     has file_location,
     has qualified_name,
+    has reference_count,
     plays is_defines_file,
     plays has_defines_function,
     plays has_reference_call;
@@ -23,6 +25,7 @@ function sub entity,
     has qualified_name,
     has commit_sha1,
     has commit_date,
+    has reference_count,
     plays is_defines_function,
     plays is_reference_call,
     plays has_reference_call;
@@ -41,6 +44,7 @@ kythe_uri sub attribute, datatype string;
 line_number sub attribute, datatype long;
 start_offset sub attribute, datatype long;
 end_offset sub attribute, datatype long;
+reference_count sub attribute, datatype long;
 
 ##########---------- Relationships ----------##########
 owns_project sub relation,
