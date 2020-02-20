@@ -3,7 +3,6 @@ package io.gitdetective.web
 import com.google.common.collect.Lists
 import io.gitdetective.web.dao.JobsDAO
 import io.gitdetective.web.dao.RedisDAO
-import io.gitdetective.web.dao.storage.ReferenceStorage
 import io.vertx.core.AbstractVerticle
 import io.vertx.core.CompositeFuture
 import io.vertx.core.Future
