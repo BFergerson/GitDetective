@@ -3,6 +3,7 @@ define
 ##########---------- Entities ----------##########
 user sub entity,
     key user_name,
+    has create_date,
     plays has_project;
 project sub entity,
     key project_name,
@@ -10,38 +11,21 @@ project sub entity,
     plays is_project,
     plays has_defines_file;
 file sub entity,
-    #has create_date,
-    has file_name,
     has subkind,
     has file_location,
     has qualified_name,
     plays is_defines_file,
     plays has_defines_function,
-    plays has_reference,
     plays has_reference_call;
 function sub entity,
-    has create_date,
-    has function_name,
-    plays has_function_references,
-    plays has_function_definitions;
-function-instance sub entity,
+    key kythe_uri,
     has subkind,
     has qualified_name,
     has commit_sha1,
     has commit_date,
-    plays is_function_definition,
-    plays is_function_reference,
     plays is_defines_function,
-    plays is_reference,
     plays is_reference_call,
-    plays has_reference,
     plays has_reference_call;
-function-definitions sub entity,
-    plays is_function_definitions,
-    plays has_function_definition;
-function-references sub entity,
-    plays is_function_references,
-    plays has_function_reference;
 
 ##########---------- Attributes ----------##########
 name sub attribute, abstract, datatype string;
@@ -49,12 +33,11 @@ create_date sub attribute, datatype date;
 commit_date sub attribute, datatype date;
 subkind sub attribute, datatype string;
 file_location sub attribute, datatype string;
-qualified_name sub name, datatype string;
 commit_sha1 sub attribute, datatype string;
 user_name sub name, datatype string;
 project_name sub name, datatype string;
-function_name sub name, datatype string;
-file_name sub name, datatype string;
+qualified_name sub name, datatype string;
+kythe_uri sub attribute, datatype string;
 line_number sub attribute, datatype long;
 start_offset sub attribute, datatype long;
 end_offset sub attribute, datatype long;
@@ -64,47 +47,17 @@ owns_project sub relation,
     relates has_project,
     relates is_project;
 
+defines_file sub relation,
+    relates has_defines_file,
+    relates is_defines_file;
+
 code_link sub relation, abstract,
-    has create_date,
     has line_number,
     has start_offset,
     has end_offset;
-
-defines sub code_link, abstract,
-    relates has_defines,
-    relates is_defines;
-defines_file sub defines,
-    relates has_defines_file as has_defines,
-    relates is_defines_file as is_defines;
-defines_function sub defines,
-    relates has_defines_function as has_defines,
-    relates is_defines_function as is_defines;
-
-reference sub code_link,
-    relates has_reference,
-    relates is_reference;
-reference_call sub reference,
-    relates has_reference_call as has_reference,
-    relates is_reference_call as is_reference;
-
-contains_references_and_definitions sub relation,
-    relates has_contains_references_and_definitions,
-    relates is_contains_references_and_definitions;
-
-function_references sub contains_references_and_definitions,
-    relates has_function_references as has_contains_references_and_definitions,
-    relates is_function_references as is_contains_references_and_definitions;
-function_definitions sub relation,
-    relates has_function_definitions as has_contains_references_and_definitions,
-    relates is_function_definitions as is_contains_references_and_definitions;
-
-contains_function sub relation,
-    relates has_contains_function,
-    relates is_contains_function;
-
-function_reference sub contains_function,
-    relates has_function_reference as has_contains_function,
-    relates is_function_reference as is_contains_function;
-function_definition sub contains_function,
-    relates has_function_definition as has_contains_function,
-    relates is_function_definition as is_contains_function;
+defines_function sub code_link,
+    relates has_defines_function,
+    relates is_defines_function;
+reference_call sub code_link,
+    relates has_reference_call,
+    relates is_reference_call;
