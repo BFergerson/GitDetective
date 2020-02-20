@@ -96,4 +96,21 @@ class UserServiceTest {
             }
         })
     }
+
+    @Test
+    void testGetMostReferencedProjectsInformation(TestContext test) {
+        def async = test.async()
+        userService.getMostReferencedProjectsInformation("github:bfergerson", 2, {
+            if (it.succeeded()) {
+                test.assertEquals(2, it.result().size())
+                test.assertEquals("github:bfergerson/myproject", it.result().get(0).projectName)
+                test.assertEquals(1, it.result().get(0).referenceCount)
+                test.assertEquals("github:bfergerson/otherproject", it.result().get(1).projectName)
+                test.assertEquals(0, it.result().get(1).referenceCount)
+                async.complete()
+            } else {
+                test.fail(it.cause())
+            }
+        })
+    }
 }

@@ -2,6 +2,7 @@ package io.gitdetective.web
 
 import com.google.common.collect.Lists
 import io.gitdetective.web.service.model.FunctionReferenceInformation
+import io.gitdetective.web.service.model.ProjectReferenceInformation
 import io.vertx.core.AbstractVerticle
 import io.vertx.core.CompositeFuture
 import io.vertx.core.Future
@@ -213,26 +214,20 @@ class GitDetectiveWebsite extends AbstractVerticle {
 
         //load and send page data
         log.debug "Loading user page: $username"
-        //def repo = new JsonObject().put("github_repository", "$username/$project")
-//        CompositeFuture.all(Lists.asList(
-////                getLatestBuildLog(ctx, repo)
-////                getProjectFileCount(ctx, repo),
-////                getProjectMethodVersionCount(ctx, repo),
-////                getProjectFirstIndexed(ctx, repo),
-////                getProjectLastIndexed(ctx, repo),
-////                getProjectLastIndexedCommitInformation(ctx, repo),
-////                getProjectMostReferencedFunctions(ctx, repo)
-//        )).setHandler({
-        log.debug "Rendering user page: $username"
-        engine.render(ctx.data(), "webroot/user.hbs", { res ->
-            if (res.succeeded()) {
-                log.info "Displaying user page: $username"
-                ctx.response().end(res.result())
-            } else {
-                ctx.fail(res.cause())
-            }
+        CompositeFuture.all(Lists.asList(
+                getUserProjectCount(ctx, username),
+                getUserMostReferencedProjectsInformation(ctx, username)
+        )).setHandler({
+            log.debug "Rendering user page: $username"
+            engine.render(ctx.data(), "webroot/user.hbs", { res ->
+                if (res.succeeded()) {
+                    log.info "Displaying user page: $username"
+                    ctx.response().end(res.result())
+                } else {
+                    ctx.fail(res.cause())
+                }
+            })
         })
-//        })
     }
 
     private void handleProjectPage(RoutingContext ctx) {
@@ -435,6 +430,43 @@ class GitDetectiveWebsite extends AbstractVerticle {
                 ctx.put("latest_job_log", jobLog.getJsonArray("logs"))
                 ctx.put("latest_job_log_id", jobLog.getLong("job_id"))
                 ctx.put("latest_job_log_position", jobLog.getJsonArray("logs").size() - 1)
+            }
+            handler.handle(Future.succeededFuture())
+        })
+        return future
+    }
+
+    private Future getUserProjectCount(RoutingContext ctx, String githubUsername) {
+        def future = Future.future()
+        def handler = future.completer()
+        service.userService.getProjectCount("github:" + githubUsername, {
+            if (it.failed()) {
+                ctx.fail(it.cause())
+            } else {
+                ctx.put("user_project_count", it.result())
+            }
+            handler.handle(Future.succeededFuture())
+        })
+        return future
+    }
+
+    private Future getUserMostReferencedProjectsInformation(RoutingContext ctx, String githubUsername) {
+        def future = Future.future()
+        def handler = future.completer()
+        service.userService.getMostReferencedProjectsInformation("github:" + githubUsername, 10, {
+            if (it.failed()) {
+                ctx.fail(it.cause())
+            } else {
+                def userProjectReferences = new JsonArray()
+                def info = it.result() as List<ProjectReferenceInformation>
+                info.each {
+                    def reference = new JsonObject()
+                    reference.put("project_name", it.projectName)
+                    reference.put("simple_project_name", it.simpleProjectName)
+                    reference.put("external_reference_count", it.referenceCount)
+                    userProjectReferences.add(reference)
+                }
+                ctx.put("user_most_referenced_projects", userProjectReferences)
             }
             handler.handle(Future.succeededFuture())
         })

@@ -197,18 +197,18 @@
                                     </tr>
                                     </thead>
                                     <tbody id="most_referenced_projects">
-{{!--                                     {{#each project_most_referenced_projects}} --}}
-                                        <tr onclick="window.location='#';">
+                                    {{#each user_most_referenced_projects}}
+                                        <tr onclick="window.location='{{gitdetective_url}}{{github_username}}/{{simple_project_name}}';">
                                             <td>
-                                                <h4 style="margin-bottom: 0">test</h4>
+                                                <h4 style="margin-bottom: 0">{{simple_project_name}}</h4>
                                             </td>
                                             <td>
                                                 <span class="label label-primary">
-                                                    n/a
+                                                    {{external_reference_count}}
                                                 </span>
                                             </td>
                                         </tr>
-{{!--                                     {{/each}} --}}
+                                    {{/each}}
                                     </tbody>
                                 </table>
                             </div>

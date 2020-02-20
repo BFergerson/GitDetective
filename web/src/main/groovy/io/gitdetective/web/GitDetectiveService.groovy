@@ -77,7 +77,7 @@ class GitDetectiveService extends AbstractVerticle {
 
             //setup services
             projectService = new ProjectService(graknSession)
-            userService = new UserService()
+            userService = new UserService(graknSession)
             //todo: async/handler stuff
             vertx.deployVerticle(projectService)
             vertx.deployVerticle(userService)

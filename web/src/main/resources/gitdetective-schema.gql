@@ -2,7 +2,7 @@ define
 
 ##########---------- Entities ----------##########
 user sub entity,
-    key user_name,
+    key username,
     has create_date,
     plays has_project;
 project sub entity,
@@ -37,7 +37,7 @@ commit_date sub attribute, datatype date;
 subkind sub attribute, datatype string;
 file_location sub attribute, datatype string;
 commit_sha1 sub attribute, datatype string;
-user_name sub name, datatype string;
+username sub name, datatype string;
 project_name sub name, datatype string;
 qualified_name sub name, datatype string;
 kythe_uri sub attribute, datatype string;

@@ -111,7 +111,7 @@ class ProjectServiceTest {
     }
 
     @Test
-    void testGetMostReferencedMethodsInformation(TestContext test) {
+    void testGetMostReferencedFunctionsInformation(TestContext test) {
         def async = test.async()
         projectService.getMostReferencedFunctionsInformation("github:bfergerson/myproject", 1, {
             if (it.succeeded()) {
