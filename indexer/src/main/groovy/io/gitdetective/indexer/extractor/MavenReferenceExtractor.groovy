@@ -36,7 +36,7 @@ class MavenReferenceExtractor extends AbstractVerticle {
         kytheObservers.add(refCallObserver)
         def index = new KytheIndexBuilder(outDir)
                 .setKytheOutputDirectory(outDir)
-                .setKytheDirectory(new File("/home/brandon/IdeaProjects/GitDetective/indexer/opt/kythe-v0.0.28"))
+                .setKytheDirectory(new File("opt/kythe-v0.0.28"))
                 .build(kytheObservers)
 
         def phenomena = new Phenomena()
