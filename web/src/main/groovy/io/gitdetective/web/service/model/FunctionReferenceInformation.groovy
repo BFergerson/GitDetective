@@ -25,4 +25,8 @@ class FunctionReferenceInformation {
     String getFunctionSignature() {
         return WebServices.getMethodSignature(qualifiedName)
     }
+
+    String getShortQualifiedFunctionName() {
+        return WebServices.getShortQualifiedMethodName(qualifiedName)
+    }
 }

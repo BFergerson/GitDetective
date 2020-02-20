@@ -163,8 +163,8 @@ class GitDetectiveWebsite extends AbstractVerticle {
         log.debug "Loading index page"
         CompositeFuture.all(Lists.asList(
                 getActiveJobs(ctx),
-//                getProjectReferenceLeaderboard(ctx, 5),
-//                getFunctionReferenceLeaderboard(ctx, 5),
+                getProjectReferenceLeaderboard(ctx, 5),
+                getFunctionReferenceLeaderboard(ctx, 5),
                 getDatabaseStatistics(ctx)
         )).setHandler({
             log.debug "Rendering index page"
@@ -286,21 +286,21 @@ class GitDetectiveWebsite extends AbstractVerticle {
 
         //load and send page data
         log.debug "Loading project leaderboard page"
-//        getProjectReferenceLeaderboard(ctx, 100).setHandler({
-//            if (it.failed()) {
-//                ctx.fail(it.cause())
-//            } else {
-        log.debug "Rendering project leaderboard page"
-        engine.render(ctx.data(), "webroot/project_leaderboard.hbs", { res ->
-            if (res.succeeded()) {
-                log.info "Displaying project leaderboard page"
-                ctx.response().end(res.result())
+        getProjectReferenceLeaderboard(ctx, 100).setHandler({
+            if (it.failed()) {
+                ctx.fail(it.cause())
             } else {
-                ctx.fail(res.cause())
+                log.debug "Rendering project leaderboard page"
+                engine.render(ctx.data(), "webroot/project_leaderboard.hbs", { res ->
+                    if (res.succeeded()) {
+                        log.info "Displaying project leaderboard page"
+                        ctx.response().end(res.result())
+                    } else {
+                        ctx.fail(res.cause())
+                    }
+                })
             }
         })
-//            }
-//        })
     }
 
     private void handleFunctionLeaderboardPage(RoutingContext ctx) {
@@ -311,21 +311,21 @@ class GitDetectiveWebsite extends AbstractVerticle {
 
         //load and send page data
         log.debug "Loading function leaderboard page"
-//        getFunctionReferenceLeaderboard(ctx, 100).setHandler({
-//            if (it.failed()) {
-//                ctx.fail(it.cause())
-//            } else {
-        log.debug "Rendering function leaderboard page"
-        engine.render(ctx.data(), "webroot/function_leaderboard.hbs", { res ->
-            if (res.succeeded()) {
-                log.info "Displaying function leaderboard page"
-                ctx.response().end(res.result())
+        getFunctionReferenceLeaderboard(ctx, 100).setHandler({
+            if (it.failed()) {
+                ctx.fail(it.cause())
             } else {
-                ctx.fail(res.cause())
+                log.debug "Rendering function leaderboard page"
+                engine.render(ctx.data(), "webroot/function_leaderboard.hbs", { res ->
+                    if (res.succeeded()) {
+                        log.info "Displaying function leaderboard page"
+                        ctx.response().end(res.result())
+                    } else {
+                        ctx.fail(res.cause())
+                    }
+                })
             }
         })
-//            }
-//        })
     }
 
     private Future getActiveJobs(RoutingContext ctx) {
@@ -357,50 +357,49 @@ class GitDetectiveWebsite extends AbstractVerticle {
         return future
     }
 
-//    private Future getProjectReferenceLeaderboard(RoutingContext ctx, int topCount) {
-//        def future = Future.future()
-//        def handler = future.completer()
-//        vertx.eventBus().send(GET_PROJECT_REFERENCE_LEADERBOARD, new JsonObject().put("top_count", topCount), {
-//            if (it.failed()) {
-//                ctx.fail(it.cause())
-//            } else {
-//                def referenceLeaderboard = it.result().body() as JsonArray
-//
-//                //make counts pretty
-//                for (int i = 0; i < referenceLeaderboard.size(); i++) {
-//                    def project = referenceLeaderboard.getJsonObject(i)
-//                    def count = project.getString("value") as int
-//                    project.put("value", asPrettyNumber(count))
-//                }
-//                ctx.put("project_reference_leaderboard", referenceLeaderboard)
-//            }
-//            handler.handle(Future.succeededFuture())
-//        })
-//        return future
-//    }
-//
-//    private Future getFunctionReferenceLeaderboard(RoutingContext ctx, int topCount) {
-//        def future = Future.future()
-//        def handler = future.completer()
-//        redis.getCachedFunctionLeaderboard({
-//            if (it.failed()) {
-//                ctx.fail(it.cause())
-//            } else {
-//                def referenceLeaderboard = it.result().take(topCount) as JsonArray
-//
-//                //make counts pretty
-//                for (int i = 0; i < referenceLeaderboard.size(); i++) {
-//                    def function = referenceLeaderboard.getJsonObject(i)
-//                    function.put("short_qualified_name", getShortQualifiedMethodName(function.getString("qualified_name")))
-//                    function.put("external_reference_count", asPrettyNumber(
-//                            function.getLong("external_reference_count")))
-//                }
-//                ctx.put("function_reference_leaderboard", referenceLeaderboard)
-//            }
-//            handler.handle(Future.succeededFuture())
-//        })
-//        return future
-//    }
+    private Future getProjectReferenceLeaderboard(RoutingContext ctx, int limit) {
+        def future = Future.future()
+        def handler = future.completer()
+        service.systemService.getTotalMostReferencedProjectsInformation(limit, {
+            if (it.failed()) {
+                ctx.fail(it.cause())
+            } else {
+                def totalProjectReferences = new JsonArray()
+                it.result().each {
+                    def reference = new JsonObject()
+                    reference.put("project_name", it.projectName)
+                    reference.put("github_repository", it.usernameAndProjectName)
+                    reference.put("external_reference_count", asPrettyNumber(it.referenceCount))
+                    totalProjectReferences.add(reference)
+                }
+                ctx.put("project_reference_leaderboard", totalProjectReferences)
+            }
+            handler.handle(Future.succeededFuture())
+        })
+        return future
+    }
+
+    private Future getFunctionReferenceLeaderboard(RoutingContext ctx, int limit) {
+        def future = Future.future()
+        def handler = future.completer()
+        service.systemService.getTotalMostReferencedFunctionsInformation(limit, {
+            if (it.failed()) {
+                ctx.fail(it.cause())
+            } else {
+                def totalFunctionReferences = new JsonArray()
+                it.result().each {
+                    def reference = new JsonObject()
+                    reference.put("qualified_name", it.qualifiedName)
+                    reference.put("short_qualified_name", it.shortQualifiedFunctionName)
+                    reference.put("external_reference_count", asPrettyNumber(it.referenceCount))
+                    totalFunctionReferences.add(reference)
+                }
+                ctx.put("function_reference_leaderboard", totalFunctionReferences)
+            }
+            handler.handle(Future.succeededFuture())
+        })
+        return future
+    }
 
     private Future getLatestBuildLog(RoutingContext ctx, JsonObject githubRepository) {
         def future = Future.future()

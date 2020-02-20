@@ -11,6 +11,10 @@ class ProjectReferenceInformation {
         return projectName.substring(projectName.indexOf(":") + 1, projectName.indexOf("/"))
     }
 
+    String getUsernameAndProjectName() {
+        return projectName.substring(projectName.indexOf(":") + 1)
+    }
+
     String getSimpleProjectName() {
         return projectName.substring(projectName.indexOf("/") + 1)
     }
