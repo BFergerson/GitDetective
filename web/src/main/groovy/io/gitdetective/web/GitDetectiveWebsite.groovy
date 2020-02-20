@@ -1,8 +1,6 @@
 package io.gitdetective.web
 
 import com.google.common.collect.Lists
-import io.gitdetective.web.service.model.FunctionReferenceInformation
-import io.gitdetective.web.service.model.ProjectReferenceInformation
 import io.vertx.core.AbstractVerticle
 import io.vertx.core.CompositeFuture
 import io.vertx.core.Future
@@ -440,8 +438,7 @@ class GitDetectiveWebsite extends AbstractVerticle {
                 ctx.fail(it.cause())
             } else {
                 def userProjectReferences = new JsonArray()
-                def info = it.result() as List<ProjectReferenceInformation>
-                info.each {
+                it.result().each {
                     def reference = new JsonObject()
                     reference.put("project_name", it.projectName)
                     reference.put("simple_project_name", it.simpleProjectName)
@@ -491,8 +488,7 @@ class GitDetectiveWebsite extends AbstractVerticle {
                 ctx.fail(it.cause())
             } else {
                 def projectFunctionReferences = new JsonArray()
-                def info = it.result() as List<FunctionReferenceInformation>
-                info.each {
+                it.result().each {
                     def reference = new JsonObject()
                     reference.put("has_method_link", it.referenceCount > 0)
                     reference.put("id", it.functionId)
