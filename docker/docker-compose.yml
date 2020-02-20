@@ -11,3 +11,11 @@ services:
     container_name: grakn
     ports:
       - "48555:48555"
+  timescaledb:
+    image: timescale/timescaledb:latest-pg11
+    container_name: timescaledb
+    ports:
+      - "5432:5432"
+    environment:
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=postgres

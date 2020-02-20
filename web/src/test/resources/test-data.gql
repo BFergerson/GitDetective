@@ -19,13 +19,8 @@ $fi isa file,
 $func isa function,
     has kythe_uri "kythe://kythe?lang=java?path=com/gitdetective/MyClass.java#6a69bc35ea8774d37510f3405373b2a65e029a4528321575191a00912b83818f",
     has reference_count 1,
-    has commit_date 2018-09-14T17:18:49,
-    has commit_sha1 "28ea7da14fcf03658721e05a985acaa2b86c8bd5",
     has qualified_name "com.gitdetective.MyClass.myMethod()";
-(has_defines_function: $fi, is_defines_function: $func) isa defines_function,
-    has line_number 4,
-    has start_offset 10,
-    has end_offset 100;
+(has_defines_function: $fi, is_defines_function: $func) isa defines_function;
 
 
 ########################################################################################################################
@@ -44,17 +39,9 @@ $otherFi isa file,
 $otherFunc isa function,
     has kythe_uri "kythe://kythe?lang=java?path=com/gitdetective/App2.java#d1986b43119e8013b76b5a57426d0ed51d3ef15a8bdb166657ef6aff91d3e6fc",
     has reference_count 0,
-    has commit_date 2018-09-14T17:18:49,
-    has commit_sha1 "b0be5053300ef5baabe7706f1cb440e38aa55565",
     has qualified_name "com.gitdetective.App2.main(java.lang.String[])";
-(has_defines_function: $otherFi, is_defines_function: $otherFunc) isa defines_function,
-    has line_number 4,
-    has start_offset 10,
-    has end_offset 100;
+(has_defines_function: $otherFi, is_defines_function: $otherFunc) isa defines_function;
 
 
 ########################################################################################################################
-(has_reference_call: $func, is_reference_call: $otherFunc) isa reference_call,
-    has line_number 4,
-    has start_offset 10,
-    has end_offset 100;
+(has_reference_call: $func, is_reference_call: $otherFunc) isa reference_call;

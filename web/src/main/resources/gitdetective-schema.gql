@@ -23,8 +23,6 @@ function sub entity,
     key kythe_uri,
     has subkind,
     has qualified_name,
-    has commit_sha1,
-    has commit_date,
     has reference_count,
     plays is_defines_function,
     plays is_reference_call,
@@ -33,35 +31,24 @@ function sub entity,
 ##########---------- Attributes ----------##########
 name sub attribute, abstract, datatype string;
 create_date sub attribute, datatype date;
-commit_date sub attribute, datatype date;
 subkind sub attribute, datatype string;
 file_location sub attribute, datatype string;
-commit_sha1 sub attribute, datatype string;
 username sub name, datatype string;
 project_name sub name, datatype string;
 qualified_name sub name, datatype string;
 kythe_uri sub attribute, datatype string;
-line_number sub attribute, datatype long;
-start_offset sub attribute, datatype long;
-end_offset sub attribute, datatype long;
 reference_count sub attribute, datatype long;
 
 ##########---------- Relationships ----------##########
 owns_project sub relation,
     relates has_project,
     relates is_project;
-
 defines_file sub relation,
     relates has_defines_file,
     relates is_defines_file;
-
-code_link sub relation, abstract,
-    has line_number,
-    has start_offset,
-    has end_offset;
-defines_function sub code_link,
+defines_function sub relation,
     relates has_defines_function,
     relates is_defines_function;
-reference_call sub code_link,
+reference_call sub relation,
     relates has_reference_call,
     relates is_reference_call;

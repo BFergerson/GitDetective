@@ -5,6 +5,7 @@ import com.google.common.io.Resources
 import grakn.client.GraknClient
 import graql.lang.Graql
 import io.gitdetective.web.dao.JobsDAO
+import io.gitdetective.web.dao.PostgresDAO
 import io.gitdetective.web.dao.RedisDAO
 import io.gitdetective.web.service.ProjectService
 import io.gitdetective.web.service.SystemService
@@ -57,9 +58,7 @@ class GitDetectiveService extends AbstractVerticle {
         uploadsDirectory = config().getString("uploads.directory")
         def redis = new RedisDAO(RedisHelper.client(vertx, config()))
         def refStorage = redis
-//        if (config().getJsonObject("storage") != null) {
-//            refStorage = new PostgresDAO(vertx, config().getJsonObject("storage"), redis)
-//        }
+        new PostgresDAO(vertx, config().getJsonObject("storage"))
 
         //boot/setup grakn
         vertx.executeBlocking({

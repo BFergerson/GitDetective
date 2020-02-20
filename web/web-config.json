@@ -25,5 +25,12 @@
     "enabled": true,
     "thread_count": 20,
     "max_worker_time_minutes": 99999999
+  },
+  "storage": {
+    "user": "postgres",
+    "password": "postgres",
+    "host": "localhost",
+    "port": 5432,
+    "database": "postgres"
   }
 }
