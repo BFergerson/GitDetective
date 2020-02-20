@@ -1,5 +1,5 @@
 plugins {
-    id "com.avast.gradle.docker-compose" version "0.6.6"
+    id "com.avast.gradle.docker-compose" version "0.6.11"
 }
 
 group = 'io.gitdetective.web'
@@ -38,4 +38,5 @@ dockerCompose {
     useComposeFiles = ['./web-docker-compose.yml']
     dockerComposeWorkingDirectory = '../docker/'
     captureContainersOutput = true
+    startedServices = ["grakn"]
 }
