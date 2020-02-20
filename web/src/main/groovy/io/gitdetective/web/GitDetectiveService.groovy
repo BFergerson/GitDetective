@@ -7,6 +7,7 @@ import graql.lang.Graql
 import io.gitdetective.web.dao.JobsDAO
 import io.gitdetective.web.dao.RedisDAO
 import io.gitdetective.web.service.ProjectService
+import io.gitdetective.web.service.SystemService
 import io.gitdetective.web.service.UserService
 import io.gitdetective.web.work.GHArchiveSync
 import io.vertx.blueprint.kue.queue.Job
@@ -42,6 +43,7 @@ class GitDetectiveService extends AbstractVerticle {
     private final Router router
     private JobsDAO jobs
     private ProjectService projectService
+    private SystemService systemService
     private UserService userService
     private String uploadsDirectory
 
@@ -76,9 +78,11 @@ class GitDetectiveService extends AbstractVerticle {
             setupOntology(graknSession)
 
             //setup services
+            systemService = new SystemService(graknSession)
             projectService = new ProjectService(graknSession)
             userService = new UserService(graknSession)
             //todo: async/handler stuff
+            vertx.deployVerticle(systemService)
             vertx.deployVerticle(projectService)
             vertx.deployVerticle(userService)
 //
@@ -301,6 +305,10 @@ class GitDetectiveService extends AbstractVerticle {
             })
         })
         log.info "GitDetectiveService started"
+    }
+
+    SystemService getSystemService() {
+        return systemService
     }
 
     ProjectService getProjectService() {

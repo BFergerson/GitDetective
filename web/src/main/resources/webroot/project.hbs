@@ -215,9 +215,7 @@
                                                 <a href="https://github.com/{{github_repository}}/commit/{{project_last_indexed_commit_information.commit}}">
                                                     {{project_last_indexed_commit_information.commit_short}} (
                                                     <script>
-                                                        document.write(
-                                                                moment("{{project_last_indexed_commit_information.commit_date}}").
-                                                                        fromNow())
+                                                        document.write(moment("{{project_last_indexed_commit_information.commit_date}}").fromNow())
                                                     </script>
                                                     )</a>
                                             {{else}}

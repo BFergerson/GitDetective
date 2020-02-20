@@ -17,6 +17,7 @@ import io.vertx.ext.web.templ.handlebars.HandlebarsTemplateEngine
 
 import javax.net.ssl.SSLException
 import java.nio.channels.ClosedChannelException
+import java.util.concurrent.TimeUnit
 
 import static io.gitdetective.web.WebServices.*
 
@@ -34,7 +35,7 @@ class GitDetectiveWebsite extends AbstractVerticle {
     private static volatile long TOTAL_COMPUTE_TIME = 0
     private static volatile long TOTAL_PROJECT_COUNT = 0
     private static volatile long TOTAL_FILE_COUNT = 0
-    private static volatile long TOTAL_METHOD_COUNT = 0
+    private static volatile long TOTAL_FUNCTION_COUNT = 0
     private static volatile long TOTAL_DEFINITION_COUNT = 0
     private static volatile long TOTAL_REFERENCE_COUNT = 0
     private final GitDetectiveService service
@@ -106,17 +107,17 @@ class GitDetectiveWebsite extends AbstractVerticle {
             }
         })
 
-//        //set initial db stats
-//        updateDatabaseStatistics(true)
-//        //update every minute
-//        vertx.setPeriodic(TimeUnit.MINUTES.toMillis(1), {
-//            updateDatabaseStatistics(false)
-//            log.info "Updated database statistics"
-//        })
+        //set initial db stats
+        updateDatabaseStatistics()
+        //update periodically
+        vertx.setPeriodic(TimeUnit.MINUTES.toMillis(15), {
+            updateDatabaseStatistics()
+            log.info "Updated database statistics"
+        })
         log.info "GitDetectiveWebsite started"
     }
 
-//    private void updateDatabaseStatistics(boolean initial) {
+    private void updateDatabaseStatistics() {
 //        jobs.getActiveCount("IndexGithubProject", {
 //            if (it.succeeded()) {
 //                CURRENTLY_INDEXING_COUNT = it.result()
@@ -131,44 +132,26 @@ class GitDetectiveWebsite extends AbstractVerticle {
 //                it.cause().printStackTrace()
 //            }
 //        })
-//
-//        if (config().getBoolean("grakn.enabled")) {
-//            if (initial) {
-//                redis.getComputeTime({
-//                    WebLauncher.metrics.counter("GraknComputeTime").inc(TOTAL_COMPUTE_TIME = it.result())
-//                })
-//                redis.getProjectCount({
-//                    WebLauncher.metrics.counter("CreateProject").inc(TOTAL_PROJECT_COUNT = it.result())
-//                })
-//                redis.getFileCount({
-//                    WebLauncher.metrics.counter("ImportFile").inc(TOTAL_FILE_COUNT = it.result())
-//                })
-//                redis.getMethodCount({
-//                    WebLauncher.metrics.counter("ImportMethod").inc(TOTAL_METHOD_COUNT = it.result())
-//                })
-//                redis.getDefinitionCount({
-//                    WebLauncher.metrics.counter("ImportDefinedFunction").inc(TOTAL_DEFINITION_COUNT = it.result())
-//                })
-//                redis.getReferenceCount({
-//                    WebLauncher.metrics.counter("ImportReferencedFunction").inc(TOTAL_REFERENCE_COUNT = it.result())
-//                })
-//            } else {
-//                redis.cacheComputeTime(TOTAL_COMPUTE_TIME = WebLauncher.metrics.counter("GraknComputeTime").getCount())
-//                redis.cacheProjectCount(TOTAL_PROJECT_COUNT = WebLauncher.metrics.counter("CreateProject").getCount())
-//                redis.cacheFileCount(TOTAL_FILE_COUNT = WebLauncher.metrics.counter("ImportFile").getCount())
-//                redis.cacheMethodCount(TOTAL_METHOD_COUNT = WebLauncher.metrics.counter("ImportMethod").getCount())
-//                redis.cacheDefinitionCount(TOTAL_DEFINITION_COUNT = WebLauncher.metrics.counter("ImportDefinedFunction").getCount())
-//                redis.cacheReferenceCount(TOTAL_REFERENCE_COUNT = WebLauncher.metrics.counter("ImportReferencedFunction").getCount())
-//            }
-//        } else {
-//            redis.getComputeTime({ TOTAL_COMPUTE_TIME = it.result() })
-//            redis.getProjectCount({ TOTAL_PROJECT_COUNT = it.result() })
-//            redis.getFileCount({ TOTAL_FILE_COUNT = it.result() })
-//            redis.getMethodCount({ TOTAL_METHOD_COUNT = it.result() })
-//            redis.getDefinitionCount({ TOTAL_DEFINITION_COUNT = it.result() })
-//            redis.getReferenceCount({ TOTAL_REFERENCE_COUNT = it.result() })
-//        }
-//    }
+
+//            redis.getComputeTime({
+//                WebLauncher.metrics.counter("GraknComputeTime").inc(TOTAL_COMPUTE_TIME = it.result())
+//            })
+        service.systemService.getTotalProjectCount({
+            TOTAL_PROJECT_COUNT = it.result()
+        })
+        service.systemService.getTotalFileCount({
+            TOTAL_FILE_COUNT = it.result()
+        })
+        service.systemService.getTotalFunctionCount({
+            TOTAL_FUNCTION_COUNT = it.result()
+        })
+//            service.systemService.getDefinitionCount({
+//                WebLauncher.metrics.counter("ImportDefinedFunction").inc(TOTAL_DEFINITION_COUNT = it.result())
+//            })
+//            service.systemService.getReferenceCount({
+//                WebLauncher.metrics.counter("ImportReferencedFunction").inc(TOTAL_REFERENCE_COUNT = it.result())
+//            })
+    }
 
     private void handleIndexPage(RoutingContext ctx) {
         ctx.put("gitdetective_url", config().getString("gitdetective_url"))
@@ -512,8 +495,11 @@ class GitDetectiveWebsite extends AbstractVerticle {
                 def info = it.result() as List<FunctionReferenceInformation>
                 info.each {
                     def reference = new JsonObject()
-                    reference.put("has_method_link", false)
+                    reference.put("has_method_link", it.referenceCount > 0)
+                    reference.put("id", it.functionId)
+                    reference.put("class_name", it.className)
                     reference.put("short_class_name", it.shortClassName)
+                    reference.put("method_signature", it.functionSignature)
                     reference.put("short_method_signature", it.shortFunctionSignature)
                     reference.put("external_reference_count", it.referenceCount)
                     projectFunctionReferences.add(reference)
@@ -607,7 +593,7 @@ class GitDetectiveWebsite extends AbstractVerticle {
         stats.add(new JsonObject().put("stat1", "Definitions").put("value1", asPrettyNumber(TOTAL_DEFINITION_COUNT))
                 .put("stat2", "Files").put("value2", asPrettyNumber(TOTAL_FILE_COUNT)))
         stats.add(new JsonObject().put("stat1", "References").put("value1", asPrettyNumber(TOTAL_REFERENCE_COUNT))
-                .put("stat2", "Methods").put("value2", asPrettyNumber(TOTAL_METHOD_COUNT)))
+                .put("stat2", "Functions").put("value2", asPrettyNumber(TOTAL_FUNCTION_COUNT)))
         ctx.put("database_statistics", stats)
 
         def future = Future.future()

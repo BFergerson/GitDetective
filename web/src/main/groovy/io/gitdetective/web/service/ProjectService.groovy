@@ -165,14 +165,15 @@ class ProjectService extends AbstractVerticle {
                                 .has("reference_count", var("ref_count")),
                         var().rel("has_defines_function", var("fi"))
                                 .rel("is_defines_function", var("f")).isa("defines_function"),
-                ).get("k_uri", "q_name", "ref_count").sort("ref_count", "desc").limit(limit))
+                ).get("f", "k_uri", "q_name", "ref_count").sort("ref_count", "desc").limit(limit))
 
                 def result = []
                 mostReferencedFunctionsAnswer.each {
+                    def functionId = it.get("f").asEntity().id().value
                     def kytheUri = it.get("k_uri").asAttribute().value() as String
                     def qualifiedName = it.get("q_name").asAttribute().value() as String
                     def referenceCount = it.get("ref_count").asAttribute().value() as int
-                    result << new FunctionReferenceInformation(kytheUri, qualifiedName, referenceCount)
+                    result << new FunctionReferenceInformation(functionId, kytheUri, qualifiedName, referenceCount)
                 }
                 handler.handle(Future.succeededFuture(result))
             }

@@ -5,6 +5,7 @@ import io.gitdetective.web.WebServices
 
 @Canonical
 class FunctionReferenceInformation {
+    String functionId
     String kytheUri
     String qualifiedName
     int referenceCount
