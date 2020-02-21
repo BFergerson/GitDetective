@@ -19,3 +19,8 @@ services:
     environment:
       - POSTGRES_USER=postgres
       - POSTGRES_PASSWORD=postgres
+  redis:
+    image: redis
+    container_name: redis
+    ports:
+      - "6379:6379"
