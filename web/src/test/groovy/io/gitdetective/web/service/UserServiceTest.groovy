@@ -85,6 +85,28 @@ class UserServiceTest {
     }
 
     @Test
+    void testGetOrCreateUser(TestContext test) {
+        def async = test.async()
+        userService.getOrCreateUser("github:bfergerson", {
+            if (it.succeeded()) {
+                def userId = it.result()
+                test.assertNotNull(userId)
+
+                userService.getOrCreateUser("github:bfergerson", {
+                    if (it.succeeded()) {
+                        test.assertEquals(userId, it.result())
+                        async.complete()
+                    } else {
+                        test.fail(it.cause())
+                    }
+                })
+            } else {
+                test.fail(it.cause())
+            }
+        })
+    }
+
+    @Test
     void testGetProjectCount(TestContext test) {
         def async = test.async()
         userService.getProjectCount("github:bfergerson", {

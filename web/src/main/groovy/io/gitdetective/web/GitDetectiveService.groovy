@@ -54,7 +54,7 @@ class GitDetectiveService extends AbstractVerticle {
     }
 
     @Override
-    void start() {
+    void start(Future<Void> startFuture) throws Exception {
         jobs = new JobsDAO(vertx, config())
         postgres = new PostgresDAO(vertx, config().getJsonObject("storage"))
         uploadsDirectory = config().getString("uploads.directory")
@@ -78,7 +78,7 @@ class GitDetectiveService extends AbstractVerticle {
 
             //setup services
             systemService = new SystemService(graknSession)
-            projectService = new ProjectService(graknSession)
+            projectService = new ProjectService(graknSession, postgres)
             userService = new UserService(graknSession)
             //todo: async/handler stuff
             vertx.deployVerticle(systemService)
@@ -105,12 +105,7 @@ class GitDetectiveService extends AbstractVerticle {
                 vertx.deployVerticle(new GHArchiveSync(jobs), options)
             }
             it.complete()
-        }, false, {
-            if (it.failed()) {
-                it.cause().printStackTrace()
-                System.exit(-1)
-            }
-        })
+        }, false, startFuture)
 
         //event bus bridge
         SockJSHandler sockJSHandler = SockJSHandler.create(vertx)

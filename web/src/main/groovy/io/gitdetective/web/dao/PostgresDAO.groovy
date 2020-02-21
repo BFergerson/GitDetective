@@ -43,6 +43,12 @@ class PostgresDAO {
                     'AND project_id = $1\n' +
                     'GROUP BY one_month\n' +
                     'ORDER BY one_month ASC'
+    private static final String GET_FUNCTION_REFERENCES =
+            'SELECT caller_function_id\n' +
+                    'FROM function_reference\n' +
+                    'WHERE 1=1\n' +
+                    'AND callee_function_id = $1\n' +
+                    'LIMIT $2'
 
     private final PgPool client
 
@@ -116,6 +122,21 @@ class PostgresDAO {
                     trend.trendData << new ProjectReferenceTrend.TrendPoint(time, count)
                 }
                 handler.handle(Future.succeededFuture(trend))
+            } else {
+                handler.handle(Future.failedFuture(it.cause()))
+            }
+        })
+    }
+
+    void getFunctionReferences(String functionId, int limit,
+                                      Handler<AsyncResult<List<String>>> handler) {
+        client.preparedQuery(GET_FUNCTION_REFERENCES, Tuple.of(functionId, limit), {
+            if (it.succeeded()) {
+                def result = []
+                it.result().each {
+                    result << it.getString(1)
+                }
+                handler.handle(Future.succeededFuture(result))
             } else {
                 handler.handle(Future.failedFuture(it.cause()))
             }

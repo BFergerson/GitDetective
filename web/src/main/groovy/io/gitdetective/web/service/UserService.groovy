@@ -8,6 +8,7 @@ import io.vertx.core.AsyncResult
 import io.vertx.core.Future
 import io.vertx.core.Handler
 
+import static graql.lang.Graql.insert
 import static graql.lang.Graql.match
 import static graql.lang.Graql.var
 
@@ -18,6 +19,27 @@ class UserService extends AbstractVerticle {
 
     UserService(GraknClient.Session session) {
         this.session = Objects.requireNonNull(session)
+    }
+
+    void getOrCreateUser(String username, Handler<AsyncResult<String>> handler) {
+        vertx.executeBlocking({
+            try (def writeTx = session.transaction().write()) {
+                def getUserAnswer = writeTx.execute(match(
+                        var("u").isa("user")
+                                .has("username", username)
+                ).get("u"))
+
+                if (getUserAnswer.isEmpty()) {
+                    def createUserAnswer = writeTx.execute(insert(
+                            var("u").isa("user")
+                                    .has("username", username)
+                    ))
+                    handler.handle(Future.succeededFuture(createUserAnswer.get(0).get("u").asEntity().id().value))
+                } else {
+                    handler.handle(Future.succeededFuture(getUserAnswer.get(0).get("u").asEntity().id().value))
+                }
+            }
+        }, false, handler)
     }
 
     void getProjectCount(String username, Handler<AsyncResult<Long>> handler) {

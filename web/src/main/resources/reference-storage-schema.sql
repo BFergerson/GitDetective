@@ -11,6 +11,6 @@ CREATE TABLE function_reference
     deletion           BOOLEAN      NOT NULL
 );
 CREATE INDEX ON function_reference (project_id);
-CREATE INDEX ON function_reference (project_id, callee_function_id);
-CREATE INDEX ON function_reference (project_id, commit_sha1);
+CREATE INDEX ON function_reference (callee_function_id);
+CREATE INDEX ON function_reference (commit_sha1);
 SELECT create_hypertable('function_reference', 'commit_date');

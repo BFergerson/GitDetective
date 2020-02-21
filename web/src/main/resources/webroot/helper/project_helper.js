@@ -105,8 +105,7 @@ function displayMethodReference (method) {
   }
 
   eb.send('GetFunctionExternalReferences', {
-    'github_repository': method.github_repository,
-    'method_id': method.id,
+    'function_id': method.id,
     'offset': 0,
   }, function (error, message) {
     if (error == null) {

@@ -235,7 +235,7 @@
                         <div class="card-body">
                             <small class="text-muted">Latest build log</small>
                             <blockquote id="latest_job_log"
-                                        style="margin-top: 4px; background: #272c33; color: #99abb4; font-size: 12px">
+                                        style="margin-top: 4px; background: #272c33; color: #99abb4; font-size: 12px; overflow-x: hidden; overflow-y: scroll; height: 180px; margin-bottom: 10px; padding-top: 0">
                                 {{#each latest_job_log}}
                                     {{this}} <br>
                                 {{/each}}
@@ -499,5 +499,20 @@ labels: [
 });
 </script>
 {{/if}}
+<script>
+//todo: smarter
+var scrolled = false;
+function updateScroll(){
+    if(!scrolled){
+        var element = document.getElementById("latest_job_log");
+        element.scrollTop = element.scrollHeight;
+    }
+}
+
+$("#latest_job_log").on('scroll', function(){
+    scrolled=true;
+});
+updateScroll();
+</script>
 </body>
 </html>

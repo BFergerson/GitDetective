@@ -63,7 +63,7 @@ class ProjectServiceTest {
 
         Async async = test.async()
         vertx = Vertx.vertx()
-        vertx.deployVerticle(projectService = new ProjectService(session), {
+        vertx.deployVerticle(projectService = new ProjectService(session, null), {
             if (it.succeeded()) {
                 async.complete()
             } else {
@@ -83,6 +83,19 @@ class ProjectServiceTest {
         client.close()
         vertx.close(test.asyncAssertSuccess())
     }
+
+//    @Test
+//    void testGetOrCreateProject(TestContext test) {
+//        def async = test.async()
+//        projectService.getOrCreateProject("github:bfergerson/testproject", {
+//            if (it.succeeded()) {
+//                test.assertNotNull(it.result())
+//                async.complete()
+//            } else {
+//                test.fail(it.cause())
+//            }
+//        })
+//    }
 
     @Test
     void testGetProjectId(TestContext test) {
