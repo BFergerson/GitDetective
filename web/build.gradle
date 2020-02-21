@@ -36,5 +36,5 @@ dockerCompose {
     useComposeFiles = ['./docker-compose.yml']
     dockerComposeWorkingDirectory = '../docker/'
     captureContainersOutput = true
-    startedServices = ["grakn", "timescaledb"]
+    startedServices = ["grakn", "timescaledb", "redis"]
 }
