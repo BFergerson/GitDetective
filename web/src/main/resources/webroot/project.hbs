@@ -18,6 +18,10 @@
     <link href="{{gitdetective_static_url}}css/colors/purple-dark.css" id="theme" rel="stylesheet">
     <link href="{{gitdetective_static_url}}stylesheet.css" rel="stylesheet">
     <script src="{{gitdetective_static_url}}moment.min.js"></script>
+     <!-- chartist CSS -->
+    <link href="{{gitdetective_static_url}}assets/plugins/chartist-js/dist/chartist.min.css" rel="stylesheet">
+    <link href="{{gitdetective_static_url}}assets/plugins/chartist-js/dist/chartist-init.css" rel="stylesheet">
+    <link href="{{gitdetective_static_url}}assets/plugins/chartist-plugin-tooltip-master/dist/chartist-plugin-tooltip.css" rel="stylesheet">
     <!-- HTML5 Shim and Respond.js IE8 support of HTML5 elements and media queries -->
     <!-- WARNING: Respond.js doesn't work if you view the page via file:// -->
     <!--[if lt IE 9]>
@@ -242,6 +246,20 @@
                 <!-- Column -->
                 <!-- Column -->
                 <div class="col-lg-8 col-xlg-8 col-md-7">
+                   <div class="card">
+                        <div class="card-body">
+                           <ol style="background-color: #272c33 !important;" class="breadcrumb bc-colored m-b-10 bg-primary">
+                               <li class="breadcrumb-item active">
+                                   <b>Project reference trend</b>
+                               </li>
+                           </ol>
+                            <div class="ct-area-ln-chart" style="padding-top: 15px">
+                                {{#unless project_reference_trend.trend_available}}
+                                    <center><b>Data not available</b></center>
+                                {{/unless}}
+                            </div>
+                        </div>
+                    </div>
                     <div class="card">
                         <div class="card-body">
                             <ol style="background-color: #272c33 !important;" id="referenced_methods_breadcrumbs"
@@ -376,6 +394,13 @@
         })
     }
 </script>
+<!-- chartist chart -->
+<script src="{{gitdetective_static_url}}assets/plugins/chartist-js/dist/chartist.min.js"></script>
+<script src="{{gitdetective_static_url}}assets/plugins/chartist-plugin-tooltip-master/dist/chartist-plugin-tooltip.min.js"></script>
+{{!-- <script src="{{gitdetective_static_url}}assets/plugins/chartist-js/dist/chartist-init.js"></script> --}}
+<!--c3 JavaScript -->
+<script src="{{gitdetective_static_url}}assets/plugins/d3/d3.min.js"></script>
+<script src="{{gitdetective_static_url}}assets/plugins/c3-master/c3.min.js"></script>
 <!-- ============================================================== -->
 <!-- Style switcher -->
 <!-- ============================================================== -->
@@ -440,5 +465,39 @@
     var latestJobLogId = {{latest_job_log_id}}
 </script>
 <script src="{{gitdetective_url}}helper/project_helper.js"></script>
+{{#if project_reference_trend.trend_available}}
+<script>
+// line chart with area
+
+new Chartist.Line('.ct-area-ln-chart', {
+labels: [
+{{#each project_reference_trend.trend_data}}
+    moment('{{this.time}}').format('MM.YYYY'),
+{{/each}}
+  ],
+  series: [
+    [
+{{#each project_reference_trend.trend_data}}
+    '{{this.count}}',
+{{/each}}
+    ]
+  ]
+}, {
+
+          chartPadding: { right: 50 },
+  plugins: [
+    Chartist.plugins.tooltip()
+  ],
+  showArea: true,
+  fullWidth: true,
+//   axisY: {
+//     labelInterpolationFnc: function(value) {
+//       // do whatever math operation you want here
+//       return value / 1000000 + 'm';
+//     }
+//   }
+});
+</script>
+{{/if}}
 </body>
 </html>

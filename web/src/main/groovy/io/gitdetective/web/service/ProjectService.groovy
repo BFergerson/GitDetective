@@ -114,6 +114,23 @@ class ProjectService extends AbstractVerticle {
 //        })
     }
 
+    void getProjectId(String projectName, Handler<AsyncResult<String>> handler) {
+        vertx.executeBlocking({
+            try (def readTx = session.transaction().read()) {
+                def projectIdAnswer = readTx.execute(match(
+                        var("p").isa("project")
+                                .has("name", projectName)
+                ).get("p"))
+
+                if (projectIdAnswer.isEmpty()) {
+                    handler.handle(Future.succeededFuture())
+                } else {
+                    handler.handle(Future.succeededFuture(projectIdAnswer.get(0).get("p").asEntity().id().value))
+                }
+            }
+        }, false, handler)
+    }
+
     void getFileCount(String projectName, Handler<AsyncResult<Long>> handler) {
         vertx.executeBlocking({
             try (def readTx = session.transaction().read()) {

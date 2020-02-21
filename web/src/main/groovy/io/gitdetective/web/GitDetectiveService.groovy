@@ -43,6 +43,7 @@ class GitDetectiveService extends AbstractVerticle {
     private final static Logger log = LoggerFactory.getLogger(GitDetectiveService.class)
     private final Router router
     private JobsDAO jobs
+    private PostgresDAO postgres
     private ProjectService projectService
     private SystemService systemService
     private UserService userService
@@ -55,10 +56,9 @@ class GitDetectiveService extends AbstractVerticle {
     @Override
     void start() {
         jobs = new JobsDAO(vertx, config())
+        postgres = new PostgresDAO(vertx, config().getJsonObject("storage"))
         uploadsDirectory = config().getString("uploads.directory")
         def redis = new RedisDAO(RedisHelper.client(vertx, config()))
-        def refStorage = redis
-        new PostgresDAO(vertx, config().getJsonObject("storage"))
 
         //boot/setup grakn
         vertx.executeBlocking({
@@ -304,6 +304,14 @@ class GitDetectiveService extends AbstractVerticle {
             })
         })
         log.info "GitDetectiveService started"
+    }
+
+    JobsDAO getJobs() {
+        return jobs
+    }
+
+    PostgresDAO getPostgres() {
+        return postgres
     }
 
     SystemService getSystemService() {

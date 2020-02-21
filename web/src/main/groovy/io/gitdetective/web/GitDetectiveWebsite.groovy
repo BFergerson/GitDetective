@@ -238,6 +238,7 @@ class GitDetectiveWebsite extends AbstractVerticle {
                 getLatestBuildLog(ctx, repo),
                 getProjectFileCount(ctx, githubRepository),
                 getProjectFunctionCount(ctx, githubRepository),
+                getProjectReferenceTrend(ctx, githubRepository),
 //                getProjectFirstIndexed(ctx, repo),
 //                getProjectLastIndexed(ctx, repo),
 //                getProjectLastIndexedCommitInformation(ctx, repo),
@@ -448,6 +449,44 @@ class GitDetectiveWebsite extends AbstractVerticle {
                 ctx.put("user_most_referenced_projects", userProjectReferences)
             }
             handler.handle(Future.succeededFuture())
+        })
+        return future
+    }
+
+    private Future getProjectReferenceTrend(RoutingContext ctx, String githubRepository) {
+        def future = Future.future()
+        def handler = future.completer()
+        service.projectService.getProjectId("github:" + githubRepository, {
+            if (it.succeeded()) {
+                if (it.result() != null) {
+                    service.postgres.getProjectReferenceTrend(it.result(), {
+                        if (it.failed()) {
+                            ctx.fail(it.cause())
+                        } else {
+                            def cumulativeTrendData = new JsonObject()
+                            cumulativeTrendData.put("trend_available", !it.result().trendData.isEmpty())
+                            def trendData = new JsonArray()
+                            cumulativeTrendData.put("trend_data", trendData)
+
+                            def referenceCount = 0
+                            it.result().trendData.each {
+                                referenceCount += it.count
+
+                                def data = new JsonObject()
+                                data.put("time", it.time)
+                                data.put("count", referenceCount)
+                                trendData.add(data)
+                            }
+                            ctx.put("project_reference_trend", cumulativeTrendData)
+                        }
+                        handler.handle(Future.succeededFuture())
+                    })
+                } else {
+                    handler.handle(Future.succeededFuture())
+                }
+            } else {
+                ctx.fail(it.cause())
+            }
         })
         return future
     }

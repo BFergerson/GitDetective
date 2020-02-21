@@ -85,6 +85,32 @@ class ProjectServiceTest {
     }
 
     @Test
+    void testGetProjectId(TestContext test) {
+        def async = test.async()
+        projectService.getProjectId("github:bfergerson/myproject", {
+            if (it.succeeded()) {
+                test.assertNotNull(it.result())
+                async.complete()
+            } else {
+                test.fail(it.cause())
+            }
+        })
+    }
+
+    @Test
+    void testGetProjectId_invalid(TestContext test) {
+        def async = test.async()
+        projectService.getProjectId("github:invalid/invalid", {
+            if (it.succeeded()) {
+                test.assertNull(it.result())
+                async.complete()
+            } else {
+                test.fail(it.cause())
+            }
+        })
+    }
+
+    @Test
     void testGetFileCount(TestContext test) {
         def async = test.async()
         projectService.getFileCount("github:bfergerson/myproject", {

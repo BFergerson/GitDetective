@@ -2,6 +2,7 @@ package io.gitdetective.web.dao
 
 import groovy.util.logging.Slf4j
 import io.gitdetective.web.service.model.ProjectLiveReferenceTrend
+import io.gitdetective.web.service.model.ProjectReferenceTrend
 import io.vertx.core.AsyncResult
 import io.vertx.core.Future
 import io.vertx.core.Handler
@@ -33,7 +34,15 @@ class PostgresDAO {
                     'AND project_id = $1' +
                     'AND commit_date > NOW() - interval \'24 hours\'\n' +
                     'GROUP BY one_hour, deletion\n' +
-                    'ORDER BY one_hour DESC'
+                    'ORDER BY one_hour ASC'
+    private static final String GET_PROJECT_REFERENCE_TREND =
+            'SELECT date_trunc(\'month\', commit_date) AS one_month,' +
+                    'SUM(case when deletion = false then 1 else -1 end)\n' +
+                    'FROM function_reference\n' +
+                    'WHERE 1=1\n' +
+                    'AND project_id = $1\n' +
+                    'GROUP BY one_month\n' +
+                    'ORDER BY one_month ASC'
 
     private final PgPool client
 
@@ -90,6 +99,22 @@ class PostgresDAO {
                     trend.trendData << new ProjectLiveReferenceTrend.TrendPoint(time, deletion, count)
                 }
                 Collections.sort(trend.trendData)
+                handler.handle(Future.succeededFuture(trend))
+            } else {
+                handler.handle(Future.failedFuture(it.cause()))
+            }
+        })
+    }
+
+    void getProjectReferenceTrend(String projectId, Handler<AsyncResult<ProjectReferenceTrend>> handler) {
+        client.preparedQuery(GET_PROJECT_REFERENCE_TREND, Tuple.of(projectId), {
+            if (it.succeeded()) {
+                def trend = new ProjectReferenceTrend(projectId: projectId)
+                it.result().each {
+                    def time = it.getOffsetDateTime(0).toInstant()
+                    def count = it.getLong(1)
+                    trend.trendData << new ProjectReferenceTrend.TrendPoint(time, count)
+                }
                 handler.handle(Future.succeededFuture(trend))
             } else {
                 handler.handle(Future.failedFuture(it.cause()))
