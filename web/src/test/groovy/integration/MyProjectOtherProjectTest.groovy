@@ -2,7 +2,6 @@ package integration
 
 import ch.qos.logback.classic.Level
 import ch.qos.logback.classic.Logger
-import grakn.client.GraknClient
 import groovy.util.logging.Slf4j
 import io.gitdetective.web.GitDetectiveService
 import io.vertx.core.DeploymentOptions
@@ -11,6 +10,7 @@ import io.vertx.core.json.JsonObject
 import io.vertx.ext.unit.TestContext
 import io.vertx.ext.unit.junit.VertxUnitRunner
 import io.vertx.ext.web.Router
+import org.junit.AfterClass
 import org.junit.BeforeClass
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -28,8 +28,6 @@ class MyProjectOtherProjectTest {
     }
 
     private static Vertx vertx
-    private static GraknClient client
-    private static GraknClient.Session session
     private static GitDetectiveService detectiveService
 
     @BeforeClass
@@ -40,6 +38,12 @@ class MyProjectOtherProjectTest {
 
         detectiveService = new GitDetectiveService(Router.router(vertx))
         vertx.deployVerticle(detectiveService, deployOptions, test.asyncAssertSuccess())
+    }
+
+    @AfterClass
+    static void tearDown(TestContext test) {
+        log.info("Tearing down Vertx")
+        vertx.close(test.asyncAssertSuccess())
     }
 
     @Test
