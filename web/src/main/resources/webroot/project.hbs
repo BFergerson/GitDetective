@@ -276,33 +276,33 @@
                     </div>
                     <div class="card">
                         <div class="card-body">
-                            <ol style="background-color: #272c33 !important;" id="referenced_methods_breadcrumbs"
+                            <ol style="background-color: #272c33 !important;" id="referenced_functions_breadcrumbs"
                                 class="breadcrumb bc-colored m-b-10 bg-primary">
-                                <li id="most_referenced_methods_breadcrumb" class="breadcrumb-item active">
-                                    <a id="most_referenced_methods_breadcrumb_link"
-                                       onclick="displayMostReferencedMethods()"><b>Most referenced functions</b></a>
+                                <li id="most_referenced_functions_breadcrumb" class="breadcrumb-item active">
+                                    <a id="most_referenced_functions_breadcrumb_link"
+                                       onclick="displayMostReferencedFunctions()"><b>Most referenced functions</b></a>
                                 </li>
                             </ol>
                             <div class="d-flex no-block">
                                 <h4 id="references_main_title" class="card-title"></h4>
                             </div>
                             <div class="table-responsive">
-                                <table id="most_referenced_methods_table" class="table stylish-table" style="margin-bottom: 0">
+                                <table id="most_referenced_functions_table" class="table stylish-table" style="margin-bottom: 0">
                                     <thead>
                                     <tr>
                                         <th>File/Function</th>
                                         <th>External references</th>
                                     </tr>
                                     </thead>
-                                    <tbody id="most_referenced_methods">
+                                    <tbody id="most_referenced_functions">
                                     {{#each project_most_referenced_functions}}
-                                        {{#if has_method_link}}
-                                            <tr onclick="displayMethodReference({{this}});">
+                                        {{#if has_function_link}}
+                                            <tr onclick="displayFunctionReference({{this}});">
                                         {{else}}
                                             <tr>
                                         {{/if}}
                                             <td><h6>{{this.short_class_name}}</h6>
-                                                <small class="text-muted">{{this.short_method_signature}}</small>
+                                                <small class="text-muted">{{this.short_function_signature}}</small>
                                             </td>
                                             <td>
                                                 <span class="label label-primary">
@@ -313,7 +313,7 @@
                                     {{/each}}
                                     </tbody>
                                 </table>
-                                <table id="method_references_table" class="table stylish-table" style="margin-bottom: 0">
+                                <table id="function_references_table" class="table stylish-table" style="margin-bottom: 0">
                                     <thead>
                                     <tr>
                                         <th>File/Function</th>
@@ -321,7 +321,7 @@
                                         <th>Reference</th>
                                     </tr>
                                     </thead>
-                                    <tbody id="method_references">
+                                    <tbody id="function_references">
                                     </tbody>
                                 </table>
                             </div>
@@ -463,7 +463,7 @@
 </script>
 <script>
     $(document).ready(function () {
-        $('#method_references_table').hide()
+        $('#function_references_table').hide()
         $('#display_reference_amount_information').hide()
     })
 </script>

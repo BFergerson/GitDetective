@@ -9,12 +9,12 @@ mainClassName = 'io.gitdetective.web.WebLauncher'
 
 dependencies {
     compile 'io.vertx:vertx-pg-client:3.8.5'
-    compile group: 'io.dropwizard.metrics', name: 'metrics-core', version: '4.0.2'
+    compile group: 'io.dropwizard.metrics', name: 'metrics-core', version: '4.1.2'
     compile group: 'io.vertx', name: 'vertx-web', version: '3.8.5'
     compile group: 'io.vertx', name: 'vertx-web-templ-handlebars', version: '3.8.5'
     compile 'io.vertx:vertx-dropwizard-metrics:3.8.5'
     compile 'io.vertx:vertx-tcp-eventbus-bridge:3.8.5'
-    compile 'io.reactivex.rxjava2:rxjava:2.1.12'
+    compile 'io.reactivex.rxjava2:rxjava:2.2.17'
     implementation group: 'io.grakn.client', name: 'grakn-client', version: "1.6.2"
     implementation group: 'io.graql', name: 'graql-lang', version: "1.0.6"
 }

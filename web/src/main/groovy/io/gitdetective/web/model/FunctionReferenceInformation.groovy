@@ -22,15 +22,15 @@ class FunctionReferenceInformation {
     }
 
     String getShortFunctionSignature() {
-        return WebServices.getShortMethodSignature(qualifiedName)
+        return WebServices.getShortFunctionSignature(qualifiedName)
     }
 
     String getFunctionSignature() {
-        return WebServices.getMethodSignature(qualifiedName)
+        return WebServices.getFunctionSignature(qualifiedName)
     }
 
     String getShortQualifiedFunctionName() {
-        return WebServices.getShortQualifiedMethodName(qualifiedName)
+        return WebServices.getShortQualifiedFunctionName(qualifiedName)
     }
 
     String getUsername() {

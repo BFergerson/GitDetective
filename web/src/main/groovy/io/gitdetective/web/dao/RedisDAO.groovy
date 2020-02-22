@@ -53,7 +53,7 @@ class RedisDAO {
     }
 
     void getProjectMethodInstanceCount(String githubRepository, Handler<AsyncResult<Long>> handler) {
-        redis.get("gitdetective:project:$githubRepository:project_method_instance_count", {
+        redis.get("gitdetective:project:$githubRepository:project_function_instance_count", {
             if (it.failed()) {
                 handler.handle(Future.failedFuture(it.cause()))
             } else {
@@ -61,7 +61,7 @@ class RedisDAO {
                 if (result == null) {
                     result = 0
                 }
-                handler.handle(Future.succeededFuture(result as int))
+                handler.handle(Future.succeededFuture(result as long))
             }
         })
     }
@@ -73,7 +73,7 @@ class RedisDAO {
 
     void removeLatestJobFromBuildHistory(String githubRepository, long jobId, Handler<AsyncResult<Void>> handler) {
         log.info "Removing job $jobId from '$githubRepository' build history"
-        redis.lrem("gitdetective:project:$githubRepository:build_history", 1, jobId as String, handler)
+        redis.lrem("gitdetective:project:$githubRepository:build_history", "1", jobId as String, handler)
     }
 
     void getLatestJobId(String githubRepository, Handler<AsyncResult<Optional<Long>>> handler) {
@@ -124,7 +124,7 @@ class RedisDAO {
     }
 
     protected void setLastArchiveSync(String now, Handler<AsyncResult> handler) {
-        redis.set("gitdetective:last_archive_sync", now, handler)
+        redis.set(["gitdetective:last_archive_sync", now], handler)
     }
 
     void getProjectFirstIndexed(String githubRepository, Handler<AsyncResult<String>> handler) {
@@ -139,7 +139,7 @@ class RedisDAO {
     }
 
     void setProjectFirstIndexed(String githubRepository, Instant now, Handler<AsyncResult> handler) {
-        redis.set("gitdetective:project:$githubRepository:project_first_indexed", now.toString(), handler)
+        redis.set(["gitdetective:project:$githubRepository:project_first_indexed", now.toString()], handler)
     }
 
     void getProjectLastIndexed(String githubRepository, Handler<AsyncResult<String>> handler) {
@@ -154,7 +154,7 @@ class RedisDAO {
     }
 
     void setProjectLastIndexed(String githubRepository, Instant now, Handler<AsyncResult> handler) {
-        redis.set("gitdetective:project:$githubRepository:project_last_indexed", now.toString(), handler)
+        redis.set(["gitdetective:project:$githubRepository:project_last_indexed", now.toString()], handler)
     }
 
     void getProjectLastIndexedCommitInformation(String githubRepository, Handler<AsyncResult<JsonObject>> handler) {
@@ -177,7 +177,7 @@ class RedisDAO {
         def ob = new JsonObject()
                 .put("commit", Objects.requireNonNull(commitSha1))
                 .put("commit_date", Objects.requireNonNull(commitDate))
-        redis.set("gitdetective:project:$githubRepository:project_last_indexed_commit_information", ob.encode(), handler)
+        redis.set(["gitdetective:project:$githubRepository:project_last_indexed_commit_information", ob.encode()], handler)
     }
 
     void getProjectLastBuilt(String githubRepository, Handler<AsyncResult<String>> handler) {
@@ -193,9 +193,5 @@ class RedisDAO {
 
     protected void setProjectLastBuilt(String githubRepository, Instant lastBuilt, Handler<AsyncResult> handler) {
         redis.set(Arrays.asList("gitdetective:project:$githubRepository:project_last_built".toString(), lastBuilt.toString()), handler)
-    }
-
-    RedisClient getClient() {
-        return redis
     }
 }

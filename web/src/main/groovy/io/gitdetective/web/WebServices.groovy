@@ -22,8 +22,6 @@ final class WebServices {
     static final String GET_LATEST_JOB_LOG = "GetLatestJobLog"
     static final String GET_PROJECT_REFERENCE_LEADERBOARD = "GetProjectReferenceLeaderboard"
     static final String GET_FUNCTION_EXTERNAL_REFERENCES = "GetFunctionExternalReferences"
-    static final String GET_PROJECT_FILE_COUNT = "GetProjectFileCount"
-    static final String GET_PROJECT_METHOD_INSTANCE_COUNT = "GetProjectFunctionInstanceCount"
     static final String GET_PROJECT_FIRST_INDEXED = "GetProjectFirstIndexed"
     static final String GET_PROJECT_LAST_INDEXED = "GetProjectLastIndexed"
     static final String GET_PROJECT_LAST_INDEXED_COMMIT_INFORMATION = "GetProjectLastIndexedCommitInformation"
@@ -42,8 +40,8 @@ final class WebServices {
         return getQualifiedClassName(qualifiedName).replaceAll('\\B\\w+(\\.[a-z])', '$1')
     }
 
-    static String getShortQualifiedMethodName(String qualifiedName) {
-        return getShortQualifiedClassName(qualifiedName) + "." + getShortMethodSignature(qualifiedName)
+    static String getShortQualifiedFunctionName(String qualifiedName) {
+        return getShortQualifiedClassName(qualifiedName) + "." + getShortFunctionSignature(qualifiedName)
     }
 
     static String getQualifiedClassName(String qualifiedName) {
@@ -56,11 +54,11 @@ final class WebServices {
         }
     }
 
-    static String getShortMethodSignature(String qualifiedName) {
-        return getMethodSignature(qualifiedName).replaceAll('\\B\\w+(\\.[a-z])', '$1')
+    static String getShortFunctionSignature(String qualifiedName) {
+        return getFunctionSignature(qualifiedName).replaceAll('\\B\\w+(\\.[a-z])', '$1')
     }
 
-    static String getMethodSignature(String qualifiedName) {
+    static String getFunctionSignature(String qualifiedName) {
         def withoutClassName = qualifiedName.replace(getQualifiedClassName(qualifiedName), "")
         return withoutClassName.substring(withoutClassName.substring(0, withoutClassName.indexOf("(")).lastIndexOf("?") + 2)
                 .replaceAll('\\(java.lang.', "\\(").replaceAll('<java.lang.', "<")

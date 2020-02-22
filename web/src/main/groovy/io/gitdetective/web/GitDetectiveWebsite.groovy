@@ -574,12 +574,12 @@ class GitDetectiveWebsite extends AbstractVerticle {
                 def projectFunctionReferences = new JsonArray()
                 it.result().each {
                     def reference = new JsonObject()
-                    reference.put("has_method_link", it.referenceCount > 0)
+                    reference.put("has_function_link", it.referenceCount > 0)
                     reference.put("id", it.functionId)
                     reference.put("class_name", it.className)
                     reference.put("short_class_name", it.shortClassName)
-                    reference.put("method_signature", it.functionSignature)
-                    reference.put("short_method_signature", it.shortFunctionSignature)
+                    reference.put("function_signature", it.functionSignature)
+                    reference.put("short_function_signature", it.shortFunctionSignature)
                     reference.put("external_reference_count", it.referenceCount)
                     projectFunctionReferences.add(reference)
                 }
@@ -607,11 +607,11 @@ class GitDetectiveWebsite extends AbstractVerticle {
 //    private Future getProjectMethodVersionCount(RoutingContext ctx, JsonObject githubRepository) {
 //        def future = Future.future()
 //        def handler = future.completer()
-//        vertx.eventBus().send(GET_PROJECT_METHOD_INSTANCE_COUNT, githubRepository, {
+//        vertx.eventBus().send(GET_project_function_instance_count, githubRepository, {
 //            if (it.failed()) {
 //                ctx.fail(it.cause())
 //            } else {
-//                ctx.put("project_method_version_count", it.result().body())
+//                ctx.put("project_function_version_count", it.result().body())
 //            }
 //            handler.handle(Future.succeededFuture())
 //        })

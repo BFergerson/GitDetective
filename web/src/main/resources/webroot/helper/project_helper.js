@@ -81,68 +81,68 @@ eb.onopen = function () {
     }
 };
 
-function displayMethodReference(method) {
-    $('#referenced_methods_breadcrumbs').append(
-        '<li id="most_referenced_methods_breadcrumb" class="breadcrumb-item active">' +
-        '<a>Method [id: ' + method.id + ']</a></li>');
-    $('#most_referenced_methods_breadcrumb').removeClass('active');
-    $('#most_referenced_methods_breadcrumb_link').attr('href', '#');
+function displayFunctionReference(functionReference) {
+    $('#referenced_functions_breadcrumbs').append(
+        '<li id="most_referenced_functions_breadcrumb" class="breadcrumb-item active">' +
+        '<a>Function [id: ' + functionReference.id + ']</a></li>');
+    $('#most_referenced_functions_breadcrumb').removeClass('active');
+    $('#most_referenced_functions_breadcrumb_link').attr('href', '#');
 
     $('#references_main_title').html('<small class="text-muted"><b>Referenced function</b>: ' +
-        method.class_name + '.'
-        + method.method_signature.toHtmlEntities() + '</small>');
-    $('#most_referenced_methods_table').hide();
-    $('#method_references_table').show();
+        functionReference.class_name + '.'
+        + functionReference.function_signature.toHtmlEntities() + '</small>');
+    $('#most_referenced_functions_table').hide();
+    $('#function_references_table').show();
 
-    if (method.external_reference_count < 10) {
-        $('#display_reference_amount_information').html('<b>Displaying ' + method.external_reference_count + ' of ' +
-            method.external_reference_count + '</b>');
+    if (functionReference.external_reference_count < 10) {
+        $('#display_reference_amount_information').html('<b>Displaying ' + functionReference.external_reference_count + ' of ' +
+            functionReference.external_reference_count + '</b>');
     } else {
-        $('#display_reference_amount_information').html('<b>Displaying 10 of ' + method.external_reference_count + '</b>');
+        $('#display_reference_amount_information').html('<b>Displaying 10 of ' + functionReference.external_reference_count + '</b>');
     }
 
     eb.send('GetFunctionExternalReferences', {
-        'function_id': method.id,
+        'function_id': functionReference.id,
         'offset': 0
     }, function (error, message) {
         if (error == null) {
-            $('#method_references').html('');
-            var mostReferencedMethods = message.body;
-            for (var i = 0; i < mostReferencedMethods.length; i++) {
-                var methodOrFile = mostReferencedMethods[i];
+            $('#function_references').html('');
+            var mostReferencedFunctions = message.body;
+            for (var i = 0; i < mostReferencedFunctions.length; i++) {
+                var functionOrFile = mostReferencedFunctions[i];
                 var codeLocation = 'https://github.com/' +
-                    methodOrFile.projectName.substring(methodOrFile.projectName.indexOf(":") + 1) +
-                    '/blob/' + methodOrFile.commitSha1 + '/' + methodOrFile.fileLocation + '#L' + methodOrFile.lineNumber;
+                    functionOrFile.projectName.substring(functionOrFile.projectName.indexOf(":") + 1) +
+                    '/blob/' + functionOrFile.commitSha1 + '/' + functionOrFile.fileLocation + '#L' + functionOrFile.lineNumber;
 
                 //table entry
                 var rowHtml = '<tr>';
-                if (methodOrFile.isFunction) {
-                    rowHtml += '<td><h6>' + methodOrFile.shortClassName +
+                if (functionOrFile.isFunction) {
+                    rowHtml += '<td><h6>' + functionOrFile.shortClassName +
                         '</h6> <div style="max-width: 450px; word-wrap:break-word;" class="text-muted">'
-                        + methodOrFile.shortFunctionSignature.toHtmlEntities() + '</div></td>';
+                        + functionOrFile.shortFunctionSignature.toHtmlEntities() + '</div></td>';
                     rowHtml += '<td><a href="' + gitdetectiveUrl +
-                        methodOrFile.projectName.substring(methodOrFile.projectName.indexOf(":") + 1) + '">' +
+                        functionOrFile.projectName.substring(functionOrFile.projectName.indexOf(":") + 1) + '">' +
                         '<button type="button" class="btn waves-effect waves-light btn-outline-primary">' +
-                        methodOrFile.projectName.substring(methodOrFile.projectName.indexOf(":") + 1) +
+                        functionOrFile.projectName.substring(functionOrFile.projectName.indexOf(":") + 1) +
                         '</button></a></td>';
                     rowHtml += '<td><a target="_blank" href="' + codeLocation + '">' +
                         '<button type="button" class="btn waves-effect waves-light btn-outline-primary">Code location</button>' +
                         '</a></td>';
                 } else {
-                    rowHtml += '<td><h6>' + methodOrFile.shortClassName +
+                    rowHtml += '<td><h6>' + functionOrFile.shortClassName +
                         '</h6> <div style="max-width: 450px; word-wrap:break-word;" class="text-muted">'
-                        + methodOrFile.fileLocation + '</div></td>';
+                        + functionOrFile.fileLocation + '</div></td>';
                     rowHtml += '<td><button onclick=\'location.href="' + gitdetectiveUrl +
-                        methodOrFile.projectName.substring(methodOrFile.projectName.indexOf(":") + 1) +
+                        functionOrFile.projectName.substring(functionOrFile.projectName.indexOf(":") + 1) +
                         '";\' type="button" class="btn waves-effect waves-light btn-outline-primary">' +
-                        methodOrFile.projectName.substring(methodOrFile.projectName.indexOf(":") + 1) +
+                        functionOrFile.projectName.substring(functionOrFile.projectName.indexOf(":") + 1) +
                         '</button></td>';
                     rowHtml += '<td><a target="_blank" href="' + codeLocation + '">' +
                         '<button type="button" class="btn waves-effect waves-light btn-outline-primary">Code location</button>' +
                         '</a></td>';
                 }
                 rowHtml += '</tr>';
-                $('#method_references').append(rowHtml);
+                $('#function_references').append(rowHtml);
             }
 
             $('#display_reference_amount_information').show();
@@ -153,15 +153,15 @@ function displayMethodReference(method) {
     });
 }
 
-function displayMostReferencedMethods() {
+function displayMostReferencedFunctions() {
     $('#references_main_title').html('');
-    $('#most_referenced_methods_table').show();
-    $('#method_references_table').hide();
-    $('#most_referenced_methods_breadcrumb').addClass('active');
-    $('#most_referenced_methods_breadcrumb_link').removeAttr('href');
+    $('#most_referenced_functions_table').show();
+    $('#function_references_table').hide();
+    $('#most_referenced_functions_breadcrumb').addClass('active');
+    $('#most_referenced_functions_breadcrumb_link').removeAttr('href');
     $('#display_reference_amount_information').hide();
 
-    var listItems = $('#referenced_methods_breadcrumbs li');
+    var listItems = $('#referenced_functions_breadcrumbs li');
     if (listItems.length > 1) {
         listItems[listItems.length - 1].remove();
     }
