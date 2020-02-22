@@ -7,7 +7,9 @@ import com.google.common.io.Resources
 import groovy.util.logging.Slf4j
 import io.gitdetective.web.GitDetectiveService
 import io.gitdetective.web.model.FunctionInformation
+import io.gitdetective.web.task.UpdateFileReferenceCounts
 import io.gitdetective.web.task.UpdateFunctionReferenceCounts
+import io.gitdetective.web.task.UpdateProjectReferenceCounts
 import io.vertx.core.*
 import io.vertx.core.json.JsonObject
 import io.vertx.ext.unit.TestContext
@@ -98,7 +100,19 @@ class MyProjectOtherProjectTest {
                             if (it.succeeded()) {
                                 vertx.eventBus().request(UpdateFunctionReferenceCounts.PERFORM_TASK_NOW, true, {
                                     if (it.succeeded()) {
-                                        importProjects.complete()
+                                        vertx.eventBus().request(UpdateFileReferenceCounts.PERFORM_TASK_NOW, true, {
+                                            if (it.succeeded()) {
+                                                vertx.eventBus().request(UpdateProjectReferenceCounts.PERFORM_TASK_NOW, true, {
+                                                    if (it.succeeded()) {
+                                                        importProjects.complete()
+                                                    } else {
+                                                        test.fail(it.cause())
+                                                    }
+                                                })
+                                            } else {
+                                                test.fail(it.cause())
+                                            }
+                                        })
                                     } else {
                                         test.fail(it.cause())
                                     }

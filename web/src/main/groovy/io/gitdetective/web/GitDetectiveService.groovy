@@ -10,7 +10,9 @@ import io.gitdetective.web.dao.RedisDAO
 import io.gitdetective.web.service.ProjectService
 import io.gitdetective.web.service.SystemService
 import io.gitdetective.web.service.UserService
+import io.gitdetective.web.task.UpdateFileReferenceCounts
 import io.gitdetective.web.task.UpdateFunctionReferenceCounts
+import io.gitdetective.web.task.UpdateProjectReferenceCounts
 import io.gitdetective.web.work.GHArchiveSync
 import io.vertx.blueprint.kue.queue.Job
 import io.vertx.blueprint.kue.queue.Priority
@@ -85,7 +87,9 @@ class GitDetectiveService extends AbstractVerticle {
             vertx.deployVerticle(systemService)
             vertx.deployVerticle(projectService)
             vertx.deployVerticle(userService)
-            vertx.deployVerticle(new UpdateFunctionReferenceCounts(postgres, graknSession))
+            vertx.deployVerticle(new UpdateFunctionReferenceCounts(postgres, graknSession), new DeploymentOptions().setWorker(true))
+            vertx.deployVerticle(new UpdateFileReferenceCounts(graknSession), new DeploymentOptions().setWorker(true))
+            vertx.deployVerticle(new UpdateProjectReferenceCounts(graknSession), new DeploymentOptions().setWorker(true))
 //
 //                //todo: better placement
 //                vertx.deployVerticle(new RefreshFunctionLeaderboard(redis, refStorage, makeGraknDAO(redis)),
