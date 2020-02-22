@@ -43,8 +43,7 @@ abstract class GitDetectiveServiceTest {
         try {
             graknSession = graknClient.session(graknKeyspace)
         } catch (all) {
-            all.printStackTrace()
-            throw new ConnectException("Connection refused: $graknHost:$graknPort")
+            handler.handle(Future.failedFuture(all.cause))
         }
         GitDetectiveService.setupOntology(graknSession)
 
@@ -83,6 +82,7 @@ abstract class GitDetectiveServiceTest {
                         }
                     })
                 } else {
+                    postgres = new PostgresDAO(postgresClient)
                     handler.handle(Future.succeededFuture())
                 }
             } else {
