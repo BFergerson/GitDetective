@@ -52,17 +52,6 @@ class RedisDAO {
         })
     }
 
-    void incrementCachedProjectFileCount(String githubRepository, long fileCount, Handler<AsyncResult> handler) {
-        getProjectFileCount(githubRepository, {
-            if (it.failed()) {
-                handler.handle(Future.failedFuture(it.cause()))
-            } else {
-                redis.set("gitdetective:project:$githubRepository:project_file_count",
-                        (it.result() + fileCount) as String, handler)
-            }
-        })
-    }
-
     void getProjectMethodInstanceCount(String githubRepository, Handler<AsyncResult<Long>> handler) {
         redis.get("gitdetective:project:$githubRepository:project_method_instance_count", {
             if (it.failed()) {
@@ -73,18 +62,6 @@ class RedisDAO {
                     result = 0
                 }
                 handler.handle(Future.succeededFuture(result as int))
-            }
-        })
-    }
-
-    void incrementCachedProjectMethodInstanceCount(String githubRepository, long methodInstanceCount,
-                                                   Handler<AsyncResult> handler) {
-        getProjectMethodInstanceCount(githubRepository, {
-            if (it.failed()) {
-                handler.handle(Future.failedFuture(it.cause()))
-            } else {
-                redis.set("gitdetective:project:$githubRepository:project_method_instance_count",
-                        (it.result() + methodInstanceCount) as String, handler)
             }
         })
     }
@@ -112,49 +89,6 @@ class RedisDAO {
                     def jobLogId = jsonArray.getString(0) as long
                     handler.handle(Future.succeededFuture(Optional.of(jobLogId)))
                 }
-            }
-        })
-    }
-
-    private void cacheFunctionReference(String functionId, JsonObject referenceFunction, Handler<AsyncResult> handler) {
-        redis.lpush("gitdetective:osf:function_references:$functionId", referenceFunction.encode(), {
-            if (it.failed()) {
-                handler.handle(Future.failedFuture(it.cause()))
-            } else {
-                redis.incr("gitdetective:osf:function_reference_counts:$functionId", {
-                    if (it.failed()) {
-                        handler.handle(Future.failedFuture(it.cause()))
-                    } else {
-                        long totalScore = 0
-                        if (it.result() != null) {
-                            totalScore = it.result() as long
-                        }
-
-                        redis.zadd("gitdetective:function_reference_leaderboard", totalScore, functionId, handler)
-                    }
-                })
-            }
-        })
-    }
-
-    void updateProjectReferenceLeaderboard(String githubRepository, long projectReferenceCount,
-                                           Handler<AsyncResult> handler) {
-        redis.incrby("gitdetective:project:$githubRepository:project_external_method_reference_count",
-                projectReferenceCount, {
-            if (it.failed()) {
-                handler.handle(Future.failedFuture(it.cause()))
-            } else {
-                redis.get("gitdetective:project:$githubRepository:project_external_method_reference_count", {
-                    if (it.failed()) {
-                        handler.handle(Future.failedFuture(it.cause()))
-                    } else {
-                        long totalScore = 0
-                        if (it.result() != null) {
-                            totalScore = it.result() as long
-                        }
-                        redis.zadd("gitdetective:project_reference_leaderboard", totalScore, githubRepository, handler)
-                    }
-                })
             }
         })
     }
@@ -261,183 +195,7 @@ class RedisDAO {
         redis.set(Arrays.asList("gitdetective:project:$githubRepository:project_last_built".toString(), lastBuilt.toString()), handler)
     }
 
-    void getComputeTime(Handler<AsyncResult<Long>> handler) {
-        redis.get("gitdetective:compute_time", {
-            if (it.failed()) {
-                handler.handle(Future.failedFuture(it.cause()))
-            } else {
-                if (it.result() == null) {
-                    handler.handle(Future.succeededFuture(0))
-                } else {
-                    handler.handle(Future.succeededFuture(Long.valueOf(it.result())))
-                }
-            }
-        })
-    }
-
-    long cacheComputeTime(long uptime) {
-        redis.set("gitdetective:compute_time", uptime + "", {
-            if (it.failed()) {
-                it.cause().printStackTrace()
-            }
-        })
-        return uptime
-    }
-
-    void getDefinitionCount(Handler<AsyncResult<Long>> handler) {
-        redis.get("gitdetective:definition_count", {
-            if (it.failed()) {
-                handler.handle(Future.failedFuture(it.cause()))
-            } else {
-                if (it.result() == null) {
-                    handler.handle(Future.succeededFuture(0))
-                } else {
-                    handler.handle(Future.succeededFuture(Long.valueOf(it.result())))
-                }
-            }
-        })
-    }
-
-    long cacheDefinitionCount(long definitionCount) {
-        redis.set("gitdetective:definition_count", Long.toString(definitionCount), {
-            if (it.failed()) {
-                it.cause().printStackTrace()
-            }
-        })
-        return definitionCount
-    }
-
-    void getReferenceCount(Handler<AsyncResult<Long>> handler) {
-        redis.get("gitdetective:reference_count", {
-            if (it.failed()) {
-                handler.handle(Future.failedFuture(it.cause()))
-            } else {
-                if (it.result() == null) {
-                    handler.handle(Future.succeededFuture(0))
-                } else {
-                    handler.handle(Future.succeededFuture(Long.valueOf(it.result())))
-                }
-            }
-        })
-    }
-
-    long cacheReferenceCount(long referenceCount) {
-        redis.set("gitdetective:reference_count", Long.toString(referenceCount), {
-            if (it.failed()) {
-                it.cause().printStackTrace()
-            }
-        })
-        return referenceCount
-    }
-
-    void getProjectCount(Handler<AsyncResult<Long>> handler) {
-        redis.get("gitdetective:project_count", {
-            if (it.failed()) {
-                handler.handle(Future.failedFuture(it.cause()))
-            } else {
-                if (it.result() == null) {
-                    handler.handle(Future.succeededFuture(0))
-                } else {
-                    handler.handle(Future.succeededFuture(Long.valueOf(it.result())))
-                }
-            }
-        })
-    }
-
-    long cacheProjectCount(long projectCount) {
-        redis.set("gitdetective:project_count", Long.toString(projectCount), {
-            if (it.failed()) {
-                it.cause().printStackTrace()
-            }
-        })
-        return projectCount
-    }
-
-    void getFileCount(Handler<AsyncResult<Long>> handler) {
-        redis.get("gitdetective:file_count", {
-            if (it.failed()) {
-                handler.handle(Future.failedFuture(it.cause()))
-            } else {
-                if (it.result() == null) {
-                    handler.handle(Future.succeededFuture(0))
-                } else {
-                    handler.handle(Future.succeededFuture(Long.valueOf(it.result())))
-                }
-            }
-        })
-    }
-
-    long cacheFileCount(long fileCount) {
-        redis.set("gitdetective:file_count", Long.toString(fileCount), {
-            if (it.failed()) {
-                it.cause().printStackTrace()
-            }
-        })
-        return fileCount
-    }
-
-    void getMethodCount(Handler<AsyncResult<Long>> handler) {
-        redis.get("gitdetective:method_count", {
-            if (it.failed()) {
-                handler.handle(Future.failedFuture(it.cause()))
-            } else {
-                if (it.result() == null) {
-                    handler.handle(Future.succeededFuture(0))
-                } else {
-                    handler.handle(Future.succeededFuture(Long.valueOf(it.result())))
-                }
-            }
-        })
-    }
-
-    long cacheMethodCount(long methodCount) {
-        redis.set("gitdetective:method_count", Long.toString(methodCount), {
-            if (it.failed()) {
-                it.cause().printStackTrace()
-            }
-        })
-        return methodCount
-    }
-
-    private void addOwnedFunction(String githubRepository, String functionId, String qualifiedName,
-                                  Handler<AsyncResult> handler) {
-        log.trace "Adding owned function '$functionId' to owner: $githubRepository"
-        redis.sadd("gitdetective:project:$githubRepository:ownedFunctions", new JsonObject()
-                .put("function_id", functionId)
-                .put("qualified_name", qualifiedName).encode(), handler)
-    }
-
-    private void removeOwnedFunction(String githubRepository, String functionId, String qualifiedName,
-                                     Handler<AsyncResult> handler) {
-        log.info "Removing owned function '$functionId' from owner: $githubRepository"
-        redis.srem("gitdetective:project:$githubRepository:ownedFunctions", new JsonObject()
-                .put("function_id", functionId)
-                .put("qualified_name", qualifiedName).encode(), handler)
-    }
-
-    void getCachedFunctionLeaderboard(Handler<AsyncResult<JsonArray>> handler) {
-        redis.get("gitdetective:function_leaderboard", {
-            if (it.failed()) {
-                handler.handle(Future.failedFuture(it.cause()))
-            } else {
-                if (it.result() == null) {
-                    handler.handle(Future.succeededFuture(new JsonArray()))
-                } else {
-                    handler.handle(Future.succeededFuture(new JsonArray(it.result())))
-                }
-            }
-        })
-    }
-
-    void cacheFunctionLeaderboard(JsonArray functionLeaderboard, Handler<AsyncResult> handler) {
-        redis.set("gitdetective:function_leaderboard", functionLeaderboard.toString(), handler)
-    }
-
     RedisClient getClient() {
         return redis
-    }
-
-    boolean isBatchSupported() {
-        return false
     }
 }

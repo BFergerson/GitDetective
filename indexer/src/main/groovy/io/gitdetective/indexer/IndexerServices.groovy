@@ -72,5 +72,4 @@ final class IndexerServices {
             }
         }
     }
-
 }

@@ -31,7 +31,6 @@ class GitDetectiveWebsite extends AbstractVerticle {
     private final static ResourceBundle buildBundle = ResourceBundle.getBundle("gitdetective_build")
     private static volatile long CURRENTLY_INDEXING_COUNT = 0
     private static volatile long CURRENTLY_IMPORTING_COUNT = 0
-    private static volatile long TOTAL_COMPUTE_TIME = 0
     private static volatile long TOTAL_PROJECT_COUNT = 0
     private static volatile long TOTAL_FILE_COUNT = 0
     private static volatile long TOTAL_FUNCTION_COUNT = 0
@@ -262,6 +261,7 @@ class GitDetectiveWebsite extends AbstractVerticle {
                 getProjectFileCount(ctx, githubRepository),
                 getProjectFunctionCount(ctx, githubRepository),
                 getProjectReferenceTrend(ctx, githubRepository),
+                getLiveProjectReferenceTrend(ctx, githubRepository),
 //                getProjectFirstIndexed(ctx, repo),
 //                getProjectLastIndexed(ctx, repo),
 //                getProjectLastIndexedCommitInformation(ctx, repo),
@@ -490,6 +490,40 @@ class GitDetectiveWebsite extends AbstractVerticle {
                             trendData.add(data)
                         }
                         ctx.put("project_reference_trend", cumulativeTrendData)
+                        handler.handle(Future.succeededFuture())
+                    } else {
+                        ctx.fail(it.cause())
+                    }
+                })
+            } else {
+                ctx.fail(it.cause())
+            }
+        })
+        return future
+    }
+
+    private Future getLiveProjectReferenceTrend(RoutingContext ctx, String githubRepository) {
+        def future = Future.future()
+        def handler = future.completer()
+        service.projectService.getFunctionIds("github:" + githubRepository, {
+            if (it.succeeded()) {
+                service.postgres.getLiveProjectReferenceTrend(it.result(), {
+                    if (it.succeeded()) {
+                        def cumulativeTrendData = new JsonObject()
+                        cumulativeTrendData.put("live_trend_available", it.result().trendData.size() > 1)
+                        def trendData = new JsonArray()
+                        cumulativeTrendData.put("live_trend_data", trendData)
+
+                        def referenceCount = 0
+                        it.result().trendData.each {
+                            referenceCount += it.count
+
+                            def data = new JsonObject()
+                            data.put("time", it.time)
+                            data.put("count", referenceCount)
+                            trendData.add(data)
+                        }
+                        ctx.put("live_project_reference_trend", cumulativeTrendData)
                         handler.handle(Future.succeededFuture())
                     } else {
                         ctx.fail(it.cause())

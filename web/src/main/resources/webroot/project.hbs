@@ -235,7 +235,7 @@
                         <div class="card-body">
                             <small class="text-muted">Latest build log</small>
                             <blockquote id="latest_job_log"
-                                        style="margin-top: 4px; background: #272c33; color: #99abb4; font-size: 12px; overflow-x: hidden; overflow-y: scroll; height: 180px; margin-bottom: 10px; padding-top: 0">
+                                        style="margin-top: 4px; background: #272c33; color: #99abb4; font-size: 12px; overflow-x: hidden; overflow-y: scroll; height: 220px; margin-bottom: 10px; padding-top: 0">
                                 {{#each latest_job_log}}
                                     {{this}} <br>
                                 {{/each}}
@@ -250,11 +250,25 @@
                         <div class="card-body">
                            <ol style="background-color: #272c33 !important;" class="breadcrumb bc-colored m-b-10 bg-primary">
                                <li class="breadcrumb-item active">
-                                   <b>Project reference trend</b>
+                                   <b>Lifetime reference trend</b>
                                </li>
                            </ol>
                             <div class="ct-area-ln-chart" style="padding-top: 15px">
                                 {{#unless project_reference_trend.trend_available}}
+                                    <center><b>Data not available</b></center>
+                                {{/unless}}
+                            </div>
+                        </div>
+                    </div>
+                    <div class="card">
+                        <div class="card-body">
+                           <ol style="background-color: #272c33 !important;" class="breadcrumb bc-colored m-b-10 bg-primary">
+                               <li class="breadcrumb-item active">
+                                   <b>Live reference trend</b>
+                               </li>
+                           </ol>
+                            <div class="ct-area-ln-chart-live" style="padding-top: 15px">
+                                {{#unless live_project_reference_trend.trend_available}}
                                     <center><b>Data not available</b></center>
                                 {{/unless}}
                             </div>
@@ -273,7 +287,7 @@
                                 <h4 id="references_main_title" class="card-title"></h4>
                             </div>
                             <div class="table-responsive">
-                                <table id="most_referenced_methods_table" class="table stylish-table">
+                                <table id="most_referenced_methods_table" class="table stylish-table" style="margin-bottom: 0">
                                     <thead>
                                     <tr>
                                         <th>File/Function</th>
@@ -299,7 +313,7 @@
                                     {{/each}}
                                     </tbody>
                                 </table>
-                                <table id="method_references_table" class="table stylish-table">
+                                <table id="method_references_table" class="table stylish-table" style="margin-bottom: 0">
                                     <thead>
                                     <tr>
                                         <th>File/Function</th>
@@ -311,8 +325,8 @@
                                     </tbody>
                                 </table>
                             </div>
-                            <span id="display_reference_amount_information" class="float-right"></span>
-                            <br><hr style="padding-bottom: 5px">
+                            <hr style="padding-bottom: 20px; margin-top: 0">
+                            <span id="display_reference_amount_information" class="float-right" style="padding-top: 5px"></span>
                             <nav aria-label="Page navigation example">
                                 <ul class="pagination justify-content-center">
                                     <li class="page-item disabled">
@@ -478,6 +492,40 @@ labels: [
   series: [
     [
 {{#each project_reference_trend.trend_data}}
+    '{{this.count}}',
+{{/each}}
+    ]
+  ]
+}, {
+
+          chartPadding: { right: 50 },
+  plugins: [
+    Chartist.plugins.tooltip()
+  ],
+  showArea: true,
+  fullWidth: true,
+//   axisY: {
+//     labelInterpolationFnc: function(value) {
+//       // do whatever math operation you want here
+//       return value / 1000000 + 'm';
+//     }
+//   }
+});
+</script>
+{{/if}}
+{{#if live_project_reference_trend.trend_available}}
+<script>
+// line chart with area
+
+new Chartist.Line('.ct-area-ln-chart-live', {
+labels: [
+{{#each live_project_reference_trend.trend_data}}
+    moment('{{this.time}}').format('MM.YYYY'),
+{{/each}}
+  ],
+  series: [
+    [
+{{#each live_project_reference_trend.trend_data}}
     '{{this.count}}',
 {{/each}}
     ]
