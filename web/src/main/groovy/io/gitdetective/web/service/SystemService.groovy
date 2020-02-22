@@ -2,8 +2,8 @@ package io.gitdetective.web.service
 
 import grakn.client.GraknClient
 import groovy.util.logging.Slf4j
-import io.gitdetective.web.service.model.FunctionReferenceInformation
-import io.gitdetective.web.service.model.ProjectReferenceInformation
+import io.gitdetective.web.model.FunctionReferenceInformation
+import io.gitdetective.web.model.ProjectReferenceInformation
 import io.vertx.core.AbstractVerticle
 import io.vertx.core.AsyncResult
 import io.vertx.core.Future

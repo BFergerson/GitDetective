@@ -4,12 +4,13 @@ import grakn.client.GraknClient
 import groovy.util.logging.Slf4j
 import io.gitdetective.web.WebServices
 import io.gitdetective.web.dao.PostgresDAO
-import io.gitdetective.web.service.model.FunctionReferenceInformation
-import io.vertx.core.AbstractVerticle
-import io.vertx.core.AsyncResult
-import io.vertx.core.Future
-import io.vertx.core.Handler
+import io.gitdetective.web.model.FunctionInformation
+import io.gitdetective.web.model.FunctionReferenceInformation
+import io.vertx.core.*
 import io.vertx.core.json.JsonObject
+
+import java.time.Instant
+import java.time.LocalDateTime
 
 import static graql.lang.Graql.*
 
@@ -48,12 +49,14 @@ class ProjectService extends AbstractVerticle {
 
                 if (getProjectAnswer.isEmpty()) {
                     def createProjectAnswer = writeTx.execute(insert(
-                            var("u").isa("user").id(userId),
+                            var("u").id(userId),
                             var("p").isa("project")
-                                    .has("project_name", projectName),
+                                    .has("project_name", projectName)
+                                    .has("create_date", LocalDateTime.now()),
                             var().rel("has_project", var("u"))
                                     .rel("is_project", var("p")).isa("owns_project")
                     ))
+                    writeTx.commit()
                     handler.handle(Future.succeededFuture(createProjectAnswer.get(0).get("p").asEntity().id().value))
                 } else {
                     handler.handle(Future.succeededFuture(getProjectAnswer.get(0).get("p").asEntity().id().value))
@@ -141,6 +144,143 @@ class ProjectService extends AbstractVerticle {
                     result << new FunctionReferenceInformation(functionId, kytheUri, qualifiedName, referenceCount)
                 }
                 handler.handle(Future.succeededFuture(result))
+            }
+        }, false, handler)
+    }
+
+    void getOrCreateFile(String projectId, String qualifiedName, String fileLocation,
+                         Handler<AsyncResult<String>> handler) {
+        vertx.executeBlocking({
+            try (def writeTx = session.transaction().write()) {
+                def getFileAnswer = writeTx.execute(match(
+                        var("p").id(projectId),
+                        var("fi").isa("file")
+                                .has("qualified_name", qualifiedName),
+                        var().rel("has_defines_file", var("p"))
+                                .rel("is_defines_file", var("fi")).isa("defines_file")
+                ).get("fi"))
+
+                if (getFileAnswer.isEmpty()) {
+                    def createFileAnswer = writeTx.execute(insert(
+                            var("p").id(projectId),
+                            var("fi").isa("file")
+                                    .has("qualified_name", qualifiedName)
+                                    .has("file_location", fileLocation),
+                            var().rel("has_defines_file", var("p"))
+                                    .rel("is_defines_file", var("fi")).isa("defines_file")
+                    ))
+                    writeTx.commit()
+                    handler.handle(Future.succeededFuture(createFileAnswer.get(0).get("fi").asEntity().id().value))
+                } else {
+                    handler.handle(Future.succeededFuture(getFileAnswer.get(0).get("fi").asEntity().id().value))
+                }
+            }
+        }, false, handler)
+    }
+
+    void getOrCreateFunction(FunctionInformation function, int referenceCount,
+                             Handler<AsyncResult<String>> handler) {
+        getOrCreateFunction(null, function, referenceCount, handler)
+    }
+
+    void getOrCreateFunction(String fileId, FunctionInformation function,
+                             Handler<AsyncResult<String>> handler) {
+        getOrCreateFunction(fileId, function, 0, handler)
+    }
+
+    void getOrCreateFunction(String fileId, FunctionInformation function, int referenceCount,
+                             Handler<AsyncResult<String>> handler) {
+        vertx.executeBlocking({
+            try (def writeTx = session.transaction().write()) {
+                def getFunctionAnswer = writeTx.execute(match(
+                        var("f").isa("function")
+                                .has("kythe_uri", function.kytheUri)
+                ).get("f"))
+
+                if (getFunctionAnswer.isEmpty()) {
+                    def createFunctionAnswer
+                    if (fileId != null) {
+                        createFunctionAnswer = writeTx.execute(insert(
+                                var("fi").id(fileId),
+                                var("f").isa("function")
+                                        .has("kythe_uri", function.kytheUri)
+                                        .has("qualified_name", function.qualifiedName)
+                                        .has("reference_count", referenceCount),
+                                var().rel("has_defines_function", var("fi"))
+                                        .rel("is_defines_function", var("f")).isa("defines_function")
+                        ))
+                    } else {
+                        //if they don't know file then they don't know real qualified name
+                        createFunctionAnswer = writeTx.execute(insert(
+                                var("f").isa("function")
+                                        .has("kythe_uri", function.kytheUri)
+                                        .has("reference_count", referenceCount)
+                        ))
+                    }
+                    writeTx.commit()
+                    handler.handle(Future.succeededFuture(createFunctionAnswer.get(0).get("f").asEntity().id().value))
+                } else {
+                    handler.handle(Future.succeededFuture(getFunctionAnswer.get(0).get("f").asEntity().id().value))
+                }
+            }
+        }, false, handler)
+    }
+
+    void insertFunctionReference(String projectId, String callerFileId,
+                                 Instant callerCommitDate, String callerCommitSha1, int callerLineNumber,
+                                 FunctionInformation callerFunction, FunctionInformation calleeFunction,
+                                 Handler<AsyncResult<Void>> handler) {
+        def callerFunctionFut = Future.future()
+        getOrCreateFunction(callerFileId, callerFunction, 0, callerFunctionFut)
+        def calleeFunctionFut = Future.future()
+        getOrCreateFunction(calleeFunction, 1, calleeFunctionFut)
+        CompositeFuture.all(callerFunctionFut, calleeFunctionFut).setHandler({
+            if (it.succeeded()) {
+                def callerFunctionId = it.result().list().get(0) as String
+                def calleeFunctionId = it.result().list().get(1) as String
+                getOrCreateFunctionReference(callerFunctionId, calleeFunctionId, {
+                    if (it.succeeded()) {
+                        postgres.insertFunctionReference(projectId, calleeFunctionId, calleeFunctionId,
+                                callerCommitSha1, callerCommitDate, callerLineNumber, {
+                            if (it.succeeded()) {
+                                handler.handle(Future.succeededFuture())
+                            } else {
+                                handler.handle(Future.failedFuture(it.cause()))
+                            }
+                        })
+                    } else {
+                        handler.handle(Future.failedFuture(it.cause()))
+                    }
+                })
+            } else {
+                handler.handle(Future.failedFuture(it.cause()))
+            }
+        })
+    }
+
+    private void getOrCreateFunctionReference(String callerFunctionId, String calleeFunctionId,
+                                              Handler<AsyncResult<String>> handler) {
+        vertx.executeBlocking({
+            try (def writeTx = session.transaction().write()) {
+                def getReferenceAnswer = writeTx.execute(match(
+                        var("f1").id(callerFunctionId),
+                        var("f2").id(calleeFunctionId),
+                        var("ref").rel("has_reference_call", var("f1"))
+                                .rel("is_reference_call", var("f2")).isa("reference_call")
+                ).get("ref"))
+
+                if (getReferenceAnswer.isEmpty()) {
+                    def createReferenceAnswer = writeTx.execute(insert(
+                            var("f1").id(callerFunctionId),
+                            var("f2").id(calleeFunctionId),
+                            var("ref").rel("has_reference_call", var("f1"))
+                                    .rel("is_reference_call", var("f2")).isa("reference_call")
+                    ))
+                    writeTx.commit()
+                    handler.handle(Future.succeededFuture(createReferenceAnswer.get(0).get("ref").asRelation().id().value))
+                } else {
+                    handler.handle(Future.succeededFuture(getReferenceAnswer.get(0).get("ref").asRelation().id().value))
+                }
             }
         }, false, handler)
     }

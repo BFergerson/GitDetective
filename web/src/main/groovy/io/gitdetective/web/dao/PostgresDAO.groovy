@@ -1,8 +1,8 @@
 package io.gitdetective.web.dao
 
 import groovy.util.logging.Slf4j
-import io.gitdetective.web.service.model.ProjectLiveReferenceTrend
-import io.gitdetective.web.service.model.ProjectReferenceTrend
+import io.gitdetective.web.model.ProjectLiveReferenceTrend
+import io.gitdetective.web.model.ProjectReferenceTrend
 import io.vertx.core.AsyncResult
 import io.vertx.core.Future
 import io.vertx.core.Handler
@@ -23,7 +23,8 @@ class PostgresDAO {
     private static final ZoneId UTC = ZoneId.of("UTC")
     private static final String INSERT_FUNCTION_REFERENCE =
             'INSERT INTO function_reference (project_id, caller_function_id, callee_function_id, ' +
-                    'commit_sha1, commit_date, line_number, deletion) VALUES ($1, $2, $3, $4, $5, $6, false)'
+                    'commit_sha1, commit_date, line_number, deletion) VALUES ($1, $2, $3, $4, $5, $6, false)\n' +
+                    'ON CONFLICT (caller_function_id, callee_function_id, commit_sha1, commit_date, line_number) DO NOTHING'
     private static final String REMOVE_FUNCTION_REFERENCE =
             'INSERT INTO function_reference (project_id, caller_function_id, callee_function_id, ' +
                     'commit_sha1, commit_date, deletion) VALUES ($1, $2, $3, $4, $5, true)'
@@ -129,7 +130,7 @@ class PostgresDAO {
     }
 
     void getFunctionReferences(String functionId, int limit,
-                                      Handler<AsyncResult<List<String>>> handler) {
+                               Handler<AsyncResult<List<String>>> handler) {
         client.preparedQuery(GET_FUNCTION_REFERENCES, Tuple.of(functionId, limit), {
             if (it.succeeded()) {
                 def result = []
@@ -141,5 +142,9 @@ class PostgresDAO {
                 handler.handle(Future.failedFuture(it.cause()))
             }
         })
+    }
+
+    PgPool getClient() {
+        return client
     }
 }

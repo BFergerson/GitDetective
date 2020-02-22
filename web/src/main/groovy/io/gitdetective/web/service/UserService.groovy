@@ -2,15 +2,15 @@ package io.gitdetective.web.service
 
 import grakn.client.GraknClient
 import groovy.util.logging.Slf4j
-import io.gitdetective.web.service.model.ProjectReferenceInformation
+import io.gitdetective.web.model.ProjectReferenceInformation
 import io.vertx.core.AbstractVerticle
 import io.vertx.core.AsyncResult
 import io.vertx.core.Future
 import io.vertx.core.Handler
 
-import static graql.lang.Graql.insert
-import static graql.lang.Graql.match
-import static graql.lang.Graql.var
+import java.time.LocalDateTime
+
+import static graql.lang.Graql.*
 
 @Slf4j
 class UserService extends AbstractVerticle {
@@ -33,7 +33,9 @@ class UserService extends AbstractVerticle {
                     def createUserAnswer = writeTx.execute(insert(
                             var("u").isa("user")
                                     .has("username", username)
+                                    .has("create_date", LocalDateTime.now())
                     ))
+                    writeTx.commit()
                     handler.handle(Future.succeededFuture(createUserAnswer.get(0).get("u").asEntity().id().value))
                 } else {
                     handler.handle(Future.succeededFuture(getUserAnswer.get(0).get("u").asEntity().id().value))

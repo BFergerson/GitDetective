@@ -8,7 +8,8 @@ CREATE TABLE function_reference
     commit_sha1        VARCHAR(255) NOT NULL,
     commit_date        TIMESTAMPTZ  NOT NULL,
     line_number        INTEGER,
-    deletion           BOOLEAN      NOT NULL
+    deletion           BOOLEAN      NOT NULL,
+    UNIQUE (caller_function_id, callee_function_id, commit_sha1, commit_date, line_number)
 );
 CREATE INDEX ON function_reference (project_id);
 CREATE INDEX ON function_reference (callee_function_id);

@@ -1,4 +1,4 @@
-package io.gitdetective.web.service.model
+package io.gitdetective.web.model
 
 import groovy.transform.Canonical
 

@@ -1,25 +1,22 @@
-package io.gitdetective.web.service.model
+package io.gitdetective.web.model
 
 import groovy.transform.Canonical
 
 import java.time.Instant
 
 @Canonical
-class ProjectLiveReferenceTrend {
+class ProjectReferenceTrend {
     String projectId
     List<TrendPoint> trendData = new ArrayList<>()
 
     @Canonical
     static class TrendPoint implements Comparable<TrendPoint> {
         Instant time
-        boolean deletion
         long count
 
         @Override
         int compareTo(TrendPoint other) {
-            int i = time <=> other.time
-            if (i != 0) return i
-            return deletion <=> other.deletion
+            return time <=> other.time
         }
     }
 }
