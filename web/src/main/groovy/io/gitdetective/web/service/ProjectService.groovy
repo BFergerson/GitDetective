@@ -278,12 +278,14 @@ class ProjectService extends AbstractVerticle {
 
     void getOrCreateFunction(String fileId, FunctionInformation function, int referenceCount,
                              Handler<AsyncResult<String>> handler) {
+        log.info("getOrCreateFunction - File id: $fileId - Function: $function - Reference count: $referenceCount")
         vertx.executeBlocking({
             try (def writeTx = session.transaction().write()) {
                 def getFunctionAnswer = writeTx.execute(match(
                         var("f").isa("function")
                                 .has("kythe_uri", function.kytheUri)
-                ).get("f"))
+                                .has("qualified_name", var("q_name"), var("q_name_rel"))
+                ).get("f", "q_name", "q_name_rel"))
 
                 if (getFunctionAnswer.isEmpty()) {
                     def createFunctionAnswer
@@ -298,16 +300,54 @@ class ProjectService extends AbstractVerticle {
                                         .rel("is_defines_function", var("f")).isa("defines_function")
                         ))
                     } else {
-                        //if they don't know file then they don't know real qualified name
                         createFunctionAnswer = writeTx.execute(insert(
                                 var("f").isa("function")
                                         .has("kythe_uri", function.kytheUri)
+                                        .has("qualified_name", function.qualifiedName)
                                         .has("reference_count", referenceCount)
                         ))
                     }
                     writeTx.commit()
                     handler.handle(Future.succeededFuture(createFunctionAnswer.get(0).get("f").asEntity().id().value))
                 } else {
+                    if (fileId != null) {
+                        //function definer; ensure qualified name is correct
+                        def wroteData = false
+                        def currentQualifiedName = getFunctionAnswer.get(0).get("q_name").asAttribute().value() as String
+                        def qualifiedNameRelId = getFunctionAnswer.get(0).get("q_name_rel").asRelation().id().value
+                        def functionId = getFunctionAnswer.get(0).get("f").asEntity().id().value
+                        if (currentQualifiedName != function.qualifiedName) {
+                            writeTx.execute(parse(
+                                    'match $r id ' + qualifiedNameRelId + '; delete $r;'
+                            ))
+                            writeTx.execute(match(
+                                    var("f").id(functionId)).insert(
+                                    var("f").has("qualified_name", function.qualifiedName)
+                            ))
+                            wroteData = true
+                        }
+
+                        //function definer; ensure function is associated to file
+                        def getFunctionFileRelationAnswer = writeTx.execute(match(
+                                var("f").id(functionId),
+                                var("fi").id(fileId),
+                                var().rel("has_defines_function", var("fi"))
+                                        .rel("is_defines_function", var("f")).isa("defines_function")
+                        ).get())
+                        if (getFunctionFileRelationAnswer.isEmpty()) {
+                            writeTx.execute(insert(
+                                    var("f").id(functionId),
+                                    var("fi").id(fileId),
+                                    var().rel("has_defines_function", var("fi"))
+                                            .rel("is_defines_function", var("f")).isa("defines_function")
+                            ))
+                            wroteData = true
+                        }
+
+                        if (wroteData) {
+                            writeTx.commit()
+                        }
+                    }
                     handler.handle(Future.succeededFuture(getFunctionAnswer.get(0).get("f").asEntity().id().value))
                 }
             }

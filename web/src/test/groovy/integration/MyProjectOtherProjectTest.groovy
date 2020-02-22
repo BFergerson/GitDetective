@@ -36,14 +36,14 @@ class MyProjectOtherProjectTest {
 
     private static Vertx vertx
     private static GitDetectiveService detectiveService
-    private static String myProjectId
-    private static String otherProjectId
-    private static String myProjectMyClassFileId
-    private static String otherProjectApp2FileId
-    private static String myProjectMyMethodId
-    private static String otherProjectMainId
-    private static FunctionInformation myProjectMyMethod
-    private static FunctionInformation otherProjectMain
+    protected static String myProjectId
+    protected static String otherProjectId
+    protected static String myProjectMyClassFileId
+    protected static String otherProjectApp2FileId
+    protected static String myProjectMyMethodId
+    protected static String otherProjectMainId
+    protected static FunctionInformation myProjectMyMethod
+    protected static FunctionInformation otherProjectMain
 
     @BeforeClass
     static void setUp(TestContext test) {
@@ -89,30 +89,18 @@ class MyProjectOtherProjectTest {
     @Test
     void doTest(TestContext test) {
         def importProjects = test.async()
-        doMyProjectImport({
+        doMyProjectImport(detectiveService, {
             if (it.succeeded()) {
-                doOtherProjectImport({
+                doOtherProjectImport(detectiveService, {
                     if (it.succeeded()) {
                         detectiveService.projectService.insertFunctionReference(
                                 otherProjectId, otherProjectApp2FileId, Instant.parse("2020-02-22T20:02:20Z"),
                                 "b0be5053300ef5baabe7706f1cb440e38aa55565", 20,
                                 otherProjectMain, myProjectMyMethod, {
                             if (it.succeeded()) {
-                                vertx.eventBus().request(UpdateFunctionReferenceCounts.PERFORM_TASK_NOW, true, {
+                                doGraknUpdateWork(vertx, {
                                     if (it.succeeded()) {
-                                        vertx.eventBus().request(UpdateFileReferenceCounts.PERFORM_TASK_NOW, true, {
-                                            if (it.succeeded()) {
-                                                vertx.eventBus().request(UpdateProjectReferenceCounts.PERFORM_TASK_NOW, true, {
-                                                    if (it.succeeded()) {
-                                                        importProjects.complete()
-                                                    } else {
-                                                        test.fail(it.cause())
-                                                    }
-                                                })
-                                            } else {
-                                                test.fail(it.cause())
-                                            }
-                                        })
+                                        importProjects.complete()
                                     } else {
                                         test.fail(it.cause())
                                     }
@@ -194,7 +182,29 @@ class MyProjectOtherProjectTest {
         })
     }
 
-    private static void doMyProjectImport(Handler<AsyncResult<Void>> handler) {
+    protected static void doGraknUpdateWork(Vertx vertx, Handler<AsyncResult<Void>> handler) {
+        vertx.eventBus().request(UpdateFunctionReferenceCounts.PERFORM_TASK_NOW, true, {
+            if (it.succeeded()) {
+                vertx.eventBus().request(UpdateFileReferenceCounts.PERFORM_TASK_NOW, true, {
+                    if (it.succeeded()) {
+                        vertx.eventBus().request(UpdateProjectReferenceCounts.PERFORM_TASK_NOW, true, {
+                            if (it.succeeded()) {
+                                handler.handle(Future.succeededFuture())
+                            } else {
+                                handler.handle(Future.failedFuture(it.cause()))
+                            }
+                        })
+                    } else {
+                        handler.handle(Future.failedFuture(it.cause()))
+                    }
+                })
+            } else {
+                handler.handle(Future.failedFuture(it.cause()))
+            }
+        })
+    }
+
+    protected static void doMyProjectImport(GitDetectiveService detectiveService, Handler<AsyncResult<Void>> handler) {
         def createProjectsAsync = Future.future()
         String userId = null
         detectiveService.userService.getOrCreateUser("github:bfergerson", {
@@ -242,7 +252,7 @@ class MyProjectOtherProjectTest {
         CompositeFuture.all(createProjectsAsync, createFilesAsync, createFunctionAsync).setHandler(handler)
     }
 
-    private static void doOtherProjectImport(Handler<AsyncResult<Void>> handler) {
+    protected static void doOtherProjectImport(GitDetectiveService detectiveService, Handler<AsyncResult<Void>> handler) {
         def createProjectsAsync = Future.future()
         String userId = null
         detectiveService.userService.getOrCreateUser("github:bfergerson", {

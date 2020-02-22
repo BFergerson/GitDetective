@@ -27,4 +27,9 @@ class FunctionInformation {
     String getShortQualifiedFunctionName() {
         return WebServices.getShortQualifiedMethodName(qualifiedName)
     }
+
+    @Override
+    String toString() {
+        return qualifiedName
+    }
 }
