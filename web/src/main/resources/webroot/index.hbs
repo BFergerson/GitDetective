@@ -186,10 +186,10 @@
                                 {{#each function_reference_leaderboard}}
                                     <tr>
                                         <td style="max-width: 250px">
-                                            {{this.short_qualified_name}}
+                                            <a href="{{gitdetective_url}}{{this.usernameAndProjectName}}">{{this.shortQualifiedFunctionName}}</a>
                                         </td>
                                         <td align="right">
-                                            <span class="label label-primary">{{this.external_reference_count}}</span>
+                                            <span class="label label-primary">{{this.prettyReferenceCount}}</span>
                                         </td>
                                     </tr>
                                 {{/each}}

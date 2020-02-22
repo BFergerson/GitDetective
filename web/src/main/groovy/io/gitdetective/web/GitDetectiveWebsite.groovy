@@ -4,6 +4,7 @@ import com.google.common.collect.Lists
 import io.vertx.core.AbstractVerticle
 import io.vertx.core.CompositeFuture
 import io.vertx.core.Future
+import io.vertx.core.json.Json
 import io.vertx.core.json.JsonArray
 import io.vertx.core.json.JsonObject
 import io.vertx.core.logging.Logger
@@ -385,15 +386,7 @@ class GitDetectiveWebsite extends AbstractVerticle {
             if (it.failed()) {
                 ctx.fail(it.cause())
             } else {
-                def totalFunctionReferences = new JsonArray()
-                it.result().each {
-                    def reference = new JsonObject()
-                    reference.put("qualified_name", it.qualifiedName)
-                    reference.put("short_qualified_name", it.shortQualifiedFunctionName)
-                    reference.put("external_reference_count", asPrettyNumber(it.referenceCount))
-                    totalFunctionReferences.add(reference)
-                }
-                ctx.put("function_reference_leaderboard", totalFunctionReferences)
+                ctx.put("function_reference_leaderboard", new JsonArray(Json.encode(it.result())))
             }
             handler.handle(Future.succeededFuture())
         })

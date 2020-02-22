@@ -62,7 +62,8 @@ class ProjectService extends AbstractVerticle {
                             var("u").id(userId),
                             var("p").isa("project")
                                     .has("project_name", projectName)
-                                    .has("create_date", LocalDateTime.now()),
+                                    .has("create_date", LocalDateTime.now())
+                                    .has("reference_count", 0),
                             var().rel("has_project", var("u"))
                                     .rel("is_project", var("p")).isa("owns_project")
                     ))
@@ -119,7 +120,7 @@ class ProjectService extends AbstractVerticle {
                                 .rel("is_defines_file", var("fi")).isa("defines_file"),
                         var("f").isa("function"),
                         var().rel("has_defines_function", var("fi"))
-                                .rel("is_defines_function", var("f")).isa("defines_function"),
+                                .rel("is_defines_function", var("f")).isa("defines_function")
                 ).get("f").count())
 
                 handler.handle(Future.succeededFuture(functionCountAnswer.get(0).number().longValue()))
@@ -223,7 +224,8 @@ class ProjectService extends AbstractVerticle {
                             var("p").id(projectId),
                             var("fi").isa("file")
                                     .has("qualified_name", qualifiedName)
-                                    .has("file_location", fileLocation),
+                                    .has("file_location", fileLocation)
+                                    .has("reference_count", 0),
                             var().rel("has_defines_file", var("p"))
                                     .rel("is_defines_file", var("fi")).isa("defines_file")
                     ))

@@ -76,8 +76,15 @@ class SystemService extends AbstractVerticle {
                         var("f").isa("function")
                                 .has("kythe_uri", var("k_uri"))
                                 .has("qualified_name", var("q_name"))
-                                .has("reference_count", var("ref_count"))
-                ).get("f", "k_uri", "q_name", "ref_count").sort("ref_count", "desc").limit(limit))
+                                .has("reference_count", var("ref_count")),
+                        var("fi").isa("file"),
+                        var().rel("has_defines_function", var("fi"))
+                                .rel("is_defines_function", var("f")).isa("defines_function"),
+                        var("p").isa("project")
+                                .has("name", var("p_name")),
+                        var().rel("has_defines_file", var("p"))
+                                .rel("is_defines_file", var("fi")).isa("defines_file")
+                ).get("f", "k_uri", "q_name", "ref_count", "p_name").sort("ref_count", "desc").limit(limit))
 
                 def result = []
                 totalMostReferencedFunctionsAnswer.each {
@@ -85,7 +92,8 @@ class SystemService extends AbstractVerticle {
                     def kytheUri = it.get("k_uri").asAttribute().value() as String
                     def qualifiedName = it.get("q_name").asAttribute().value() as String
                     def referenceCount = it.get("ref_count").asAttribute().value() as int
-                    result << new FunctionReferenceInformation(functionId, kytheUri, qualifiedName, referenceCount)
+                    def projectName = it.get("p_name").asAttribute().value() as String
+                    result << new FunctionReferenceInformation(functionId, kytheUri, qualifiedName, referenceCount, projectName)
                 }
                 handler.handle(Future.succeededFuture(result))
             }
