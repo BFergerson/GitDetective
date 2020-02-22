@@ -48,7 +48,6 @@ class MyProjectOtherProjectTest {
         vertx = Vertx.vertx()
         def deployOptions = new DeploymentOptions()
         deployOptions.setConfig(new JsonObject(new File("web-config.json").text))
-
         detectiveService = new GitDetectiveService(Router.router(vertx))
 
         def async = test.async()

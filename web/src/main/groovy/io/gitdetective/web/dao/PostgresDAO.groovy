@@ -135,7 +135,7 @@ class PostgresDAO {
             if (it.succeeded()) {
                 def result = []
                 it.result().each {
-                    result << it.getString(1)
+                    result << it.getString(0)
                 }
                 handler.handle(Future.succeededFuture(result))
             } else {
