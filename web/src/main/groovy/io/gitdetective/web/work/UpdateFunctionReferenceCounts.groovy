@@ -1,4 +1,4 @@
-package io.gitdetective.web.task
+package io.gitdetective.web.work
 
 import grakn.client.GraknClient
 import io.gitdetective.web.dao.PostgresDAO

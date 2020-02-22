@@ -117,38 +117,54 @@ class GitDetectiveWebsite extends AbstractVerticle {
     }
 
     private void updateDatabaseStatistics() {
-//        jobs.getActiveCount("IndexGithubProject", {
-//            if (it.succeeded()) {
-//                CURRENTLY_INDEXING_COUNT = it.result()
-//            } else {
-//                it.cause().printStackTrace()
-//            }
-//        })
-//        jobs.getActiveCount(GraknImporter.GRAKN_INDEX_IMPORT_JOB_TYPE, {
-//            if (it.succeeded()) {
-//                CURRENTLY_IMPORTING_COUNT = it.result()
-//            } else {
-//                it.cause().printStackTrace()
-//            }
-//        })
-
-//            redis.getComputeTime({
-//                WebLauncher.metrics.counter("GraknComputeTime").inc(TOTAL_COMPUTE_TIME = it.result())
-//            })
+        service.jobs.getActiveCount("IndexGithubProject", {
+            if (it.succeeded()) {
+                CURRENTLY_INDEXING_COUNT = it.result()
+            } else {
+                it.cause().printStackTrace()
+            }
+        })
+        service.jobs.getActiveCount("ImportGithubProject", {
+            if (it.succeeded()) {
+                CURRENTLY_IMPORTING_COUNT = it.result()
+            } else {
+                it.cause().printStackTrace()
+            }
+        })
         service.systemService.getTotalUniqueReferenceCount({
-            TOTAL_UNIQUE_REFERENCE_COUNT = it.result()
+            if (it.succeeded()) {
+                TOTAL_UNIQUE_REFERENCE_COUNT = it.result()
+            } else {
+                it.cause().printStackTrace()
+            }
         })
         service.systemService.getTotalReferenceCount({
-            TOTAL_REFERENCE_COUNT = it.result()
+            if (it.succeeded()) {
+                TOTAL_REFERENCE_COUNT = it.result()
+            } else {
+                it.cause().printStackTrace()
+            }
         })
         service.systemService.getTotalProjectCount({
-            TOTAL_PROJECT_COUNT = it.result()
+            if (it.succeeded()) {
+                TOTAL_PROJECT_COUNT = it.result()
+            } else {
+                it.cause().printStackTrace()
+            }
         })
         service.systemService.getTotalFileCount({
-            TOTAL_FILE_COUNT = it.result()
+            if (it.succeeded()) {
+                TOTAL_FILE_COUNT = it.result()
+            } else {
+                it.cause().printStackTrace()
+            }
         })
         service.systemService.getTotalFunctionCount({
-            TOTAL_FUNCTION_COUNT = it.result()
+            if (it.succeeded()) {
+                TOTAL_FUNCTION_COUNT = it.result()
+            } else {
+                it.cause().printStackTrace()
+            }
         })
 //            service.systemService.getDefinitionCount({
 //                WebLauncher.metrics.counter("ImportDefinedFunction").inc(TOTAL_DEFINITION_COUNT = it.result())
