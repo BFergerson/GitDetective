@@ -2,6 +2,7 @@ package io.gitdetective.web.service
 
 import grakn.client.GraknClient
 import groovy.util.logging.Slf4j
+import io.gitdetective.web.dao.PostgresDAO
 import io.gitdetective.web.model.FunctionReferenceInformation
 import io.gitdetective.web.model.ProjectReferenceInformation
 import io.vertx.core.AbstractVerticle
@@ -15,9 +16,30 @@ import static graql.lang.Graql.*
 class SystemService extends AbstractVerticle {
 
     private final GraknClient.Session session
+    private final PostgresDAO postgres
 
-    SystemService(GraknClient.Session session) {
+    SystemService(GraknClient.Session session, PostgresDAO postgres) {
         this.session = Objects.requireNonNull(session)
+        this.postgres = Objects.requireNonNull(postgres)
+    }
+
+    void getTotalUniqueReferenceCount(Handler<AsyncResult<Long>> handler) {
+        vertx.executeBlocking({
+            try (def readTx = session.transaction().read()) {
+                def totalFileCountAnswer = readTx.execute(compute().count().in("reference_call"))
+                handler.handle(Future.succeededFuture(totalFileCountAnswer.get(0).number().longValue()))
+            }
+        }, false, handler)
+    }
+
+    void getTotalReferenceCount(Handler<AsyncResult<Long>> handler) {
+        postgres.client.query("SELECT COUNT(*) from function_reference", {
+            if (it.succeeded()) {
+                handler.handle(Future.succeededFuture(it.result().toList().get(0).getLong(0)))
+            } else {
+                handler.handle(Future.failedFuture(it.cause()))
+            }
+        })
     }
 
     void getTotalProjectCount(Handler<AsyncResult<Long>> handler) {

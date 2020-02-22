@@ -35,7 +35,7 @@ class GitDetectiveWebsite extends AbstractVerticle {
     private static volatile long TOTAL_PROJECT_COUNT = 0
     private static volatile long TOTAL_FILE_COUNT = 0
     private static volatile long TOTAL_FUNCTION_COUNT = 0
-    private static volatile long TOTAL_DEFINITION_COUNT = 0
+    private static volatile long TOTAL_UNIQUE_REFERENCE_COUNT = 0
     private static volatile long TOTAL_REFERENCE_COUNT = 0
     private final GitDetectiveService service
     private final Router router
@@ -135,6 +135,12 @@ class GitDetectiveWebsite extends AbstractVerticle {
 //            redis.getComputeTime({
 //                WebLauncher.metrics.counter("GraknComputeTime").inc(TOTAL_COMPUTE_TIME = it.result())
 //            })
+        service.systemService.getTotalUniqueReferenceCount({
+            TOTAL_UNIQUE_REFERENCE_COUNT = it.result()
+        })
+        service.systemService.getTotalReferenceCount({
+            TOTAL_REFERENCE_COUNT = it.result()
+        })
         service.systemService.getTotalProjectCount({
             TOTAL_PROJECT_COUNT = it.result()
         })
@@ -617,9 +623,9 @@ class GitDetectiveWebsite extends AbstractVerticle {
         stats.add(new JsonObject().put("stat1", "Active backlog").put("value1",
                 asPrettyNumber(CURRENTLY_INDEXING_COUNT + CURRENTLY_IMPORTING_COUNT))
                 .put("stat2", "Projects").put("value2", asPrettyNumber(TOTAL_PROJECT_COUNT)))
-        stats.add(new JsonObject().put("stat1", "Definitions").put("value1", asPrettyNumber(TOTAL_DEFINITION_COUNT))
+        stats.add(new JsonObject().put("stat1", "Unique References").put("value1", asPrettyNumber(TOTAL_UNIQUE_REFERENCE_COUNT))
                 .put("stat2", "Files").put("value2", asPrettyNumber(TOTAL_FILE_COUNT)))
-        stats.add(new JsonObject().put("stat1", "References").put("value1", asPrettyNumber(TOTAL_REFERENCE_COUNT))
+        stats.add(new JsonObject().put("stat1", "Total References").put("value1", asPrettyNumber(TOTAL_REFERENCE_COUNT))
                 .put("stat2", "Functions").put("value2", asPrettyNumber(TOTAL_FUNCTION_COUNT)))
         ctx.put("database_statistics", stats)
 

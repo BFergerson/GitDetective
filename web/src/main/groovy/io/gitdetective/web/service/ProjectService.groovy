@@ -26,7 +26,7 @@ class ProjectService extends AbstractVerticle {
 
     ProjectService(GraknClient.Session session, PostgresDAO postgres) {
         this.session = Objects.requireNonNull(session)
-        this.postgres = postgres //todo: require non-null
+        this.postgres = Objects.requireNonNull(postgres)
     }
 
     @Override

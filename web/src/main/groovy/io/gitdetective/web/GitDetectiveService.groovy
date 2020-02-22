@@ -78,7 +78,7 @@ class GitDetectiveService extends AbstractVerticle {
             setupOntology(graknSession)
 
             //setup services
-            systemService = new SystemService(graknSession)
+            systemService = new SystemService(graknSession, postgres)
             projectService = new ProjectService(graknSession, postgres)
             userService = new UserService(graknSession)
             //todo: async/handler stuff

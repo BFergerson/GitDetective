@@ -17,10 +17,15 @@ class UserServiceTest extends GitDetectiveServiceTest {
     @BeforeClass
     static void setUp(TestContext test) {
         def async = test.async()
-        GitDetectiveServiceTest.setUp(test)
-        vertx.deployVerticle(userService = new UserService(session), {
+        setUp({
             if (it.succeeded()) {
-                async.complete()
+                vertx.deployVerticle(userService = new UserService(graknSession), {
+                    if (it.succeeded()) {
+                        async.complete()
+                    } else {
+                        test.fail(it.cause())
+                    }
+                })
             } else {
                 test.fail(it.cause())
             }

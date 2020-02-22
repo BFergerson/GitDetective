@@ -17,10 +17,15 @@ class SystemServiceTest extends GitDetectiveServiceTest {
     @BeforeClass
     static void setUp(TestContext test) {
         def async = test.async()
-        GitDetectiveServiceTest.setUp(test)
-        vertx.deployVerticle(systemService = new SystemService(session), {
+        setUp({
             if (it.succeeded()) {
-                async.complete()
+                vertx.deployVerticle(systemService = new SystemService(graknSession, postgres), {
+                    if (it.succeeded()) {
+                        async.complete()
+                    } else {
+                        test.fail(it.cause())
+                    }
+                })
             } else {
                 test.fail(it.cause())
             }
