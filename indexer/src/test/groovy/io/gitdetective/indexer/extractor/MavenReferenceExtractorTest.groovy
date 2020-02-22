@@ -43,6 +43,5 @@ class MavenReferenceExtractorTest {
                 "output_directory": outDir.absolutePath
         ]))
         MavenReferenceExtractor.extractProjectReferences(job)
-        println "done"
     }
 }

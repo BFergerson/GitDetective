@@ -2,6 +2,8 @@ package integration
 
 import ch.qos.logback.classic.Level
 import ch.qos.logback.classic.Logger
+import com.google.common.base.Charsets
+import com.google.common.io.Resources
 import groovy.util.logging.Slf4j
 import io.gitdetective.web.GitDetectiveService
 import io.gitdetective.web.model.FunctionInformation
@@ -48,7 +50,33 @@ class MyProjectOtherProjectTest {
         deployOptions.setConfig(new JsonObject(new File("web-config.json").text))
 
         detectiveService = new GitDetectiveService(Router.router(vertx))
-        vertx.deployVerticle(detectiveService, deployOptions, test.asyncAssertSuccess())
+
+        def async = test.async()
+        vertx.deployVerticle(detectiveService, deployOptions, {
+            if (it.succeeded()) {
+                detectiveService.postgres.client.query(
+                        "SELECT 1 FROM information_schema.tables WHERE table_name = 'function_reference'", {
+                    if (it.succeeded()) {
+                        if (it.result().isEmpty()) {
+                            detectiveService.postgres.client.query(Resources.toString(Resources.getResource(
+                                    "reference-storage-schema.sql"), Charsets.UTF_8), {
+                                if (it.succeeded()) {
+                                    async.complete()
+                                } else {
+                                    test.fail(it.cause())
+                                }
+                            })
+                        } else {
+                            async.complete()
+                        }
+                    } else {
+                        test.fail(it.cause())
+                    }
+                })
+            } else {
+                test.fail(it.cause())
+            }
+        })
     }
 
     @AfterClass
@@ -127,7 +155,15 @@ class MyProjectOtherProjectTest {
                 test.assertEquals(1, it.result().size())
                 test.assertEquals("com.gitdetective.MyClass.myMethod()", it.result().get(0).qualifiedName)
                 test.assertEquals(1, it.result().get(0).referenceCount)
-                async.countDown()
+
+                detectiveService.postgres.getFunctionReferences(it.result().get(0).functionId, 10, {
+                    if (it.failed()) {
+                        test.fail(it.cause())
+                    }
+
+                    test.assertEquals(1, it.result().size())
+                    async.countDown()
+                })
             })
             detectiveService.projectService.getMostReferencedFunctionsInformation("github:bfergerson/otherproject", 1, {
                 if (it.failed()) {
