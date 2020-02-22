@@ -34,14 +34,23 @@ class FunctionReferenceInformation {
     }
 
     String getUsername() {
+        if (projectName == null) {
+            return null
+        }
         return projectName.substring(projectName.indexOf(":") + 1, projectName.indexOf("/"))
     }
 
     String getUsernameAndProjectName() {
+        if (projectName == null) {
+            return null
+        }
         return projectName.substring(projectName.indexOf(":") + 1)
     }
 
     String getSimpleProjectName() {
+        if (projectName == null) {
+            return null
+        }
         return projectName.substring(projectName.indexOf("/") + 1)
     }
 

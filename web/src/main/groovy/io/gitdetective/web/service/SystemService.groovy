@@ -98,7 +98,15 @@ class SystemService extends AbstractVerticle {
                         var("f").isa("function")
                                 .has("kythe_uri", var("k_uri"))
                                 .has("qualified_name", var("q_name"))
-                                .has("reference_count", var("ref_count")),
+                                .has("reference_count", var("ref_count"))
+                ).get("f", "k_uri", "q_name", "ref_count").sort("ref_count", "desc").limit(limit))
+
+                def functionIdOrs = []
+                totalMostReferencedFunctionsAnswer.each {
+                    functionIdOrs << var("f").id(it.get("f").asEntity().id().value)
+                }
+                def getFileProjectsAnswer = readTx.execute(match(
+                        or(functionIdOrs),
                         var("fi").isa("file"),
                         var().rel("has_defines_function", var("fi"))
                                 .rel("is_defines_function", var("f")).isa("defines_function"),
@@ -106,7 +114,13 @@ class SystemService extends AbstractVerticle {
                                 .has("name", var("p_name")),
                         var().rel("has_defines_file", var("p"))
                                 .rel("is_defines_file", var("fi")).isa("defines_file")
-                ).get("f", "k_uri", "q_name", "ref_count", "p_name").sort("ref_count", "desc").limit(limit))
+                ).get("f", "p_name"))
+                def projectNameMap = new HashMap<String, String>()
+                getFileProjectsAnswer.each {
+                    def functionId = it.get("f").asEntity().id().value
+                    def projectName = it.get("p_name").asAttribute().value() as String
+                    projectNameMap.put(functionId, projectName)
+                }
 
                 def result = []
                 totalMostReferencedFunctionsAnswer.each {
@@ -114,7 +128,7 @@ class SystemService extends AbstractVerticle {
                     def kytheUri = it.get("k_uri").asAttribute().value() as String
                     def qualifiedName = it.get("q_name").asAttribute().value() as String
                     def referenceCount = it.get("ref_count").asAttribute().value() as int
-                    def projectName = it.get("p_name").asAttribute().value() as String
+                    def projectName = projectNameMap.get(functionId)
                     result << new FunctionReferenceInformation(functionId, kytheUri, qualifiedName, referenceCount, projectName)
                 }
                 handler.handle(Future.succeededFuture(result))
