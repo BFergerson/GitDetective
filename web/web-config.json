@@ -16,6 +16,7 @@
   "temp_directory": "/opt/gitdetective-web/tmp",
   "gitdetective_url": "http://localhost/",
   "gitdetective_static_url": "https://gitdetective.io/static/",
+  "api_key": "password",
   "service": {
     "worker_pool_size": 75,
     "blocking_pool_size": 75,

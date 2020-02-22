@@ -9,8 +9,12 @@ import io.vertx.core.json.JsonArray
 import io.vertx.core.json.JsonObject
 import io.vertx.core.logging.Logger
 import io.vertx.core.logging.LoggerFactory
+import io.vertx.ext.auth.PubSecKeyOptions
+import io.vertx.ext.auth.jwt.JWTAuth
+import io.vertx.ext.auth.jwt.JWTAuthOptions
 import io.vertx.ext.web.Router
 import io.vertx.ext.web.RoutingContext
+import io.vertx.ext.web.handler.JWTAuthHandler
 import io.vertx.ext.web.handler.StaticHandler
 import io.vertx.ext.web.templ.handlebars.HandlebarsTemplateEngine
 
@@ -65,8 +69,7 @@ class GitDetectiveWebsite extends AbstractVerticle {
             ctx.response().setStatusCode(404).end()
         })
         router.get("/favicon.ico").handler({ ctx ->
-            //todo: get favicon
-            ctx.response().setStatusCode(404).end()
+            ctx.response().setStatusCode(404).end() //todo: get favicon
         })
         router.get("/").handler({ ctx ->
             handleIndexPage(ctx)
@@ -89,6 +92,51 @@ class GitDetectiveWebsite extends AbstractVerticle {
         router.get("/:githubUsername/:githubProject/").handler({ ctx ->
             handleProjectPage(ctx)
         })
+
+        //api
+        def provider = JWTAuth.create(vertx, new JWTAuthOptions()
+                .addPubSecKey(new PubSecKeyOptions()
+                        .setAlgorithm("HS256")
+                        .setPublicKey(config().getString("api_key"))
+                        .setSymmetric(true)))
+        def v1ApiRouter = Router.router(vertx)
+        router.mountSubRouter("/api", v1ApiRouter)
+        v1ApiRouter.route("/*").handler(JWTAuthHandler.create(provider))
+        v1ApiRouter.post("/users/:githubUsername").handler({ ctx ->
+            service.userService.getOrCreateUser("github:" + ctx.pathParam("githubUsername"), {
+                if (it.succeeded()) {
+                    ctx.response().setStatusCode(200).end(it.result())
+                } else {
+                    it.cause().printStackTrace()
+                    ctx.response().setStatusCode(500).end(it.cause().message)
+                }
+            })
+        })
+        v1ApiRouter.post("/users/:githubUsername/projects/:githubProject").handler({ ctx ->
+            def githubUsername = "github:" + ctx.pathParam("githubUsername")
+            service.userService.getOrCreateUser(githubUsername, {
+                if (it.succeeded()) {
+                    service.projectService.getOrCreateProject(it.result(),
+                            githubUsername + "/" + ctx.pathParam("githubProject"), {
+                        if (it.succeeded()) {
+                            ctx.response().setStatusCode(200).end(it.result())
+                        } else {
+                            it.cause().printStackTrace()
+                            ctx.response().setStatusCode(500).end(it.cause().message)
+                        }
+                    })
+                } else {
+                    it.cause().printStackTrace()
+                    ctx.response().setStatusCode(500).end(it.cause().message)
+                }
+            })
+        })
+        v1ApiRouter.post("/references").handler({ ctx ->
+            service.projectService.insertFunctionReference()
+            ctx.response().setStatusCode(200).end("hello")
+        })
+
+        //general
         router.route().last().handler({
             it.response().putHeader("location", "/")
                     .setStatusCode(302).end()
@@ -165,12 +213,6 @@ class GitDetectiveWebsite extends AbstractVerticle {
                 it.cause().printStackTrace()
             }
         })
-//            service.systemService.getDefinitionCount({
-//                WebLauncher.metrics.counter("ImportDefinedFunction").inc(TOTAL_DEFINITION_COUNT = it.result())
-//            })
-//            service.systemService.getReferenceCount({
-//                WebLauncher.metrics.counter("ImportReferencedFunction").inc(TOTAL_REFERENCE_COUNT = it.result())
-//            })
     }
 
     private void handleIndexPage(RoutingContext ctx) {
@@ -360,7 +402,7 @@ class GitDetectiveWebsite extends AbstractVerticle {
                 def activeJobs = it.result().body() as JsonArray
                 //only most recent 10
                 if (activeJobs.size() > 10) {
-                    activeJobs = new JsonArray(activeJobs.take(10))
+                    activeJobs = new JsonArray(activeJobs.take(10).toList())
                 }
                 //add pretty job type
                 for (int i = 0; i < activeJobs.size(); i++) {
@@ -590,34 +632,6 @@ class GitDetectiveWebsite extends AbstractVerticle {
         return future
     }
 
-//    private Future getProjectFileCount(RoutingContext ctx, JsonObject githubRepository) {
-//        def future = Future.future()
-//        def handler = future.completer()
-//        vertx.eventBus().send(GET_PROJECT_FILE_COUNT, githubRepository, {
-//            if (it.failed()) {
-//                ctx.fail(it.cause())
-//            } else {
-//                ctx.put("project_file_count", it.result().body())
-//            }
-//            handler.handle(Future.succeededFuture())
-//        })
-//        return future
-//    }
-//
-//    private Future getProjectMethodVersionCount(RoutingContext ctx, JsonObject githubRepository) {
-//        def future = Future.future()
-//        def handler = future.completer()
-//        vertx.eventBus().send(GET_project_function_instance_count, githubRepository, {
-//            if (it.failed()) {
-//                ctx.fail(it.cause())
-//            } else {
-//                ctx.put("project_function_version_count", it.result().body())
-//            }
-//            handler.handle(Future.succeededFuture())
-//        })
-//        return future
-//    }
-//
 //    private Future getProjectFirstIndexed(RoutingContext ctx, JsonObject githubRepository) {
 //        def future = Future.future()
 //        def handler = future.completer()

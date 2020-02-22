@@ -90,19 +90,6 @@ class GitDetectiveService extends AbstractVerticle {
             vertx.deployVerticle(new UpdateFunctionReferenceCounts(postgres, graknSession), new DeploymentOptions().setWorker(true))
             vertx.deployVerticle(new UpdateFileReferenceCounts(graknSession), new DeploymentOptions().setWorker(true))
             vertx.deployVerticle(new UpdateProjectReferenceCounts(graknSession), new DeploymentOptions().setWorker(true))
-//
-//                //todo: better placement
-//                vertx.deployVerticle(new RefreshFunctionLeaderboard(redis, refStorage, makeGraknDAO(redis)),
-//                        new DeploymentOptions().setConfig(config()))
-//
-//                if (importJobEnabled) {
-//                    log.info "Import job processing enabled"
-//                    def grakn = makeGraknDAO(redis)
-//                    def importerOptions = new DeploymentOptions().setConfig(config())
-//                    vertx.deployVerticle(new GraknImporter(jobs.kue, redis, refStorage, grakn, uploadsDirectory), importerOptions)
-//                } else {
-//                    log.info "Import job processing disabled"
-//                }
 
             if (config().getBoolean("launch_website")) {
                 log.info "Launching GitDetective website"
@@ -326,16 +313,6 @@ class GitDetectiveService extends AbstractVerticle {
     UserService getUserService() {
         return userService
     }
-
-//    private GraknDAO makeGraknDAO(RedisDAO redis) {
-//        String graknHost = config().getString("grakn.host")
-//        int graknPort = config().getInteger("grakn.port")
-//        String graknKeyspace = config().getString("grakn.keyspace")
-//        def keyspace = Keyspace.of(graknKeyspace)
-//        def grakn = new Grakn(new SimpleURI(graknHost + ":" + graknPort))
-//        def session = grakn.session(keyspace)
-//        return new GraknDAO(vertx, redis, session)
-//    }
 
     static void setupOntology(GraknClient.Session graknSession) {
         log.info "Setting up Grakn ontology"
