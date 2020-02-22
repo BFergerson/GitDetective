@@ -88,7 +88,7 @@ function displayMethodReference(method) {
     $('#most_referenced_methods_breadcrumb').removeClass('active');
     $('#most_referenced_methods_breadcrumb_link').attr('href', '#');
 
-    $('#references_main_title').html('<small class="text-muted"><b>Referenced method</b>: ' +
+    $('#references_main_title').html('<small class="text-muted"><b>Referenced function</b>: ' +
         method.class_name + '.'
         + method.method_signature.toHtmlEntities() + '</small>');
     $('#most_referenced_methods_table').hide();
@@ -120,11 +120,11 @@ function displayMethodReference(method) {
                     rowHtml += '<td><h6>' + methodOrFile.shortClassName +
                         '</h6> <div style="max-width: 450px; word-wrap:break-word;" class="text-muted">'
                         + methodOrFile.shortFunctionSignature.toHtmlEntities() + '</div></td>';
-                    rowHtml += '<td><button onclick=\'location.href="' + gitdetectiveUrl +
+                    rowHtml += '<td><a href="' + gitdetectiveUrl +
+                        methodOrFile.projectName.substring(methodOrFile.projectName.indexOf(":") + 1) + '">' +
+                        '<button type="button" class="btn waves-effect waves-light btn-outline-primary">' +
                         methodOrFile.projectName.substring(methodOrFile.projectName.indexOf(":") + 1) +
-                        '";\' type="button" class="btn waves-effect waves-light btn-outline-primary">' +
-                        methodOrFile.projectName.substring(methodOrFile.projectName.indexOf(":") + 1) +
-                        '</button></td>';
+                        '</button></a></td>';
                     rowHtml += '<td><a target="_blank" href="' + codeLocation + '">' +
                         '<button type="button" class="btn waves-effect waves-light btn-outline-primary">Code location</button>' +
                         '</a></td>';
