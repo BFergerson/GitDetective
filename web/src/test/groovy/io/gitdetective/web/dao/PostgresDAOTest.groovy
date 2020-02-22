@@ -35,11 +35,22 @@ class PostgresDAOTest {
                 .setPassword("postgres")
         PoolOptions poolOptions = new PoolOptions().setMaxSize(5)
         client = PgPool.pool(connectOptions, poolOptions)
-        client.query(Resources.toString(Resources.getResource(
-                "reference-storage-schema.sql"), Charsets.UTF_8), {
+        client.query("SELECT 1 FROM information_schema.tables WHERE table_name = 'function_reference'", {
             if (it.succeeded()) {
-                postgres = new PostgresDAO(client)
-                async.complete()
+                if (it.result().isEmpty()) {
+                    client.query(Resources.toString(Resources.getResource(
+                            "reference-storage-schema.sql"), Charsets.UTF_8), {
+                        if (it.succeeded()) {
+                            postgres = new PostgresDAO(client)
+                            async.complete()
+                        } else {
+                            test.fail(it.cause())
+                        }
+                    })
+                } else {
+                    postgres = new PostgresDAO(client)
+                    async.complete()
+                }
             } else {
                 test.fail(it.cause())
             }
@@ -133,7 +144,7 @@ class PostgresDAOTest {
 
         def async = test.async()
         insertAsync.handler({
-            postgres.getLiveProjectReferenceTrend("V1", {
+            postgres.getLiveProjectReferenceTrend(["V3"], {
                 if (it.succeeded()) {
                     def trend = it.result()
                     test.assertEquals(2, trend.trendData.size())
@@ -227,7 +238,7 @@ class PostgresDAOTest {
 
         def async = test.async()
         insertAsync.handler({
-            postgres.getLiveProjectReferenceTrend("V1", {
+            postgres.getLiveProjectReferenceTrend(["V3"], {
                 if (it.succeeded()) {
                     def trend = it.result()
                     test.assertEquals(2, trend.trendData.size())

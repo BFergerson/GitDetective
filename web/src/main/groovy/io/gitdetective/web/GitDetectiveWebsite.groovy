@@ -455,34 +455,30 @@ class GitDetectiveWebsite extends AbstractVerticle {
     private Future getProjectReferenceTrend(RoutingContext ctx, String githubRepository) {
         def future = Future.future()
         def handler = future.completer()
-        service.projectService.getProjectId("github:" + githubRepository, {
+        service.projectService.getFunctionIds("github:" + githubRepository, {
             if (it.succeeded()) {
-                if (it.result() != null) {
-                    service.postgres.getProjectReferenceTrend(it.result(), {
-                        if (it.failed()) {
-                            ctx.fail(it.cause())
-                        } else {
-                            def cumulativeTrendData = new JsonObject()
-                            cumulativeTrendData.put("trend_available", !it.result().trendData.isEmpty())
-                            def trendData = new JsonArray()
-                            cumulativeTrendData.put("trend_data", trendData)
+                service.postgres.getProjectReferenceTrend(it.result(), {
+                    if (it.succeeded()) {
+                        def cumulativeTrendData = new JsonObject()
+                        cumulativeTrendData.put("trend_available", it.result().trendData.size() > 1)
+                        def trendData = new JsonArray()
+                        cumulativeTrendData.put("trend_data", trendData)
 
-                            def referenceCount = 0
-                            it.result().trendData.each {
-                                referenceCount += it.count
+                        def referenceCount = 0
+                        it.result().trendData.each {
+                            referenceCount += it.count
 
-                                def data = new JsonObject()
-                                data.put("time", it.time)
-                                data.put("count", referenceCount)
-                                trendData.add(data)
-                            }
-                            ctx.put("project_reference_trend", cumulativeTrendData)
+                            def data = new JsonObject()
+                            data.put("time", it.time)
+                            data.put("count", referenceCount)
+                            trendData.add(data)
                         }
+                        ctx.put("project_reference_trend", cumulativeTrendData)
                         handler.handle(Future.succeededFuture())
-                    })
-                } else {
-                    handler.handle(Future.succeededFuture())
-                }
+                    } else {
+                        ctx.fail(it.cause())
+                    }
+                })
             } else {
                 ctx.fail(it.cause())
             }

@@ -33,7 +33,7 @@ class PostgresDAO {
             'SELECT time_bucket(\'1 hour\', commit_date) AS one_hour, deletion, COUNT(*)\n' +
                     'FROM function_reference\n' +
                     'WHERE 1=1\n' +
-                    'AND project_id = $1' +
+                    'AND callee_function_id = ANY($1)' +
                     'AND commit_date > NOW() - interval \'24 hours\'\n' +
                     'GROUP BY one_hour, deletion\n' +
                     'ORDER BY one_hour ASC'
@@ -42,7 +42,7 @@ class PostgresDAO {
                     'SUM(case when deletion = false then 1 else -1 end)\n' +
                     'FROM function_reference\n' +
                     'WHERE 1=1\n' +
-                    'AND project_id = $1\n' +
+                    'AND callee_function_id = ANY($1)\n' +
                     'GROUP BY one_month\n' +
                     'ORDER BY one_month ASC'
     private static final String GET_FUNCTION_REFERENCES =
@@ -97,10 +97,11 @@ class PostgresDAO {
                 callerCommitSha1, OffsetDateTime.ofInstant(callerCommitDate, UTC)), handler)
     }
 
-    void getLiveProjectReferenceTrend(String projectId, Handler<AsyncResult<ProjectLiveReferenceTrend>> handler) {
-        client.preparedQuery(GET_LIVE_PROJECT_REFERENCE_TREND, Tuple.of(projectId), {
+    void getLiveProjectReferenceTrend(List<String> projectFunctionsIds, Handler<AsyncResult<ProjectLiveReferenceTrend>> handler) {
+        client.preparedQuery(GET_LIVE_PROJECT_REFERENCE_TREND,
+                Tuple.tuple().addStringArray(projectFunctionsIds.toArray() as String[]), {
             if (it.succeeded()) {
-                def trend = new ProjectLiveReferenceTrend(projectId: projectId)
+                def trend = new ProjectLiveReferenceTrend()
                 it.result().each {
                     def time = it.getOffsetDateTime(0).toInstant()
                     def deletion = it.getBoolean(1)
@@ -115,10 +116,11 @@ class PostgresDAO {
         })
     }
 
-    void getProjectReferenceTrend(String projectId, Handler<AsyncResult<ProjectReferenceTrend>> handler) {
-        client.preparedQuery(GET_PROJECT_REFERENCE_TREND, Tuple.of(projectId), {
+    void getProjectReferenceTrend(List<String> projectFunctionsIds, Handler<AsyncResult<ProjectReferenceTrend>> handler) {
+        client.preparedQuery(GET_PROJECT_REFERENCE_TREND,
+                Tuple.tuple().addStringArray(projectFunctionsIds.toArray() as String[]), {
             if (it.succeeded()) {
-                def trend = new ProjectReferenceTrend(projectId: projectId)
+                def trend = new ProjectReferenceTrend()
                 it.result().each {
                     def time = it.getOffsetDateTime(0).toInstant()
                     def count = it.getLong(1)

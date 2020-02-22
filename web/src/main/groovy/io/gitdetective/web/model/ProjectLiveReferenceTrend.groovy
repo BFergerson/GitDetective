@@ -6,7 +6,6 @@ import java.time.Instant
 
 @Canonical
 class ProjectLiveReferenceTrend {
-    String projectId
     List<TrendPoint> trendData = new ArrayList<>()
 
     @Canonical

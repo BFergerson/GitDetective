@@ -15,6 +15,7 @@ import io.vertx.core.json.JsonObject
 
 import java.time.Instant
 import java.time.LocalDateTime
+import java.util.stream.Collectors
 
 import static graql.lang.Graql.*
 
@@ -124,6 +125,33 @@ class ProjectService extends AbstractVerticle {
                 ).get("f").count())
 
                 handler.handle(Future.succeededFuture(functionCountAnswer.get(0).number().longValue()))
+            }
+        }, false, handler)
+    }
+
+    void getFunctionIds(String projectIdOrName, Handler<AsyncResult<List<String>>> handler) {
+        vertx.executeBlocking({
+            try (def readTx = session.transaction().read()) {
+                def projectIdOrNameVar
+                if (projectIdOrName.contains("/")) {
+                    projectIdOrNameVar = var("p").has("project_name", projectIdOrName)
+                } else {
+                    projectIdOrNameVar = var("p").id(projectIdOrName)
+                }
+                def functionIdsAnswer = readTx.execute(match(
+                        projectIdOrNameVar,
+                        var("fi").isa("file"),
+                        var().rel("has_defines_file", var("p"))
+                                .rel("is_defines_file", var("fi")).isa("defines_file"),
+                        var("f").isa("function"),
+                        var().rel("has_defines_function", var("fi"))
+                                .rel("is_defines_function", var("f")).isa("defines_function")
+                ).get("f"))
+
+                handler.handle(Future.succeededFuture(
+                        functionIdsAnswer.stream().map({ it.get("f").asEntity().id().value })
+                                .collect(Collectors.toList())
+                ))
             }
         }, false, handler)
     }
