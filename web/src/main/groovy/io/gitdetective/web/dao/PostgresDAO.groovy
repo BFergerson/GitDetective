@@ -1,6 +1,7 @@
 package io.gitdetective.web.dao
 
 import groovy.util.logging.Slf4j
+import io.gitdetective.web.model.FunctionReference
 import io.gitdetective.web.model.ProjectLiveReferenceTrend
 import io.gitdetective.web.model.ProjectReferenceTrend
 import io.vertx.core.AsyncResult
@@ -45,10 +46,11 @@ class PostgresDAO {
                     'GROUP BY one_month\n' +
                     'ORDER BY one_month ASC'
     private static final String GET_FUNCTION_REFERENCES =
-            'SELECT caller_function_id\n' +
+            'SELECT project_id, caller_function_id, commit_sha1, line_number\n' +
                     'FROM function_reference\n' +
                     'WHERE 1=1\n' +
                     'AND callee_function_id = $1\n' +
+                    'AND deletion = false\n' +
                     'LIMIT $2'
 
     private final PgPool client
@@ -130,12 +132,17 @@ class PostgresDAO {
     }
 
     void getFunctionReferences(String functionId, int limit,
-                               Handler<AsyncResult<List<String>>> handler) {
+                               Handler<AsyncResult<List<FunctionReference>>> handler) {
         client.preparedQuery(GET_FUNCTION_REFERENCES, Tuple.of(functionId, limit), {
             if (it.succeeded()) {
                 def result = []
                 it.result().each {
-                    result << it.getString(0)
+                    def ref = new FunctionReference()
+                    ref.projectId = it.getString(0)
+                    ref.functionId = it.getString(1)
+                    ref.commitSha1 = it.getString(2)
+                    ref.lineNumber = it.getInteger(3)
+                    result << ref
                 }
                 handler.handle(Future.succeededFuture(result))
             } else {

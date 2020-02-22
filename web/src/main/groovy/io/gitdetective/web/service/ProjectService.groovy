@@ -1,12 +1,16 @@
 package io.gitdetective.web.service
 
 import grakn.client.GraknClient
+import graql.lang.statement.Statement
 import groovy.util.logging.Slf4j
 import io.gitdetective.web.WebServices
 import io.gitdetective.web.dao.PostgresDAO
 import io.gitdetective.web.model.FunctionInformation
+import io.gitdetective.web.model.FunctionReference
 import io.gitdetective.web.model.FunctionReferenceInformation
 import io.vertx.core.*
+import io.vertx.core.json.Json
+import io.vertx.core.json.JsonArray
 import io.vertx.core.json.JsonObject
 
 import java.time.Instant
@@ -31,7 +35,13 @@ class ProjectService extends AbstractVerticle {
             def body = request.body() as JsonObject
             postgres.getFunctionReferences(body.getString("function_id"), 10, {
                 if (it.succeeded()) {
-                    println "here"
+                    getFunctionReferences(it.result(), 10, {
+                        if (it.succeeded()) {
+                            request.reply(new JsonArray(Json.encode(it.result())))
+                        } else {
+                            request.fail(500, it.cause().message)
+                        }
+                    })
                 } else {
                     request.fail(500, it.cause().message)
                 }
@@ -142,6 +152,54 @@ class ProjectService extends AbstractVerticle {
                     def qualifiedName = it.get("q_name").asAttribute().value() as String
                     def referenceCount = it.get("ref_count").asAttribute().value() as int
                     result << new FunctionReferenceInformation(functionId, kytheUri, qualifiedName, referenceCount)
+                }
+                handler.handle(Future.succeededFuture(result))
+            }
+        }, false, handler)
+    }
+
+    void getFunctionReferences(List<FunctionReference> partialFunctionReferences, int limit,
+                               Handler<AsyncResult<List<FunctionReference>>> handler) {
+        def functionMap = new HashMap<String, FunctionReference>()
+        partialFunctionReferences.each {
+            functionMap.put(it.functionId, it)
+        }
+        vertx.executeBlocking({
+            try (def readTx = session.transaction().read()) {
+                def callerFunctionOrs = new ArrayList<Statement>()
+                def callerProjectOrs = new ArrayList<Statement>()
+                partialFunctionReferences.each {
+                    callerFunctionOrs << var("f").id(it.functionId)
+                    callerProjectOrs << var("p_ref").id(it.projectId)
+                }
+
+                def functionReferencesAnswer = readTx.execute(match(
+                        or(callerFunctionOrs),
+                        var("f_ref").isa("function")
+                                .has("kythe_uri", var("k_uri"))
+                                .has("qualified_name", var("q_name")),
+                        var().rel("has_reference_call", var("f_ref"))
+                                .rel("is_reference_call", var("f")).isa("reference_call"),
+                        var("fi_ref").isa("file")
+                                .has("file_location", var("f_loc")),
+                        var().rel("has_defines_function", var("fi_ref"))
+                                .rel("is_defines_function", var("f_ref")).isa("defines_function"),
+                        or(callerProjectOrs),
+                        var("p_ref")
+                                .has("project_name", var("p_name")),
+                        var().rel("has_defines_file", var("p_ref"))
+                                .rel("is_defines_file", var("fi_ref")).isa("defines_file")
+                ).get("f", "k_uri", "q_name", "f_loc", "p_name").limit(limit))
+
+                def result = []
+                functionReferencesAnswer.each {
+                    def functionId = it.get("f").asEntity().id().value
+                    def ref = functionMap.get(functionId)
+                    ref.kytheUri = it.get("k_uri").asAttribute().value() as String
+                    ref.qualifiedName = it.get("q_name").asAttribute().value() as String
+                    ref.fileLocation = it.get("f_loc").asAttribute().value() as String
+                    ref.projectName = it.get("p_name").asAttribute().value() as String
+                    result << ref
                 }
                 handler.handle(Future.succeededFuture(result))
             }

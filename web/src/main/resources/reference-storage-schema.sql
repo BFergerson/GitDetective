@@ -14,4 +14,5 @@ CREATE TABLE function_reference
 CREATE INDEX ON function_reference (project_id);
 CREATE INDEX ON function_reference (callee_function_id);
 CREATE INDEX ON function_reference (commit_sha1);
+CREATE INDEX ON function_reference (deletion);
 SELECT create_hypertable('function_reference', 'commit_date');
