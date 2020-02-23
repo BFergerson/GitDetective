@@ -47,6 +47,7 @@ class GitDetectiveService extends AbstractVerticle {
     private final Router router
     private JobsDAO jobs
     private PostgresDAO postgres
+    private GraknClient.Session graknSession
     private ProjectService projectService
     private SystemService systemService
     private UserService userService
@@ -72,7 +73,6 @@ class GitDetectiveService extends AbstractVerticle {
                     int graknPort = config().getInteger("grakn.port")
                     String graknKeyspace = config().getString("grakn.keyspace")
                     def graknClient = new GraknClient("$graknHost:$graknPort")
-                    def graknSession
                     try {
                         graknSession = graknClient.session(graknKeyspace)
                     } catch (all) {
@@ -306,6 +306,10 @@ class GitDetectiveService extends AbstractVerticle {
 
     PostgresDAO getPostgres() {
         return postgres
+    }
+
+    GraknClient.Session getGraknSession() {
+        return graknSession
     }
 
     SystemService getSystemService() {

@@ -323,81 +323,80 @@ class ProjectService extends AbstractVerticle {
         log.info("getOrCreateFunction - File id: $fileId - Function: $function - Reference count: $referenceCount")
         vertx.executeBlocking({
             try (def writeTx = session.transaction().write()) {
-                def getFunctionAnswer = writeTx.execute(match(
-                        var("f").isa("function")
-                                .has("kythe_uri", function.kytheUri)
-                                .has("qualified_name", var("q_name"), var("q_name_rel"))
-                ).get("f", "q_name", "q_name_rel"))
-
-                if (getFunctionAnswer.isEmpty()) {
-                    log.info("createFunction - File id: $fileId - Function: $function - Reference count: $referenceCount")
-                    def createFunctionAnswer
-                    if (fileId != null) {
-                        createFunctionAnswer = writeTx.execute(insert(
-                                var("fi").id(fileId),
-                                var("f").isa("function")
-                                        .has("kythe_uri", function.kytheUri)
-                                        .has("qualified_name", function.qualifiedName)
-                                        .has("reference_count", referenceCount),
-                                var().rel("has_defines_function", var("fi"))
-                                        .rel("is_defines_function", var("f")).isa("defines_function")
-                        ))
-                    } else {
-                        createFunctionAnswer = writeTx.execute(insert(
-                                var("f").isa("function")
-                                        .has("kythe_uri", function.kytheUri)
-                                        .has("qualified_name", function.qualifiedName)
-                                        .has("reference_count", referenceCount)
-                        ))
-                    }
-                    writeTx.commit()
-                    handler.handle(Future.succeededFuture(createFunctionAnswer.get(0).get("f").asEntity().id().value))
-                } else {
-                    log.info("getFunction - File id: $fileId - Function: $function - Reference count: $referenceCount")
-                    if (fileId != null) {
-                        //function definer; ensure qualified name is correct
-                        def wroteData = false
-                        def currentQualifiedName = getFunctionAnswer.get(0).get("q_name").asAttribute().value() as String
-                        def qualifiedNameRelId = getFunctionAnswer.get(0).get("q_name_rel").asRelation().id().value
-                        def functionId = getFunctionAnswer.get(0).get("f").asEntity().id().value
-                        if (currentQualifiedName != function.qualifiedName) {
-                            writeTx.execute(parse(
-                                    'match $r id ' + qualifiedNameRelId + '; delete $r;'
-                            ))
-                            writeTx.execute(match(
-                                    var("f").id(functionId)).insert(
-                                    var("f").has("qualified_name", function.qualifiedName)
-                            ))
-                            wroteData = true
-                        }
-
-                        //function definer; ensure function is associated to file
-                        def getFunctionFileRelationAnswer = writeTx.execute(match(
-                                var("f").id(functionId),
-                                var("fi").id(fileId),
-                                var().rel("has_defines_function", var("fi"))
-                                        .rel("is_defines_function", var("f")).isa("defines_function")
-                        ).get())
-                        if (getFunctionFileRelationAnswer.isEmpty()) {
-                            writeTx.execute(insert(
-                                    var("f").id(functionId),
-                                    var("fi").id(fileId),
-                                    var().rel("has_defines_function", var("fi"))
-                                            .rel("is_defines_function", var("f")).isa("defines_function")
-                            ))
-                            wroteData = true
-                        }
-
-                        if (wroteData) {
-                            writeTx.commit()
-                        }
-                    }
-                    handler.handle(Future.succeededFuture(getFunctionAnswer.get(0).get("f").asEntity().id().value))
-                }
+                def functionId = getOrCreateFunction(writeTx, fileId, function, referenceCount)
+                writeTx.commit()
+                handler.handle(Future.succeededFuture(functionId))
             } catch (all) {
                 handler.handle(Future.failedFuture(all))
             }
         }, false, handler)
+    }
+
+    static String getOrCreateFunction(GraknClient.Transaction writeTx, String fileId,
+                                      FunctionInformation function, int referenceCount) {
+        def getFunctionAnswer = writeTx.execute(match(
+                var("f").isa("function")
+                        .has("kythe_uri", function.kytheUri)
+                        .has("qualified_name", var("q_name"), var("q_name_rel"))
+        ).get("f", "q_name", "q_name_rel"))
+
+        if (getFunctionAnswer.isEmpty()) {
+            log.info("createFunction - File id: $fileId - Function: $function - Reference count: $referenceCount")
+            def createFunctionAnswer
+            if (fileId != null) {
+                createFunctionAnswer = writeTx.execute(insert(
+                        var("fi").id(fileId),
+                        var("f").isa("function")
+                                .has("kythe_uri", function.kytheUri)
+                                .has("qualified_name", function.qualifiedName)
+                                .has("reference_count", referenceCount),
+                        var().rel("has_defines_function", var("fi"))
+                                .rel("is_defines_function", var("f")).isa("defines_function")
+                ))
+            } else {
+                createFunctionAnswer = writeTx.execute(insert(
+                        var("f").isa("function")
+                                .has("kythe_uri", function.kytheUri)
+                                .has("qualified_name", function.qualifiedName)
+                                .has("reference_count", referenceCount)
+                ))
+            }
+            return createFunctionAnswer.get(0).get("f").asEntity().id().value
+        } else {
+            log.info("getFunction - File id: $fileId - Function: $function - Reference count: $referenceCount")
+            if (fileId != null) {
+                //function definer; ensure qualified name is correct
+                def currentQualifiedName = getFunctionAnswer.get(0).get("q_name").asAttribute().value() as String
+                def qualifiedNameRelId = getFunctionAnswer.get(0).get("q_name_rel").asRelation().id().value
+                def functionId = getFunctionAnswer.get(0).get("f").asEntity().id().value
+                if (currentQualifiedName != function.qualifiedName) {
+                    writeTx.execute(parse(
+                            'match $r id ' + qualifiedNameRelId + '; delete $r;'
+                    ))
+                    writeTx.execute(match(
+                            var("f").id(functionId)).insert(
+                            var("f").has("qualified_name", function.qualifiedName)
+                    ))
+                }
+
+                //function definer; ensure function is associated to file
+                def getFunctionFileRelationAnswer = writeTx.execute(match(
+                        var("f").id(functionId),
+                        var("fi").id(fileId),
+                        var().rel("has_defines_function", var("fi"))
+                                .rel("is_defines_function", var("f")).isa("defines_function")
+                ).get())
+                if (getFunctionFileRelationAnswer.isEmpty()) {
+                    writeTx.execute(insert(
+                            var("f").id(functionId),
+                            var("fi").id(fileId),
+                            var().rel("has_defines_function", var("fi"))
+                                    .rel("is_defines_function", var("f")).isa("defines_function")
+                    ))
+                }
+            }
+            return getFunctionAnswer.get(0).get("f").asEntity().id().value
+        }
     }
 
     void insertFunctionReference(String projectId, String callerFileId,
@@ -432,72 +431,38 @@ class ProjectService extends AbstractVerticle {
         })
     }
 
-    void insertFunctionReferences(List<Tuple7<String, String, Instant, String, Integer, FunctionInformation, FunctionInformation>> referenceData,
-                                  Handler<AsyncResult<Void>> handler) {
-        def futures = new ArrayList<Future>()
-        referenceData.each {
-            def projectId = it.v1
-            def callerCommitDate = it.v3
-            def callerCommitSha1 = it.v4
-            def callerLineNumber = it.v5
-            def callerFunctionFut = Future.future()
-            getOrCreateFunction(it.v2, it.v6, 0, callerFunctionFut)
-            def calleeFunctionFut = Future.future()
-            getOrCreateFunction(it.v7, 1, calleeFunctionFut)
-
-            def future = Future.future()
-            futures << future
-            CompositeFuture.all(callerFunctionFut, calleeFunctionFut).setHandler({
-                if (it.succeeded()) {
-                    def callerFunctionId = it.result().list().get(0) as String
-                    def calleeFunctionId = it.result().list().get(1) as String
-                    getOrCreateFunctionReference(callerFunctionId, calleeFunctionId, {
-                        if (it.succeeded()) {
-                            postgres.insertFunctionReference(projectId, calleeFunctionId, calleeFunctionId,
-                                    callerCommitSha1, callerCommitDate, callerLineNumber, future)
-                        } else {
-                            future.fail(it.cause())
-                        }
-                    })
-                } else {
-                    future.fail(it.cause())
-                }
-            })
-        }
-
-        CompositeFuture.all(futures).setHandler({
-            if (it.succeeded()) {
-                handler.handle(Future.succeededFuture())
-            } else {
-                handler.handle(Future.failedFuture(it.cause()))
-            }
-        })
-    }
-
-    private void getOrCreateFunctionReference(String callerFunctionId, String calleeFunctionId,
-                                              Handler<AsyncResult<String>> handler) {
+    void getOrCreateFunctionReference(String callerFunctionId, String calleeFunctionId,
+                                      Handler<AsyncResult<String>> handler) {
         vertx.executeBlocking({
             try (def writeTx = session.transaction().write()) {
-                def getReferenceAnswer = writeTx.execute(match(
-                        var("f1").id(callerFunctionId),
-                        var("f2").id(calleeFunctionId),
-                        var("ref").rel("has_reference_call", var("f1"))
-                                .rel("is_reference_call", var("f2")).isa("reference_call")
-                ).get("ref"))
-
-                if (getReferenceAnswer.isEmpty()) {
-                    def createReferenceAnswer = writeTx.execute(insert(
-                            var("f1").id(callerFunctionId),
-                            var("f2").id(calleeFunctionId),
-                            var("ref").rel("has_reference_call", var("f1"))
-                                    .rel("is_reference_call", var("f2")).isa("reference_call")
-                    ))
-                    writeTx.commit()
-                    handler.handle(Future.succeededFuture(createReferenceAnswer.get(0).get("ref").asRelation().id().value))
-                } else {
-                    handler.handle(Future.succeededFuture(getReferenceAnswer.get(0).get("ref").asRelation().id().value))
-                }
+                def functionReferenceId = getOrCreateFunctionReference(writeTx, callerFunctionId, calleeFunctionId)
+                writeTx.commit()
+                handler.handle(Future.succeededFuture(functionReferenceId))
+            } catch (all) {
+                handler.handle(Future.failedFuture(all))
             }
         }, false, handler)
+    }
+
+    static String getOrCreateFunctionReference(GraknClient.Transaction writeTx,
+                                               String callerFunctionId, String calleeFunctionId) {
+        def getReferenceAnswer = writeTx.execute(match(
+                var("f1").id(callerFunctionId),
+                var("f2").id(calleeFunctionId),
+                var("ref").rel("has_reference_call", var("f1"))
+                        .rel("is_reference_call", var("f2")).isa("reference_call")
+        ).get("ref"))
+
+        if (getReferenceAnswer.isEmpty()) {
+            def createReferenceAnswer = writeTx.execute(insert(
+                    var("f1").id(callerFunctionId),
+                    var("f2").id(calleeFunctionId),
+                    var("ref").rel("has_reference_call", var("f1"))
+                            .rel("is_reference_call", var("f2")).isa("reference_call")
+            ))
+            return createReferenceAnswer.get(0).get("ref").asRelation().id().value
+        } else {
+            return getReferenceAnswer.get(0).get("ref").asRelation().id().value
+        }
     }
 }

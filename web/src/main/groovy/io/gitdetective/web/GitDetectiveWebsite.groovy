@@ -2,6 +2,7 @@ package io.gitdetective.web
 
 import com.google.common.collect.Lists
 import io.gitdetective.web.model.FunctionInformation
+import io.gitdetective.web.service.ProjectService
 import io.vertx.core.AbstractVerticle
 import io.vertx.core.CompositeFuture
 import io.vertx.core.Future
@@ -173,28 +174,46 @@ class GitDetectiveWebsite extends AbstractVerticle {
                 request.add(new JsonObject(requestStr))
             }
 
-            def references = new ArrayList<Tuple7<String, String, Instant, String, Integer, FunctionInformation, FunctionInformation>>()
-            for (int i = 0; i < request.size(); i++) {
-                def req = request.getJsonObject(i)
-                def projectId = Objects.requireNonNull(req.getString("project_id"))
-                def callerFileId = Objects.requireNonNull(req.getString("caller_file_id"))
-                def callerCommitDate = Objects.requireNonNull(req.getInstant("caller_commit_date"))
-                def callerCommitSha1 = Objects.requireNonNull(req.getString("caller_commit_sha1"))
-                def callerLineNumber = req.getInteger("caller_line_number")
-                def callerFunctionJsonObj = req.getJsonObject("caller_function")
-                def callerFunction = new FunctionInformation(
-                        callerFunctionJsonObj.getString("kythe_uri"),
-                        callerFunctionJsonObj.getString("qualified_name")
-                )
-                def calleeFunctionJsonObj = req.getJsonObject("callee_function")
-                def calleeFunction = new FunctionInformation(
-                        calleeFunctionJsonObj.getString("kythe_uri"),
-                        calleeFunctionJsonObj.getString("qualified_name")
-                )
-                references << Tuple.tuple(projectId, callerFileId, callerCommitDate, callerCommitSha1,
-                        callerLineNumber, callerFunction, calleeFunction)
-            }
-            service.projectService.insertFunctionReferences(references, {
+            vertx.executeBlocking({ blocking ->
+                def futures = new ArrayList<Future>()
+                def writeTx = service.graknSession.transaction().write()
+                for (int i = 0; i < request.size(); i++) {
+                    def req = request.getJsonObject(i)
+                    def projectId = Objects.requireNonNull(req.getString("project_id"))
+                    def callerFileId = Objects.requireNonNull(req.getString("caller_file_id"))
+                    def callerCommitDate = Objects.requireNonNull(req.getInstant("caller_commit_date"))
+                    def callerCommitSha1 = Objects.requireNonNull(req.getString("caller_commit_sha1"))
+                    def callerLineNumber = req.getInteger("caller_line_number")
+                    def callerFunctionJsonObj = req.getJsonObject("caller_function")
+                    def callerFunction = new FunctionInformation(
+                            callerFunctionJsonObj.getString("kythe_uri"),
+                            callerFunctionJsonObj.getString("qualified_name")
+                    )
+                    def calleeFunctionJsonObj = req.getJsonObject("callee_function")
+                    def calleeFunction = new FunctionInformation(
+                            calleeFunctionJsonObj.getString("kythe_uri"),
+                            calleeFunctionJsonObj.getString("qualified_name")
+                    )
+
+                    def callerFunctionId = ProjectService.getOrCreateFunction(writeTx, callerFileId, callerFunction, 0)
+                    def calleeFunctionId = ProjectService.getOrCreateFunction(writeTx, null, calleeFunction, 1)
+                    ProjectService.getOrCreateFunctionReference(writeTx, callerFunctionId, calleeFunctionId)
+
+                    def future = Future.future()
+                    futures << future
+                    service.postgres.insertFunctionReference(projectId, calleeFunctionId, calleeFunctionId,
+                            callerCommitSha1, callerCommitDate, callerLineNumber, future)
+                }
+                writeTx.commit()
+
+                CompositeFuture.all(futures).setHandler({
+                    if (it.succeeded()) {
+                        blocking.complete()
+                    } else {
+                        blocking.fail(it.cause())
+                    }
+                })
+            }, false, {
                 if (it.succeeded()) {
                     log.info("Insert references request succeeded")
                     ctx.response().setStatusCode(200).end()
