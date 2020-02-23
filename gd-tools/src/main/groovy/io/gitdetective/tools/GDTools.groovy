@@ -23,14 +23,15 @@ class GDTools {
             RemoveJobs.main(args.drop(1))
         } else if (args[0].toLowerCase() == "movejobs") {
             MoveJobs.main(args.drop(1))
-        } else if (args[0].toLowerCase() == "getprojectdefinedfunctions") {
-            GetProjectDefinedFunctions.main(args.drop(1))
-        } else if (args[0].toLowerCase() == "undefineprojectfunctions") {
-            UndefineProjectFunctions.main(args.drop(1))
-        } else {
+        }
+//        else if (args[0].toLowerCase() == "getprojectdefinedfunctions") {
+//            GetProjectDefinedFunctions.main(args.drop(1))
+//        } else if (args[0].toLowerCase() == "undefineprojectfunctions") {
+//            UndefineProjectFunctions.main(args.drop(1))
+//        }
+        else {
             System.err.println("Unknown command: " + args.toArrayString())
             System.exit(-1)
         }
     }
-
 }

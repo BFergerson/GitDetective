@@ -38,5 +38,4 @@ class GetProjects {
 //        tx.close()
 //        session.close()
     }
-
 }

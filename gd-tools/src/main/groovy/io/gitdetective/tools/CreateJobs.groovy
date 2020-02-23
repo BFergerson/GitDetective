@@ -79,5 +79,4 @@ class CreateJobs extends AbstractVerticle {
             })
         })
     }
-
 }

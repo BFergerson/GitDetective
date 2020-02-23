@@ -75,5 +75,4 @@ class RemoveJobs extends AbstractVerticle {
             }
         })
     }
-
 }
