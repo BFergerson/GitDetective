@@ -1,5 +1,6 @@
 package io.gitdetective.web.service
 
+import com.codebrig.arthur.SourceLanguage
 import grakn.client.GraknClient
 import graql.lang.statement.Statement
 import groovy.util.logging.Slf4j
@@ -252,6 +253,7 @@ class ProjectService extends AbstractVerticle {
                             var("p").id(projectId),
                             var("fi").isa("file")
                                     .has("qualified_name", qualifiedName)
+                                    .has("language", SourceLanguage.getSourceLanguage(fileLocation).key)
                                     .has("file_location", fileLocation)
                                     .has("reference_count", 0),
                             var().rel("has_defines_file", var("p"))

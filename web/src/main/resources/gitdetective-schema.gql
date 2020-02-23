@@ -12,6 +12,7 @@ project sub entity,
     plays is_project,
     plays has_defines_file;
 file sub entity,
+    has language,
     has subkind,
     has file_location,
     has qualified_name,
@@ -29,6 +30,7 @@ function sub entity,
     plays has_reference_call;
 
 ##########---------- Attributes ----------##########
+language sub attribute, datatype string;
 name sub attribute, abstract, datatype string;
 create_date sub attribute, datatype date;
 subkind sub attribute, datatype string;
