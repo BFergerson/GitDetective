@@ -56,27 +56,31 @@ dockerCompose {
 task buildAndMove {
     dependsOn ":web:distZip"
     doLast {
-        java.nio.file.Files.copy(
-                file("../web/build/distributions/web-" + version + ".zip").toPath(),
-                file("../docker/web-" + version + ".zip").toPath(),
-                java.nio.file.StandardCopyOption.REPLACE_EXISTING,
-                java.nio.file.StandardCopyOption.COPY_ATTRIBUTES)
+        copy {
+            from "../web/build/distributions/web-" + version + ".zip"
+            into "../docker"
+        }
+        copy {
+            from "../web/src/main/resources/webroot/helper"
+            into "../docker/helper"
+        }
+        copy {
+            from "../web/src/main/resources/webroot/static.zip"
+            into "../docker"
+        }
     }
 }
 
 task startDocker {
     dependsOn "buildAndMove", "composeUp"
-    doFirst {
-        file("docker/web-" + version + ".zip").delete()
-        file("../docker/web-" + version + ".zip").delete()
-    }
 }
 startDocker.mustRunAfter buildAndMove
 
 task stopDocker {
     dependsOn "composeDown"
     doLast {
-        file("docker/web-" + version + ".zip").delete()
         file("../docker/web-" + version + ".zip").delete()
+        file("../docker/static.zip").delete()
+        file("../docker/helper").deleteDir()
     }
 }
