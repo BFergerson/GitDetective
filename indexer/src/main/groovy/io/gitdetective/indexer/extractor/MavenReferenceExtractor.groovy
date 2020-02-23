@@ -179,7 +179,7 @@ class MavenReferenceExtractor extends AbstractVerticle {
             def future = Future.future()
             futures << future
             client.post(port, host, "/api/references")
-                    .expect(ResponsePredicate.SC_OK)
+                    //.expect(ResponsePredicate.SC_OK)
                     .bearerTokenAuthentication(apiKey).sendJson(request, {
                 if (it.succeeded()) {
                     future.complete()

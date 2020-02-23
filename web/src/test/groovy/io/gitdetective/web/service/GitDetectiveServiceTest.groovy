@@ -50,6 +50,7 @@ abstract class GitDetectiveServiceTest {
         log.info("Loading test data")
         try {
             def tx = graknSession.transaction().write()
+            tx.execute(Graql.match(Graql.var("x").isa("thing")).delete("x"))
             tx.execute(Graql.parse(Resources.toString(Resources.getResource(
                     "test-data.gql"), Charsets.UTF_8)))
             tx.commit()
@@ -69,8 +70,7 @@ abstract class GitDetectiveServiceTest {
                 .setPassword("postgres")
         PoolOptions poolOptions = new PoolOptions().setMaxSize(5)
         postgresClient = PgPool.pool(vertx, connectOptions, poolOptions)
-        postgres = new PostgresDAO(postgresClient)
-        handler.handle(Future.succeededFuture())
+        postgres = new PostgresDAO(postgresClient, handler)
     }
 
     static void tearDown(TestContext test) {

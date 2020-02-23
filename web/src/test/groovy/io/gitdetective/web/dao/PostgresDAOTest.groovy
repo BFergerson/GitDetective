@@ -24,7 +24,6 @@ class PostgresDAOTest {
 
     @BeforeClass
     static void setUp(TestContext test) {
-        def async = test.async()
         PgConnectOptions connectOptions = new PgConnectOptions()
                 .setPort(5432)
                 .setHost("localhost")
@@ -33,8 +32,7 @@ class PostgresDAOTest {
                 .setPassword("postgres")
         PoolOptions poolOptions = new PoolOptions().setMaxSize(5)
         client = PgPool.pool(connectOptions, poolOptions)
-        postgres = new PostgresDAO(client)
-        async.complete()
+        postgres = new PostgresDAO(client, test.asyncAssertSuccess())
     }
 
     @AfterClass
