@@ -13,9 +13,10 @@
   "vertx_metrics_enabled": false,
   "github_archive_sync_enabled": false,
   "auto_build_enabled": true,
+  "webroot_location": "webroot",
   "temp_directory": "/opt/gitdetective-web/tmp",
-  "gitdetective_url": "http://localhost/",
-  "gitdetective_static_url": "https://gitdetective.io/static/",
+  "gitdetective_url": "http://localhost:8081/",
+  "gitdetective_static_url": "http://localhost:8081/static/",
   "api_key": "password",
   "service": {
     "worker_pool_size": 75,

@@ -10,10 +10,10 @@ import io.gitdetective.web.dao.RedisDAO
 import io.gitdetective.web.service.ProjectService
 import io.gitdetective.web.service.SystemService
 import io.gitdetective.web.service.UserService
+import io.gitdetective.web.work.GHArchiveSync
 import io.gitdetective.web.work.UpdateFileReferenceCounts
 import io.gitdetective.web.work.UpdateFunctionReferenceCounts
 import io.gitdetective.web.work.UpdateProjectReferenceCounts
-import io.gitdetective.web.work.GHArchiveSync
 import io.vertx.blueprint.kue.queue.Job
 import io.vertx.blueprint.kue.queue.Priority
 import io.vertx.blueprint.kue.util.RedisHelper
@@ -59,46 +59,52 @@ class GitDetectiveService extends AbstractVerticle {
     @Override
     void start(Future<Void> startFuture) throws Exception {
         jobs = new JobsDAO(vertx, config())
-        postgres = new PostgresDAO(vertx, config().getJsonObject("storage"))
         uploadsDirectory = config().getString("uploads.directory")
         def redis = new RedisDAO(RedisHelper.client(vertx, config()))
+        def postgresFuture = Future.future()
+        postgres = new PostgresDAO(vertx, config().getJsonObject("storage"), postgresFuture)
+        postgresFuture.setHandler({
+            if (it.succeeded()) {
+                //boot/setup grakn
+                vertx.executeBlocking({
+                    log.info "Grakn integration enabled"
+                    String graknHost = config().getString("grakn.host")
+                    int graknPort = config().getInteger("grakn.port")
+                    String graknKeyspace = config().getString("grakn.keyspace")
+                    def graknClient = new GraknClient("$graknHost:$graknPort")
+                    def graknSession
+                    try {
+                        graknSession = graknClient.session(graknKeyspace)
+                    } catch (all) {
+                        all.printStackTrace()
+                        throw new ConnectException("Connection refused: $graknHost:$graknPort")
+                    }
+                    setupOntology(graknSession)
 
-        //boot/setup grakn
-        vertx.executeBlocking({
-            log.info "Grakn integration enabled"
-            String graknHost = config().getString("grakn.host")
-            int graknPort = config().getInteger("grakn.port")
-            String graknKeyspace = config().getString("grakn.keyspace")
-            def graknClient = new GraknClient("$graknHost:$graknPort")
-            def graknSession
-            try {
-                graknSession = graknClient.session(graknKeyspace)
-            } catch (all) {
-                all.printStackTrace()
-                throw new ConnectException("Connection refused: $graknHost:$graknPort")
+                    //setup services
+                    systemService = new SystemService(graknSession, postgres)
+                    projectService = new ProjectService(graknSession, postgres)
+                    userService = new UserService(graknSession)
+                    //todo: async/handler stuff
+                    vertx.deployVerticle(systemService)
+                    vertx.deployVerticle(projectService)
+                    vertx.deployVerticle(userService)
+                    vertx.deployVerticle(new UpdateFunctionReferenceCounts(postgres, graknSession), new DeploymentOptions().setWorker(true))
+                    vertx.deployVerticle(new UpdateFileReferenceCounts(graknSession), new DeploymentOptions().setWorker(true))
+                    vertx.deployVerticle(new UpdateProjectReferenceCounts(graknSession), new DeploymentOptions().setWorker(true))
+
+                    if (config().getBoolean("launch_website")) {
+                        log.info "Launching GitDetective website"
+                        def options = new DeploymentOptions().setConfig(config())
+                        vertx.deployVerticle(new GitDetectiveWebsite(this, router), options)
+                        vertx.deployVerticle(new GHArchiveSync(jobs), options)
+                    }
+                    it.complete()
+                }, false, startFuture)
+            } else {
+                startFuture.fail(it.cause())
             }
-            setupOntology(graknSession)
-
-            //setup services
-            systemService = new SystemService(graknSession, postgres)
-            projectService = new ProjectService(graknSession, postgres)
-            userService = new UserService(graknSession)
-            //todo: async/handler stuff
-            vertx.deployVerticle(systemService)
-            vertx.deployVerticle(projectService)
-            vertx.deployVerticle(userService)
-            vertx.deployVerticle(new UpdateFunctionReferenceCounts(postgres, graknSession), new DeploymentOptions().setWorker(true))
-            vertx.deployVerticle(new UpdateFileReferenceCounts(graknSession), new DeploymentOptions().setWorker(true))
-            vertx.deployVerticle(new UpdateProjectReferenceCounts(graknSession), new DeploymentOptions().setWorker(true))
-
-            if (config().getBoolean("launch_website")) {
-                log.info "Launching GitDetective website"
-                def options = new DeploymentOptions().setConfig(config())
-                vertx.deployVerticle(new GitDetectiveWebsite(this, router), options)
-                vertx.deployVerticle(new GHArchiveSync(jobs), options)
-            }
-            it.complete()
-        }, false, startFuture)
+        })
 
         //event bus bridge
         SockJSHandler sockJSHandler = SockJSHandler.create(vertx)

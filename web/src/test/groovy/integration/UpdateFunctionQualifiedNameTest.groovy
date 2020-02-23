@@ -45,25 +45,11 @@ class UpdateFunctionQualifiedNameTest {
         def async = test.async()
         vertx.deployVerticle(detectiveService, deployOptions, {
             if (it.succeeded()) {
-                detectiveService.postgres.client.query(
-                        "SELECT 1 FROM information_schema.tables WHERE table_name = 'function_reference'", {
-                    if (it.succeeded()) {
-                        if (it.result().isEmpty()) {
-                            detectiveService.postgres.client.query(Resources.toString(Resources.getResource(
-                                    "reference-storage-schema.sql"), Charsets.UTF_8), {
-                                if (it.succeeded()) {
-                                    async.complete()
-                                } else {
-                                    test.fail(it.cause())
-                                }
-                            })
-                        } else {
-                            async.complete()
-                        }
-                    } else {
-                        test.fail(it.cause())
-                    }
-                })
+                if (it.succeeded()) {
+                    async.complete()
+                } else {
+                    test.fail(it.cause())
+                }
             } else {
                 test.fail(it.cause())
             }

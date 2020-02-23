@@ -1,5 +1,7 @@
 package io.gitdetective.web.dao
 
+import com.google.common.base.Charsets
+import com.google.common.io.Resources
 import groovy.util.logging.Slf4j
 import io.gitdetective.web.model.FunctionReference
 import io.gitdetective.web.model.ProjectLiveReferenceTrend
@@ -55,7 +57,7 @@ class PostgresDAO {
 
     private final PgPool client
 
-    PostgresDAO(Vertx vertx, JsonObject config) {
+    PostgresDAO(Vertx vertx, JsonObject config, Handler<AsyncResult<Void>> handler) {
         PgConnectOptions connectOptions = new PgConnectOptions()
                 .setPort(config.getInteger("port"))
                 .setHost(config.getString("host"))
@@ -65,20 +67,37 @@ class PostgresDAO {
 
         PoolOptions poolOptions = new PoolOptions().setMaxSize(5)
         client = PgPool.pool(vertx, connectOptions, poolOptions)
-        client.query("SELECT 1", ar -> {
-            if (ar.failed()) {
-                ar.cause().printStackTrace()
-                System.exit(-1)
-            }
-        })
+        installTablesIfNecessary(handler)
     }
 
-    PostgresDAO(PgPool client) {
+    PostgresDAO(PgPool client, Handler<AsyncResult<Void>> handler) {
         this.client = client
+        installTablesIfNecessary(handler)
+    }
+
+    private void installTablesIfNecessary(Handler<AsyncResult<Void>> handler) {
         client.query("SELECT 1", {
-            if (it.failed()) {
-                it.cause().printStackTrace()
-                System.exit(-1)
+            if (it.succeeded()) {
+                client.query("SELECT 1 FROM information_schema.tables WHERE table_name = 'function_reference'", {
+                    if (it.succeeded()) {
+                        if (it.result().isEmpty()) {
+                            client.query(Resources.toString(Resources.getResource(
+                                    "reference-storage-schema.sql"), Charsets.UTF_8), {
+                                if (it.succeeded()) {
+                                    handler.handle(Future.succeededFuture())
+                                } else {
+                                    handler.handle(Future.failedFuture(it.cause()))
+                                }
+                            })
+                        } else {
+                            handler.handle(Future.succeededFuture())
+                        }
+                    } else {
+                        handler.handle(Future.failedFuture(it.cause()))
+                    }
+                })
+            } else {
+                handler.handle(Future.failedFuture(it.cause()))
             }
         })
     }

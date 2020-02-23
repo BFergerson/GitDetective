@@ -1,6 +1,7 @@
 package io.gitdetective.web
 
 import com.google.common.collect.Lists
+import io.gitdetective.web.model.FunctionInformation
 import io.vertx.core.AbstractVerticle
 import io.vertx.core.CompositeFuture
 import io.vertx.core.Future
@@ -20,9 +21,11 @@ import io.vertx.ext.web.templ.handlebars.HandlebarsTemplateEngine
 
 import javax.net.ssl.SSLException
 import java.nio.channels.ClosedChannelException
+import java.time.Instant
 import java.util.concurrent.TimeUnit
 
 import static io.gitdetective.web.WebServices.*
+import static io.vertx.core.http.HttpHeaders.CONTENT_TYPE
 
 /**
  * Serves GitDetective website
@@ -54,10 +57,10 @@ class GitDetectiveWebsite extends AbstractVerticle {
         //website
         engine = HandlebarsTemplateEngine.create(vertx)
         router.route("/static/*").handler(StaticHandler.create()
-                .setWebRoot("webroot/static")
+                .setWebRoot(config().getString("webroot_location") + "/static")
                 .setCachingEnabled(true))
         router.get("/helper/*").handler(StaticHandler.create()
-                .setWebRoot("webroot/helper")
+                .setWebRoot(config().getString("webroot_location") + "/helper")
                 .setCachingEnabled(true))
         router.getWithRegex(".*js.map").handler({ ctx ->
             ctx.response().setStatusCode(404).end()
@@ -131,9 +134,75 @@ class GitDetectiveWebsite extends AbstractVerticle {
                 }
             })
         })
+        v1ApiRouter.post("/files").handler({ ctx ->
+            log.info("Insert files request")
+            def request = new JsonArray()
+            def requestStr = ctx.getBodyAsString()
+            if (requestStr.startsWith("[")) {
+                request = new JsonArray(requestStr)
+            } else {
+                request.add(new JsonObject(requestStr))
+            }
+
+            def files = new ArrayList<Tuple3<String, String, String>>()
+            for (int i = 0; i < request.size(); i++) {
+                def req = request.getJsonObject(i)
+                def projectId = Objects.requireNonNull(req.getString("project_id"))
+                def qualifiedName = Objects.requireNonNull(req.getString("qualified_name"))
+                def fileLocation = Objects.requireNonNull(req.getString("file_location"))
+                files << Tuple.tuple(projectId, qualifiedName, fileLocation)
+            }
+            service.projectService.getOrCreateFiles(files, {
+                if (it.succeeded()) {
+                    log.info("Insert files request succeeded")
+                    ctx.response().headers().add(CONTENT_TYPE, "application/json")
+                    ctx.response().setStatusCode(200).end(Json.encode(it.result()))
+                } else {
+                    log.error("Insert files request failed", it.cause())
+                    ctx.response().setStatusCode(500).end(it.cause().message)
+                }
+            })
+        })
         v1ApiRouter.post("/references").handler({ ctx ->
-            service.projectService.insertFunctionReference()
-            ctx.response().setStatusCode(200).end("hello")
+            log.info("Insert references request")
+            def request = new JsonArray()
+            def requestStr = ctx.getBodyAsString()
+            if (requestStr.startsWith("[")) {
+                request = new JsonArray(requestStr)
+            } else {
+                request.add(new JsonObject(requestStr))
+            }
+
+            def references = new ArrayList<Tuple7<String, String, Instant, String, Integer, FunctionInformation, FunctionInformation>>()
+            for (int i = 0; i < request.size(); i++) {
+                def req = request.getJsonObject(i)
+                def projectId = Objects.requireNonNull(req.getString("project_id"))
+                def callerFileId = Objects.requireNonNull(req.getString("caller_file_id"))
+                def callerCommitDate = Objects.requireNonNull(req.getInstant("caller_commit_date"))
+                def callerCommitSha1 = Objects.requireNonNull(req.getString("caller_commit_sha1"))
+                def callerLineNumber = req.getInteger("caller_line_number")
+                def callerFunctionJsonObj = req.getJsonObject("caller_function")
+                def callerFunction = new FunctionInformation(
+                        callerFunctionJsonObj.getString("kythe_uri"),
+                        callerFunctionJsonObj.getString("qualified_name")
+                )
+                def calleeFunctionJsonObj = req.getJsonObject("callee_function")
+                def calleeFunction = new FunctionInformation(
+                        calleeFunctionJsonObj.getString("kythe_uri"),
+                        calleeFunctionJsonObj.getString("qualified_name")
+                )
+                references << Tuple.tuple(projectId, callerFileId, callerCommitDate, callerCommitSha1,
+                        callerLineNumber, callerFunction, calleeFunction)
+            }
+            service.projectService.insertFunctionReferences(references, {
+                if (it.succeeded()) {
+                    log.info("Insert references request succeeded")
+                    ctx.response().setStatusCode(200).end()
+                } else {
+                    log.error("Insert references request failed", it.cause())
+                    ctx.response().setStatusCode(500).end(it.cause().message)
+                }
+            })
         })
 
         //general

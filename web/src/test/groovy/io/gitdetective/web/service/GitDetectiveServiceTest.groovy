@@ -69,26 +69,8 @@ abstract class GitDetectiveServiceTest {
                 .setPassword("postgres")
         PoolOptions poolOptions = new PoolOptions().setMaxSize(5)
         postgresClient = PgPool.pool(vertx, connectOptions, poolOptions)
-        postgresClient.query("SELECT 1 FROM information_schema.tables WHERE table_name = 'function_reference'", {
-            if (it.succeeded()) {
-                if (it.result().isEmpty()) {
-                    postgresClient.query(Resources.toString(Resources.getResource(
-                            "reference-storage-schema.sql"), Charsets.UTF_8), {
-                        if (it.succeeded()) {
-                            postgres = new PostgresDAO(postgresClient)
-                            handler.handle(Future.succeededFuture())
-                        } else {
-                            handler.handle(Future.failedFuture(it.cause()))
-                        }
-                    })
-                } else {
-                    postgres = new PostgresDAO(postgresClient)
-                    handler.handle(Future.succeededFuture())
-                }
-            } else {
-                handler.handle(Future.failedFuture(it.cause()))
-            }
-        })
+        postgres = new PostgresDAO(postgresClient)
+        handler.handle(Future.succeededFuture())
     }
 
     static void tearDown(TestContext test) {

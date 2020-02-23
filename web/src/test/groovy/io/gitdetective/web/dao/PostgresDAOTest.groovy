@@ -1,7 +1,5 @@
 package io.gitdetective.web.dao
 
-import com.google.common.base.Charsets
-import com.google.common.io.Resources
 import groovy.util.logging.Slf4j
 import io.vertx.ext.unit.TestContext
 import io.vertx.ext.unit.junit.VertxUnitRunner
@@ -35,26 +33,8 @@ class PostgresDAOTest {
                 .setPassword("postgres")
         PoolOptions poolOptions = new PoolOptions().setMaxSize(5)
         client = PgPool.pool(connectOptions, poolOptions)
-        client.query("SELECT 1 FROM information_schema.tables WHERE table_name = 'function_reference'", {
-            if (it.succeeded()) {
-                if (it.result().isEmpty()) {
-                    client.query(Resources.toString(Resources.getResource(
-                            "reference-storage-schema.sql"), Charsets.UTF_8), {
-                        if (it.succeeded()) {
-                            postgres = new PostgresDAO(client)
-                            async.complete()
-                        } else {
-                            test.fail(it.cause())
-                        }
-                    })
-                } else {
-                    postgres = new PostgresDAO(client)
-                    async.complete()
-                }
-            } else {
-                test.fail(it.cause())
-            }
-        })
+        postgres = new PostgresDAO(client)
+        async.complete()
     }
 
     @AfterClass

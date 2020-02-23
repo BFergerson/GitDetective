@@ -30,6 +30,6 @@ class FunctionInformation {
 
     @Override
     String toString() {
-        return qualifiedName
+        return qualifiedName + " (Uri: " + kytheUri + ")"
     }
 }

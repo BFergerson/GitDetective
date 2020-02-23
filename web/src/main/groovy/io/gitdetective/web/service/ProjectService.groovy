@@ -268,6 +268,46 @@ class ProjectService extends AbstractVerticle {
         }, false, handler)
     }
 
+    void getOrCreateFiles(List<Tuple3<String, String, String>> fileData,
+                          Handler<AsyncResult<List<String>>> handler) {
+        vertx.executeBlocking({
+            try (def writeTx = session.transaction().write()) {
+                def fileIds = new ArrayList<String>()
+                boolean wroteData = false
+                fileData.each {
+                    def getFileAnswer = writeTx.execute(match(
+                            var("p").id(it.v1),
+                            var("fi").isa("file")
+                                    .has("qualified_name", it.v2),
+                            var().rel("has_defines_file", var("p"))
+                                    .rel("is_defines_file", var("fi")).isa("defines_file")
+                    ).get("fi"))
+
+                    if (getFileAnswer.isEmpty()) {
+                        def createFileAnswer = writeTx.execute(insert(
+                                var("p").id(it.v1),
+                                var("fi").isa("file")
+                                        .has("qualified_name", it.v2)
+                                        .has("language", SourceLanguage.getSourceLanguage(it.v3).key)
+                                        .has("file_location", it.v3)
+                                        .has("reference_count", 0),
+                                var().rel("has_defines_file", var("p"))
+                                        .rel("is_defines_file", var("fi")).isa("defines_file")
+                        ))
+                        wroteData = true
+                        fileIds << createFileAnswer.get(0).get("fi").asEntity().id().value
+                    } else {
+                        fileIds << getFileAnswer.get(0).get("fi").asEntity().id().value
+                    }
+                }
+                if (wroteData) {
+                    writeTx.commit()
+                }
+                handler.handle(Future.succeededFuture(fileIds))
+            }
+        }, false, handler)
+    }
+
     void getOrCreateFunction(FunctionInformation function, int referenceCount,
                              Handler<AsyncResult<String>> handler) {
         getOrCreateFunction(null, function, referenceCount, handler)
@@ -290,6 +330,7 @@ class ProjectService extends AbstractVerticle {
                 ).get("f", "q_name", "q_name_rel"))
 
                 if (getFunctionAnswer.isEmpty()) {
+                    log.info("createFunction - File id: $fileId - Function: $function - Reference count: $referenceCount")
                     def createFunctionAnswer
                     if (fileId != null) {
                         createFunctionAnswer = writeTx.execute(insert(
@@ -312,6 +353,7 @@ class ProjectService extends AbstractVerticle {
                     writeTx.commit()
                     handler.handle(Future.succeededFuture(createFunctionAnswer.get(0).get("f").asEntity().id().value))
                 } else {
+                    log.info("getFunction - File id: $fileId - Function: $function - Reference count: $referenceCount")
                     if (fileId != null) {
                         //function definer; ensure qualified name is correct
                         def wroteData = false
@@ -352,6 +394,8 @@ class ProjectService extends AbstractVerticle {
                     }
                     handler.handle(Future.succeededFuture(getFunctionAnswer.get(0).get("f").asEntity().id().value))
                 }
+            } catch (all) {
+                handler.handle(Future.failedFuture(all))
             }
         }, false, handler)
     }
@@ -382,6 +426,48 @@ class ProjectService extends AbstractVerticle {
                         handler.handle(Future.failedFuture(it.cause()))
                     }
                 })
+            } else {
+                handler.handle(Future.failedFuture(it.cause()))
+            }
+        })
+    }
+
+    void insertFunctionReferences(List<Tuple7<String, String, Instant, String, Integer, FunctionInformation, FunctionInformation>> referenceData,
+                                  Handler<AsyncResult<Void>> handler) {
+        def futures = new ArrayList<Future>()
+        referenceData.each {
+            def projectId = it.v1
+            def callerCommitDate = it.v3
+            def callerCommitSha1 = it.v4
+            def callerLineNumber = it.v5
+            def callerFunctionFut = Future.future()
+            getOrCreateFunction(it.v2, it.v6, 0, callerFunctionFut)
+            def calleeFunctionFut = Future.future()
+            getOrCreateFunction(it.v7, 1, calleeFunctionFut)
+
+            def future = Future.future()
+            futures << future
+            CompositeFuture.all(callerFunctionFut, calleeFunctionFut).setHandler({
+                if (it.succeeded()) {
+                    def callerFunctionId = it.result().list().get(0) as String
+                    def calleeFunctionId = it.result().list().get(1) as String
+                    getOrCreateFunctionReference(callerFunctionId, calleeFunctionId, {
+                        if (it.succeeded()) {
+                            postgres.insertFunctionReference(projectId, calleeFunctionId, calleeFunctionId,
+                                    callerCommitSha1, callerCommitDate, callerLineNumber, future)
+                        } else {
+                            future.fail(it.cause())
+                        }
+                    })
+                } else {
+                    future.fail(it.cause())
+                }
+            })
+        }
+
+        CompositeFuture.all(futures).setHandler({
+            if (it.succeeded()) {
+                handler.handle(Future.succeededFuture())
             } else {
                 handler.handle(Future.failedFuture(it.cause()))
             }

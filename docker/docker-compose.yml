@@ -1,5 +1,13 @@
 version: '3.3'
 services:
+  gitdetective:
+    build:
+      context: .
+      dockerfile: Dockerfile-gitdetective
+    container_name: gitdetective
+    ports:
+      - "8080:8080"
+    restart: on-failure
   bblfshd:
     privileged: true
     image: bblfsh/bblfshd:v2.16.1-drivers-2019-10-29

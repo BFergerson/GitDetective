@@ -20,12 +20,12 @@ dependencies {
     compile 'io.vertx:vertx-web-client:3.8.5'
     compile group: 'org.eclipse.jgit', name: 'org.eclipse.jgit', version: '5.6.1.202002131546-r'
     compile files("../indexer/opt/kythe-v0.0.28/indexers/java_indexer.jar")
-    compile(group: 'com.github.codebrig', name: 'phenomena', version: '1f4f1b1d97') {
+    compile(group: 'com.github.codebrig', name: 'phenomena', version: 'aa7b317ccf') {
         exclude group: 'io.grakn.client', module: 'grakn-client'
         exclude group: 'io.grakn.client', module: 'api'
         exclude group: 'io.graql', module: 'graql-lang'
     }
-    compile(group: 'com.github.codebrig', name: 'kythe-phenomenon', version: 'd33b555052') {
+    compile(group: 'com.github.codebrig', name: 'kythe-phenomenon', version: '4ba0c23e8c') {
         exclude group: 'io.grakn.client', module: 'grakn-client'
         exclude group: 'io.grakn.client', module: 'api'
         exclude group: 'io.graql', module: 'graql-lang'
@@ -34,8 +34,8 @@ dependencies {
 }
 
 test {
-    dependsOn "composeUp"
-    finalizedBy "composeDown"
+    dependsOn "startDocker"
+    finalizedBy "stopDocker"
 
     testLogging {
         events "passed", "skipped", "failed"
@@ -50,5 +50,33 @@ dockerCompose {
     useComposeFiles = ['./docker-compose.yml']
     dockerComposeWorkingDirectory = '../docker/'
     captureContainersOutput = true
-    startedServices = ["bblfshd"]
+    startedServices = ["bblfshd", "grakn", "timescaledb", "redis", "gitdetective"]
+}
+
+task buildAndMove {
+    dependsOn ":web:distZip"
+    doLast {
+        java.nio.file.Files.copy(
+                file("../web/build/distributions/web-" + version + ".zip").toPath(),
+                file("../docker/web-" + version + ".zip").toPath(),
+                java.nio.file.StandardCopyOption.REPLACE_EXISTING,
+                java.nio.file.StandardCopyOption.COPY_ATTRIBUTES)
+    }
+}
+
+task startDocker {
+    dependsOn "buildAndMove", "composeUp"
+    doFirst {
+        file("docker/web-" + version + ".zip").delete()
+        file("../docker/web-" + version + ".zip").delete()
+    }
+}
+startDocker.mustRunAfter buildAndMove
+
+task stopDocker {
+    dependsOn "composeDown"
+    doLast {
+        file("docker/web-" + version + ".zip").delete()
+        file("../docker/web-" + version + ".zip").delete()
+    }
 }

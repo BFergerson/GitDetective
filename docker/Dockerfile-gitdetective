@@ -1,0 +1,11 @@
+FROM java:8-jre
+ADD ./web-2.0.0.zip /web-2.0.0.zip
+ADD ./web-config.json /web-config.json
+ADD ./static.zip /static.zip
+ADD ./helper /helper
+
+RUN unzip static.zip
+RUN rm static.zip
+
+RUN unzip *.zip
+CMD ["./web-2.0.0/bin/web"]
