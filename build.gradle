@@ -19,7 +19,7 @@ subprojects {
     dependencies {
         testCompile "io.vertx:vertx-unit:3.8.5"
 
-        compile 'org.codehaus.groovy:groovy-all:3.0.0'
+        compile 'org.codehaus.groovy:groovy-all:3.0.1'
         compile group: 'io.vertx', name: 'vertx-core', version: '3.8.5'
         compile group: 'com.google.guava', name: 'guava', version: '28.2-jre'
         compile 'com.github.bfergerson:highkue:e7504d1f88'

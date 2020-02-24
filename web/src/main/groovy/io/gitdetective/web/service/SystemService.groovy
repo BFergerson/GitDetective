@@ -71,6 +71,7 @@ class SystemService extends AbstractVerticle {
 
     void getTotalMostReferencedProjectsInformation(int limit,
                                                    Handler<AsyncResult<List<ProjectReferenceInformation>>> handler) {
+        log.info("getTotalMostReferencedProjectsInformation - Limit: " + limit)
         vertx.executeBlocking({
             try (def readTx = session.transaction().read()) {
                 def totalMostReferencedProjectsAnswer = readTx.execute(match(
@@ -78,6 +79,12 @@ class SystemService extends AbstractVerticle {
                                 .has("project_name", var("p_name"))
                                 .has("reference_count", var("ref_count"))
                 ).get("p_name", "ref_count").sort("ref_count", "desc").limit(limit))
+
+                log.info("getTotalMostReferencedProjectsInformation - Found: " + totalMostReferencedProjectsAnswer.size())
+                if (totalMostReferencedProjectsAnswer.isEmpty()) {
+                    handler.handle(Future.succeededFuture(Collections.emptyList()))
+                    return
+                }
 
                 def result = []
                 totalMostReferencedProjectsAnswer.each {
@@ -92,6 +99,7 @@ class SystemService extends AbstractVerticle {
 
     void getTotalMostReferencedFunctionsInformation(int limit,
                                                     Handler<AsyncResult<List<FunctionReferenceInformation>>> handler) {
+        log.info("getTotalMostReferencedFunctionsInformation - Limit: " + limit)
         vertx.executeBlocking({
             try (def readTx = session.transaction().read()) {
                 def totalMostReferencedFunctionsAnswer = readTx.execute(match(
@@ -100,6 +108,12 @@ class SystemService extends AbstractVerticle {
                                 .has("qualified_name", var("q_name"))
                                 .has("reference_count", var("ref_count"))
                 ).get("f", "k_uri", "q_name", "ref_count").sort("ref_count", "desc").limit(limit))
+
+                log.info("getTotalMostReferencedFunctionsInformation - Found: " + totalMostReferencedFunctionsAnswer.size())
+                if (totalMostReferencedFunctionsAnswer.isEmpty()) {
+                    handler.handle(Future.succeededFuture(Collections.emptyList()))
+                    return
+                }
 
                 def functionIdOrs = []
                 totalMostReferencedFunctionsAnswer.each {

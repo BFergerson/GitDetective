@@ -22,7 +22,6 @@ import io.vertx.ext.web.templ.handlebars.HandlebarsTemplateEngine
 
 import javax.net.ssl.SSLException
 import java.nio.channels.ClosedChannelException
-import java.time.Instant
 import java.util.concurrent.TimeUnit
 
 import static io.gitdetective.web.WebServices.*
@@ -164,6 +163,40 @@ class GitDetectiveWebsite extends AbstractVerticle {
                 }
             })
         })
+        v1ApiRouter.post("/functions").handler({ ctx ->
+            log.info("Insert functions request")
+            def request = new JsonArray()
+            def requestStr = ctx.getBodyAsString()
+            if (requestStr.startsWith("[")) {
+                request = new JsonArray(requestStr)
+            } else {
+                request.add(new JsonObject(requestStr))
+            }
+
+            vertx.executeBlocking({ blocking ->
+                def results = new ArrayList<String>()
+                def writeTx = service.graknSession.transaction().write()
+                for (int i = 0; i < request.size(); i++) {
+                    def req = request.getJsonObject(i)
+                    def fileId = req.getString("file_id")
+                    def kytheUri = req.getString("kythe_uri")
+                    def qualifiedName = req.getString("qualified_name")
+                    def functionId = ProjectService.getOrCreateFunction(writeTx, fileId,
+                            new FunctionInformation(kytheUri, qualifiedName), fileId == null ? 1 : 0)
+                    results << functionId
+                }
+                writeTx.commit()
+                blocking.complete(results)
+            }, false, {
+                if (it.succeeded()) {
+                    log.info("Insert functions request succeeded")
+                    ctx.response().setStatusCode(200).end(Json.encode(it.result()))
+                } else {
+                    log.error("Insert functions request failed", it.cause())
+                    ctx.response().setStatusCode(500).end(it.cause().message)
+                }
+            })
+        })
         v1ApiRouter.post("/references").handler({ ctx ->
             log.info("Insert references request")
             def request = new JsonArray()
@@ -180,23 +213,11 @@ class GitDetectiveWebsite extends AbstractVerticle {
                 for (int i = 0; i < request.size(); i++) {
                     def req = request.getJsonObject(i)
                     def projectId = Objects.requireNonNull(req.getString("project_id"))
-                    def callerFileId = Objects.requireNonNull(req.getString("caller_file_id"))
                     def callerCommitDate = Objects.requireNonNull(req.getInstant("caller_commit_date"))
                     def callerCommitSha1 = Objects.requireNonNull(req.getString("caller_commit_sha1"))
                     def callerLineNumber = req.getInteger("caller_line_number")
-                    def callerFunctionJsonObj = req.getJsonObject("caller_function")
-                    def callerFunction = new FunctionInformation(
-                            callerFunctionJsonObj.getString("kythe_uri"),
-                            callerFunctionJsonObj.getString("qualified_name")
-                    )
-                    def calleeFunctionJsonObj = req.getJsonObject("callee_function")
-                    def calleeFunction = new FunctionInformation(
-                            calleeFunctionJsonObj.getString("kythe_uri"),
-                            calleeFunctionJsonObj.getString("qualified_name")
-                    )
-
-                    def callerFunctionId = ProjectService.getOrCreateFunction(writeTx, callerFileId, callerFunction, 0)
-                    def calleeFunctionId = ProjectService.getOrCreateFunction(writeTx, null, calleeFunction, 1)
+                    def callerFunctionId = Objects.requireNonNull(req.getString("caller_function_id"))
+                    def calleeFunctionId = Objects.requireNonNull(req.getString("callee_function_id"))
                     ProjectService.getOrCreateFunctionReference(writeTx, callerFunctionId, calleeFunctionId)
 
                     def future = Future.future()

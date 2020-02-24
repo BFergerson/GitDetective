@@ -74,8 +74,9 @@ class MavenReferenceExtractor extends AbstractVerticle {
         phenomena.close()
 
         //todo: real method call filter
+        def functionFilter = new FunctionFilter()
         def methodCallFilter = MultiFilter.matchAny()
-                .reject(new FunctionFilter(), compilationUnitObserver.filter)
+                .reject(functionFilter, compilationUnitObserver.filter)
         def githubRepository = job.data.getString("github_repository")
         def username = githubRepository.substring(0, githubRepository.indexOf("/"))
         def projectName = githubRepository.substring(githubRepository.indexOf("/") + 1)
@@ -92,13 +93,22 @@ class MavenReferenceExtractor extends AbstractVerticle {
                         .collect(Collectors.toList()), {
                     if (it.succeeded()) {
                         def fileIds = it.result()
-                        insertReferences(client, host, port, apiKey, projectId,
-                                job.data.getInstant("commit_date"), job.data.getString("commit"),
-                                fileIds, visitor.observedContextualNodes.stream()
-                                .filter({ methodCallFilter.evaluate(it) })
+                        createFunctions(client, host, port, apiKey, fileIds, visitor.observedContextualNodes.stream()
+                                .filter({ !compilationUnitObserver.filter.evaluate(it) })
                                 .collect(Collectors.toList()), {
                             if (it.succeeded()) {
-                                handler.handle(Future.succeededFuture())
+                                def functionIds = it.result()
+                                insertReferences(client, host, port, apiKey, projectId,
+                                        job.data.getInstant("commit_date"), job.data.getString("commit"),
+                                        functionIds, visitor.observedContextualNodes.stream()
+                                        .filter({ methodCallFilter.evaluate(it) })
+                                        .collect(Collectors.toList()), {
+                                    if (it.succeeded()) {
+                                        handler.handle(Future.succeededFuture())
+                                    } else {
+                                        handler.handle(Future.failedFuture(it.cause()))
+                                    }
+                                })
                             } else {
                                 handler.handle(Future.failedFuture(it.cause()))
                             }
@@ -118,7 +128,7 @@ class MavenReferenceExtractor extends AbstractVerticle {
                             Handler<AsyncResult<Map<File, String>>> handler) {
         def result = new HashMap<File, String>()
         def futures = []
-        Lists.partition(sourceFiles, 50).each { list ->
+        Lists.partition(sourceFiles, 100).each { list ->
             def request = new JsonArray()
             list.each {
                 def req = new JsonObject()
@@ -153,26 +163,69 @@ class MavenReferenceExtractor extends AbstractVerticle {
         })
     }
 
+    static void createFunctions(WebClient client, String host, int port, String apiKey,
+                                Map<File, String> sourceFiles, List<ContextualNode> references,
+                                Handler<AsyncResult<Map<String, String>>> handler) {
+        def functionIds = new HashMap<String, String>()
+        def futures = []
+        Lists.partition(references, 100).each { list ->
+            def request = new JsonArray()
+            list.each {
+                def kytheUri = it.attributes.get("kytheUri") ?: it.attributes.get("calledUri")
+                def qualifiedName = it.hasName() ? it.name : it.attributes.get("calledQualifiedName")
+                def functionInformation = new JsonObject()
+                if (it.hasName()) {
+                    //function declaration
+                    functionInformation.put("file_id", sourceFiles.get(it.sourceFile))
+                } else {
+                    //function call
+                    functionInformation.putNull("file_id")
+                }
+                functionInformation.put("kythe_uri", kytheUri)
+                functionInformation.put("qualified_name", qualifiedName)
+                request.add(functionInformation)
+            }
+
+            def future = Future.future()
+            futures << future
+            client.post(port, host, "/api/functions")
+                    .expect(ResponsePredicate.SC_OK)
+                    .bearerTokenAuthentication(apiKey).sendJson(request, {
+                if (it.succeeded()) {
+                    def response = it.result().bodyAsJsonArray()
+                    for (int i = 0; i < response.size(); i++) {
+                        functionIds.put(request.getJsonObject(i).getString("kythe_uri"), response.getString(i))
+                    }
+                    future.complete()
+                } else {
+                    future.fail(it.cause())
+                }
+            })
+        }
+        CompositeFuture.all(futures).setHandler({
+            if (it.succeeded()) {
+                handler.handle(Future.succeededFuture(functionIds))
+            } else {
+                handler.handle(Future.failedFuture(it.cause()))
+            }
+        })
+    }
+
     static void insertReferences(WebClient client, String host, int port, String apiKey, String projectId,
                                  Instant commitDate, String commitSha1,
-                                 Map<File, String> sourceFiles, List<ContextualNode> references,
+                                 Map<String, String> functionIds, List<ContextualNode> references,
                                  Handler<AsyncResult<Void>> handler) {
         def futures = []
-        Lists.partition(references, 50).each { list ->
+        Lists.partition(references, 100).each { list ->
             def request = new JsonArray()
             list.each {
                 def req = new JsonObject()
                 req.put("project_id", projectId)
-                req.put("caller_file_id", sourceFiles.get(it.sourceFile))
                 req.put("caller_commit_date", commitDate)
                 req.put("caller_commit_sha1", commitSha1)
                 req.put("caller_line_number", it.underlyingNode.startPosition.line())
-                req.put("caller_function", new JsonObject()
-                        .put("kythe_uri", it.parentSourceNode.attributes.get("kytheUri"))
-                        .put("qualified_name", it.parentSourceNode.name))
-                req.put("callee_function", new JsonObject()
-                        .put("kythe_uri", it.attributes.get("calledUri"))
-                        .put("qualified_name", it.attributes.get("calledQualifiedName")))
+                req.put("caller_function_id", functionIds.get(it.parentSourceNode.attributes.get("kytheUri")))
+                req.put("callee_function_id", functionIds.get(it.attributes.get("calledUri")))
                 request.add(req)
             }
 
