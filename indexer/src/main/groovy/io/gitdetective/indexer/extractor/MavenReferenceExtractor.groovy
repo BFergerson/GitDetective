@@ -88,21 +88,23 @@ class MavenReferenceExtractor extends AbstractVerticle {
                 .bearerTokenAuthentication(apiKey).send({
             if (it.succeeded()) {
                 def projectId = it.result().bodyAsString()
-                createFiles(client, host, port, apiKey, projectId, visitor.observedContextualNodes.stream()
-                        .filter({ compilationUnitObserver.filter.evaluate(it) })
-                        .collect(Collectors.toList()), {
+                createFiles(client, host, port, apiKey, projectId, job.data.getString("output_directory"),
+                        visitor.observedContextualNodes.stream()
+                                .filter({ compilationUnitObserver.filter.evaluate(it) })
+                                .collect(Collectors.toList()), {
                     if (it.succeeded()) {
                         def fileIds = it.result()
-                        createFunctions(client, host, port, apiKey, fileIds, visitor.observedContextualNodes.stream()
-                                .filter({ !compilationUnitObserver.filter.evaluate(it) })
-                                .collect(Collectors.toList()), {
+                        createFunctions(client, host, port, apiKey, fileIds,
+                                visitor.observedContextualNodes.stream()
+                                        .filter({ !compilationUnitObserver.filter.evaluate(it) })
+                                        .collect(Collectors.toList()), {
                             if (it.succeeded()) {
                                 def functionIds = it.result()
                                 insertReferences(client, host, port, apiKey, projectId,
-                                        job.data.getInstant("commit_date"), job.data.getString("commit"),
-                                        functionIds, visitor.observedContextualNodes.stream()
-                                        .filter({ methodCallFilter.evaluate(it) })
-                                        .collect(Collectors.toList()), {
+                                        job.data.getInstant("commit_date"), job.data.getString("commit"), functionIds,
+                                        visitor.observedContextualNodes.stream()
+                                                .filter({ methodCallFilter.evaluate(it) })
+                                                .collect(Collectors.toList()), {
                                     if (it.succeeded()) {
                                         handler.handle(Future.succeededFuture())
                                     } else {
@@ -124,8 +126,12 @@ class MavenReferenceExtractor extends AbstractVerticle {
     }
 
     static void createFiles(WebClient client, String host, int port, String apiKey, String projectId,
-                            List<ContextualNode> sourceFiles,
+                            String outputDirectory, List<ContextualNode> sourceFiles,
                             Handler<AsyncResult<Map<File, String>>> handler) {
+        def fullOutputDirectory = outputDirectory
+        if (!fullOutputDirectory.endsWith("/")) {
+            fullOutputDirectory += "/"
+        }
         def result = new HashMap<File, String>()
         def futures = []
         Lists.partition(sourceFiles, 100).each { list ->
@@ -133,7 +139,7 @@ class MavenReferenceExtractor extends AbstractVerticle {
             list.each {
                 def req = new JsonObject()
                 req.put("project_id", projectId)
-                req.put("file_location", it.sourceFile.absolutePath)
+                req.put("file_location", it.sourceFile.absolutePath.replaceFirst(fullOutputDirectory, ""))
                 req.put("qualified_name", it.name)
                 request.add(req)
             }
