@@ -16,7 +16,7 @@ distZip {
     doLast {
         Map<String, String> props = new HashMap<>()
         props.put("create", "false")
-        def zipFile = new File('gd-tools/build/distributions', 'gd-tools-' + version + '.zip')
+        def zipFile = new File(project.buildDir, 'distributions/gd-tools-' + version + '.zip')
         def toolsZip = URI.create('jar:' + zipFile.toURI().toString())
 
         def zipfs = FileSystems.newFileSystem(toolsZip, props)

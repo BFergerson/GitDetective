@@ -1,5 +1,7 @@
 package io.gitdetective.web
 
+import com.google.common.cache.Cache
+import com.google.common.cache.CacheBuilder
 import com.google.common.collect.Lists
 import io.gitdetective.web.model.FunctionInformation
 import io.gitdetective.web.service.ProjectService
@@ -43,6 +45,8 @@ class GitDetectiveWebsite extends AbstractVerticle {
     private static volatile long TOTAL_FUNCTION_COUNT = 0
     private static volatile long TOTAL_UNIQUE_REFERENCE_COUNT = 0
     private static volatile long TOTAL_REFERENCE_COUNT = 0
+    private static final Cache<String, Boolean> autoBuildCache = CacheBuilder.newBuilder()
+            .expireAfterWrite(1, TimeUnit.MINUTES).build()
     private final GitDetectiveService service
     private final Router router
     private HandlebarsTemplateEngine engine
@@ -433,22 +437,22 @@ class GitDetectiveWebsite extends AbstractVerticle {
             })
         })
 
-//        if (config().getBoolean("auto_build_enabled")) {
-//            //schedule build/recalculate if can
-//            def autoBuilt = autoBuildCache.getIfPresent(githubRepository)
-//            if (autoBuilt == null) {
-//                log.debug "Checking repository: $githubRepository"
-//                autoBuildCache.put(githubRepository, true)
-//
-//                vertx.eventBus().send(GET_TRIGGER_INFORMATION, repo, {
-//                    def triggerInformation = it.result().body() as JsonObject
-//                    if (triggerInformation.getBoolean("can_build")) {
-//                        log.info "Auto-building: " + repo.getString("github_repository")
-//                        vertx.eventBus().send(CREATE_JOB, repo)
-//                    }
-//                })
-//            }
-//        }
+        if (config().getBoolean("auto_build_enabled")) {
+            //schedule build/recalculate if can
+            def autoBuilt = autoBuildCache.getIfPresent(githubRepository)
+            if (autoBuilt == null) {
+                log.debug "Checking repository: $githubRepository"
+                autoBuildCache.put(githubRepository, true)
+
+                vertx.eventBus().send(GET_TRIGGER_INFORMATION, repo, {
+                    def triggerInformation = it.result().body() as JsonObject
+                    if (triggerInformation.getBoolean("can_build")) {
+                        log.info "Auto-building: " + repo.getString("github_repository")
+                        vertx.eventBus().send(CREATE_JOB, repo)
+                    }
+                })
+            }
+        }
     }
 
     private void handleProjectLeaderboardPage(RoutingContext ctx) {

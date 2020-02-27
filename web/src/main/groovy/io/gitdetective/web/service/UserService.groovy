@@ -9,6 +9,7 @@ import io.vertx.core.Future
 import io.vertx.core.Handler
 
 import java.time.LocalDateTime
+import java.time.temporal.ChronoUnit
 
 import static graql.lang.Graql.*
 
@@ -33,7 +34,7 @@ class UserService extends AbstractVerticle {
                     def createUserAnswer = writeTx.execute(insert(
                             var("u").isa("user")
                                     .has("username", username)
-                                    .has("create_date", LocalDateTime.now())
+                                    .has("create_date", LocalDateTime.now().truncatedTo(ChronoUnit.MILLIS))
                     ))
                     writeTx.commit()
                     handler.handle(Future.succeededFuture(createUserAnswer.get(0).get("u").asEntity().id().value))

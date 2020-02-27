@@ -16,6 +16,7 @@ import io.vertx.core.json.JsonObject
 
 import java.time.Instant
 import java.time.LocalDateTime
+import java.time.temporal.ChronoUnit
 import java.util.stream.Collectors
 
 import static graql.lang.Graql.*
@@ -64,7 +65,7 @@ class ProjectService extends AbstractVerticle {
                             var("u").id(userId),
                             var("p").isa("project")
                                     .has("project_name", projectName)
-                                    .has("create_date", LocalDateTime.now())
+                                    .has("create_date", LocalDateTime.now().truncatedTo(ChronoUnit.MILLIS))
                                     .has("reference_count", 0),
                             var().rel("has_project", var("u"))
                                     .rel("is_project", var("p")).isa("owns_project")
