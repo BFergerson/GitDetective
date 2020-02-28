@@ -1,6 +1,8 @@
 package io.gitdetective.web.work
 
 import grakn.client.GraknClient
+import groovy.util.logging.Slf4j
+import io.gitdetective.web.WebLauncher
 import io.gitdetective.web.dao.PostgresDAO
 import io.vertx.core.AbstractVerticle
 import io.vertx.core.AsyncResult
@@ -12,10 +14,12 @@ import io.vertx.sqlclient.RowStream
 import io.vertx.sqlclient.Transaction
 import io.vertx.sqlclient.impl.ArrayTuple
 
+import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicReference
 
 import static graql.lang.Graql.*
 
+@Slf4j
 class UpdateFunctionReferenceCounts extends AbstractVerticle {
 
     public static final String PERFORM_TASK_NOW = "UpdateFunctionReferenceCounts"
@@ -37,16 +41,28 @@ class UpdateFunctionReferenceCounts extends AbstractVerticle {
 
     @Override
     void start() throws Exception {
-        //todo: once a day
+        def timer = WebLauncher.metrics.timer(PERFORM_TASK_NOW)
         vertx.eventBus().consumer(PERFORM_TASK_NOW, request -> {
+            def time = timer.time()
+            log.info(PERFORM_TASK_NOW + " started")
+
             createFunctionReferenceCountTable({
                 if (it.succeeded()) {
                     request.reply(true)
                 } else {
                     request.fail(500, it.cause().message)
                 }
+
+                log.info(PERFORM_TASK_NOW + " finished")
+                time.close()
             })
         })
+
+        //perform every 30 minutes
+        vertx.setPeriodic(TimeUnit.MINUTES.toMillis(30), {
+            vertx.eventBus().send(PERFORM_TASK_NOW, true)
+        })
+        vertx.eventBus().send(PERFORM_TASK_NOW, true) //perform on boot
     }
 
     void createFunctionReferenceCountTable(Handler<AsyncResult<Void>> handler) {
