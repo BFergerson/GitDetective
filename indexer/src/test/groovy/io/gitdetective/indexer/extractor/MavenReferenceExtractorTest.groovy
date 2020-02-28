@@ -30,7 +30,7 @@ class MavenReferenceExtractorTest {
         root.setLevel(Level.INFO)
     }
 
-    @Test(timeout = 30000L)
+    @Test(timeout = 60000L)
     void testOtherProject(TestContext test) {
         def outDir = new File("/tmp/stuff")
         if (outDir.exists()) {
