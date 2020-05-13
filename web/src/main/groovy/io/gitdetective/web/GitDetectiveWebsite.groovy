@@ -28,6 +28,7 @@ import java.util.concurrent.TimeUnit
 
 import static io.gitdetective.web.WebServices.*
 import static io.vertx.core.http.HttpHeaders.CONTENT_TYPE
+import static java.util.Objects.requireNonNull
 
 /**
  * Serves GitDetective website
@@ -151,9 +152,9 @@ class GitDetectiveWebsite extends AbstractVerticle {
             def files = new ArrayList<Tuple3<String, String, String>>()
             for (int i = 0; i < request.size(); i++) {
                 def req = request.getJsonObject(i)
-                def projectId = Objects.requireNonNull(req.getString("project_id"))
-                def qualifiedName = Objects.requireNonNull(req.getString("qualified_name"))
-                def fileLocation = Objects.requireNonNull(req.getString("file_location"))
+                def projectId = requireNonNull(req.getString("project_id"))
+                def qualifiedName = requireNonNull(req.getString("qualified_name"))
+                def fileLocation = requireNonNull(req.getString("file_location"))
                 files << Tuple.tuple(projectId, qualifiedName, fileLocation)
             }
             service.projectService.getOrCreateFiles(files, {
@@ -183,8 +184,8 @@ class GitDetectiveWebsite extends AbstractVerticle {
                 for (int i = 0; i < request.size(); i++) {
                     def req = request.getJsonObject(i)
                     def fileId = req.getString("file_id")
-                    def kytheUri = req.getString("kythe_uri")
-                    def qualifiedName = req.getString("qualified_name")
+                    def kytheUri = requireNonNull(req.getString("kythe_uri"))
+                    def qualifiedName = requireNonNull(req.getString("qualified_name"))
                     def functionId = ProjectService.getOrCreateFunction(writeTx, fileId,
                             new FunctionInformation(kytheUri, qualifiedName), fileId == null ? 1 : 0)
                     results << functionId
@@ -216,12 +217,12 @@ class GitDetectiveWebsite extends AbstractVerticle {
                 def writeTx = service.graknSession.transaction().write()
                 for (int i = 0; i < request.size(); i++) {
                     def req = request.getJsonObject(i)
-                    def projectId = Objects.requireNonNull(req.getString("project_id"))
-                    def callerCommitDate = Objects.requireNonNull(req.getInstant("caller_commit_date"))
-                    def callerCommitSha1 = Objects.requireNonNull(req.getString("caller_commit_sha1"))
+                    def projectId = requireNonNull(req.getString("project_id"))
+                    def callerCommitDate = requireNonNull(req.getInstant("caller_commit_date"))
+                    def callerCommitSha1 = requireNonNull(req.getString("caller_commit_sha1"))
                     def callerLineNumber = req.getInteger("caller_line_number")
-                    def callerFunctionId = Objects.requireNonNull(req.getString("caller_function_id"))
-                    def calleeFunctionId = Objects.requireNonNull(req.getString("callee_function_id"))
+                    def callerFunctionId = requireNonNull(req.getString("caller_function_id"))
+                    def calleeFunctionId = requireNonNull(req.getString("callee_function_id"))
                     ProjectService.getOrCreateFunctionReference(writeTx, callerFunctionId, calleeFunctionId)
 
                     def future = Future.future()
