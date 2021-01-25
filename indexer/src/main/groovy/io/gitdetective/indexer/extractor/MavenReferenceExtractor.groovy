@@ -36,8 +36,7 @@ class MavenReferenceExtractor extends AbstractVerticle {
         def provider = JWTAuth.create(vertx, new JWTAuthOptions()
                 .addPubSecKey(new PubSecKeyOptions()
                         .setAlgorithm("HS256")
-                        .setPublicKey(config().getString("gitdetective_service.api_key"))
-                        .setSymmetric(true)))
+                        .setBuffer(config().getString("gitdetective_service.api_key"))))
         def apiKey = provider.generateToken(new JsonObject())
 
         vertx.eventBus().consumer(EXTRACTOR_ADDRESS, { msg ->
@@ -144,8 +143,8 @@ class MavenReferenceExtractor extends AbstractVerticle {
                 request.add(req)
             }
 
-            def future = Future.future()
-            futures << future
+            def future = Promise.promise()
+            futures << future.future()
             client.post(port, host, "/api/files")
                     .expect(ResponsePredicate.SC_OK)
                     .bearerTokenAuthentication(apiKey).sendJson(request, {
@@ -160,7 +159,7 @@ class MavenReferenceExtractor extends AbstractVerticle {
                 }
             })
         }
-        CompositeFuture.all(futures).setHandler({
+        CompositeFuture.all(futures).onComplete({
             if (it.succeeded()) {
                 handler.handle(Future.succeededFuture(result))
             } else {
@@ -192,8 +191,8 @@ class MavenReferenceExtractor extends AbstractVerticle {
                 request.add(functionInformation)
             }
 
-            def future = Future.future()
-            futures << future
+            def future = Promise.promise()
+            futures << future.future()
             client.post(port, host, "/api/functions")
                     .expect(ResponsePredicate.SC_OK)
                     .bearerTokenAuthentication(apiKey).sendJson(request, {
@@ -208,7 +207,7 @@ class MavenReferenceExtractor extends AbstractVerticle {
                 }
             })
         }
-        CompositeFuture.all(futures).setHandler({
+        CompositeFuture.all(futures).onComplete({
             if (it.succeeded()) {
                 handler.handle(Future.succeededFuture(functionIds))
             } else {
@@ -235,8 +234,8 @@ class MavenReferenceExtractor extends AbstractVerticle {
                 request.add(req)
             }
 
-            def future = Future.future()
-            futures << future
+            def future = Promise.promise()
+            futures << future.future()
             client.post(port, host, "/api/references")
                     .expect(ResponsePredicate.SC_OK)
                     .bearerTokenAuthentication(apiKey).sendJson(request, {
@@ -247,7 +246,7 @@ class MavenReferenceExtractor extends AbstractVerticle {
                 }
             })
         }
-        CompositeFuture.all(futures).setHandler({
+        CompositeFuture.all(futures).onComplete({
             if (it.succeeded()) {
                 handler.handle(Future.succeededFuture())
             } else {

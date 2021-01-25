@@ -1,10 +1,9 @@
 package io.gitdetective.web
 
+import groovy.util.logging.Slf4j
 import io.vertx.blueprint.kue.queue.Job
 import io.vertx.core.buffer.Buffer
 import io.vertx.core.eventbus.MessageCodec
-import io.vertx.core.logging.Logger
-import io.vertx.core.logging.LoggerFactory
 
 import java.text.DecimalFormat
 import java.util.concurrent.TimeUnit
@@ -14,6 +13,7 @@ import java.util.concurrent.TimeUnit
  *
  * @author <a href="mailto:brandon.fergerson@codebrig.com">Brandon Fergerson</a>
  */
+@Slf4j
 final class WebServices {
 
     static final String CREATE_JOB = "CreateJob"
@@ -25,7 +25,6 @@ final class WebServices {
     static final String GET_PROJECT_FIRST_INDEXED = "GetProjectFirstIndexed"
     static final String GET_PROJECT_LAST_INDEXED = "GetProjectLastIndexed"
     static final String GET_PROJECT_LAST_INDEXED_COMMIT_INFORMATION = "GetProjectLastIndexedCommitInformation"
-    private final static Logger log = LoggerFactory.getLogger(WebServices.class)
     private final static DecimalFormat decimalFormat = new DecimalFormat("#.00")
 
     private WebServices() {

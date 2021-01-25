@@ -8,21 +8,20 @@ apply plugin: 'application'
 mainClassName = 'io.gitdetective.web.WebLauncher'
 
 dependencies {
-    compile 'io.vertx:vertx-pg-client:3.8.5'
+    compile 'io.vertx:vertx-pg-client:4.0.0'
     compile group: 'io.dropwizard.metrics', name: 'metrics-core', version: '4.1.2'
-    compile group: 'io.vertx', name: 'vertx-web', version: '3.8.5'
-    compile group: 'io.vertx', name: 'vertx-web-templ-handlebars', version: '3.8.5'
-    compile 'io.vertx:vertx-dropwizard-metrics:3.8.5'
-    compile 'io.vertx:vertx-tcp-eventbus-bridge:3.8.5'
-    compile "io.vertx:vertx-auth-jwt:3.8.5"
+    compile group: 'io.vertx', name: 'vertx-web', version: '4.0.0'
+    compile group: 'io.vertx', name: 'vertx-web-templ-handlebars', version: '4.0.0'
+    compile 'io.vertx:vertx-dropwizard-metrics:4.0.0'
+    compile 'io.vertx:vertx-tcp-eventbus-bridge:4.0.0'
+    compile "io.vertx:vertx-auth-jwt:4.0.0"
     compile 'io.reactivex.rxjava2:rxjava:2.2.17'
-    implementation('com.github.codebrig:arthur:8bd6319a2e') {
+    implementation('com.codebrig:arthur:0.4.4') {
         exclude group: 'log4j', module: 'log4j'
         exclude group: 'org.slf4j', module: 'slf4j-log4j12'
         exclude group: 'org.slf4j', module: 'slf4j-api'
     }
-    implementation group: 'io.grakn.client', name: 'grakn-client', version: "1.6.2"
-    implementation group: 'io.graql', name: 'graql-lang', version: "1.0.6"
+    implementation group: 'io.grakn.client', name: 'grakn-client', version: "2.0.0-alpha-6"
 }
 
 test {

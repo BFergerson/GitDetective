@@ -1,6 +1,7 @@
 package io.gitdetective.web.work
 
-import grakn.client.GraknClient
+import grakn.client.Grakn
+import grakn.client.rpc.RPCSession
 import groovy.util.logging.Slf4j
 import io.gitdetective.web.WebLauncher
 import io.vertx.core.AbstractVerticle
@@ -17,9 +18,9 @@ class UpdateFileReferenceCounts extends AbstractVerticle {
 
     public static final String PERFORM_TASK_NOW = "UpdateFileReferenceCounts"
 
-    private final GraknClient.Session graknSession
+    private final RPCSession.Core graknSession
 
-    UpdateFileReferenceCounts(GraknClient.Session graknSession) {
+    UpdateFileReferenceCounts(RPCSession.Core graknSession) {
         this.graknSession = graknSession
     }
 
@@ -50,27 +51,25 @@ class UpdateFileReferenceCounts extends AbstractVerticle {
     }
 
     void updateGraknFileReferenceCounts(Handler<AsyncResult<Void>> handler) {
-        def writeTx = graknSession.transaction().write()
-        writeTx.stream(match(
-                var("fi").isa("file")
-                        .has("reference_count", var("fi_ref_count"), var("fi_ref_count_relation"))
-        ).get()).forEach({
-            def fileId = it.get("fi").asEntity().id().value
-            def fileRefCount = it.get("fi_ref_count").asAttribute().value() as long
-            def fileRefCountRelationId = it.get("fi_ref_count_relation").asRelation().id().value
+        def writeTx = graknSession.transaction(Grakn.Transaction.Type.WRITE)
+        writeTx.query().match(match(
+                var("fi").isa("file").has("reference_count", var("fi_ref_count"))
+        ).get("fi", "fi_ref_count")).forEach({
+            def fileId = it.get("fi").asEntity().IID
+            def fileRefCount = it.get("fi_ref_count").asAttribute().asLong().getValue()
 
-            def actualFileRefCount = writeTx.execute(match(
-                    var("fi").id(fileId),
+            def actualFileRefCount = writeTx.query().match(match(
+                    var("fi").iid(fileId),
                     var("f").isa("function").has("reference_count", var("f_ref_count")),
                     var().rel("has_defines_function", var("fi"))
                             .rel("is_defines_function", var("f")).isa("defines_function")
-            ).get("f_ref_count").sum("f_ref_count")).get(0).number().longValue()
+            ).get("f_ref_count").sum("f_ref_count")).get().asLong()
             if (actualFileRefCount != fileRefCount) {
-                writeTx.execute(parse(
+                def fileRefCountRelationId = it.get("fi_ref_count_relation").asRelation().IID
+                writeTx.query().delete(parseQuery(
                         'match $r id ' + fileRefCountRelationId + '; delete $r;'
                 ))
-                writeTx.execute(match(
-                        var("fi").id(fileId)).insert(
+                writeTx.query().insert(match(var("fi").iid(fileId)).insert(
                         var("fi").has("reference_count", actualFileRefCount)
                 ))
             }

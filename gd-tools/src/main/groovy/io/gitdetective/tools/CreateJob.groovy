@@ -4,7 +4,7 @@ import io.gitdetective.web.dao.JobsDAO
 import io.vertx.blueprint.kue.queue.Priority
 import io.vertx.core.AbstractVerticle
 import io.vertx.core.DeploymentOptions
-import io.vertx.core.Future
+import io.vertx.core.Promise
 import io.vertx.core.Vertx
 import io.vertx.core.json.JsonObject
 import org.apache.commons.io.IOUtils
@@ -56,10 +56,10 @@ class CreateJob extends AbstractVerticle {
 
     @Override
     void start() throws Exception {
-        def jobsFut = Future.future()
-        def jobs = new JobsDAO(vertx, config(), jobsFut.completer())
+        def jobsFut = Promise.promise()
+        def jobs = new JobsDAO(vertx, config(), jobsFut)
 
-        jobsFut.setHandler({
+        jobsFut.future().onComplete({
             jobs.createJob(jobType, "Admin build job queued",
                     new JsonObject().put("github_repository", projectName.toLowerCase())
                             .put("admin_triggered", true)

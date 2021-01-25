@@ -85,7 +85,7 @@
 //                    }
 //                }
 //
-//                CompositeFuture.all(futures).setHandler({
+//                CompositeFuture.all(futures).onComplete({
 //                    if (it.failed()) {
 //                        it.cause().printStackTrace()
 //                        System.exit(-1)

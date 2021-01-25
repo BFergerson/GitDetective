@@ -52,18 +52,18 @@ class RemoveJobs extends AbstractVerticle {
     @Override
     void start() throws Exception {
         def kue = Kue.createQueue(vertx, config())
-        kue.getIdsByState(jobState).setHandler({
+        kue.getIdsByState(jobState).onComplete({
             if (it.failed()) {
                 it.cause().printStackTrace()
                 System.exit(-1)
             } else {
                 def futures = new ArrayList<Future>()
                 it.result().each {
-                    def fut = Future.future()
-                    futures.add(fut)
-                    kue.removeJob(it).setHandler(fut.completer())
+                    def fut = Promise.promise()
+                    futures.add(fut.future())
+                    kue.removeJob(it).onComplete(fut)
                 }
-                CompositeFuture.all(futures).setHandler({
+                CompositeFuture.all(futures).onComplete({
                     if (it.failed()) {
                         it.cause().printStackTrace()
                         System.exit(-1)

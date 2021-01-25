@@ -9,6 +9,13 @@ mainClassName = 'io.gitdetective.indexer.GitDetectiveIndexer'
 
 repositories {
     maven { url 'https://repo.gradle.org/gradle/libs-releases' }
+    maven {
+        url "https://maven.pkg.github.com/codebrig/phenomena"
+        credentials {
+            username = System.getenv("GITHUB_ACTOR") ?: System.getenv("gpr.user")
+            password = System.getenv("GITHUB_TOKEN") ?: System.getenv("gpr.key")
+        }
+    }
 }
 
 dependencies {
@@ -17,10 +24,10 @@ dependencies {
 //    compile group: 'org.gradle', name: 'gradle-tooling-api', version: '4.9'
 //    compile group: 'org.kohsuke', name: 'github-api', version: '1.92'
     compile group: 'com.fasterxml.jackson.core', name: 'jackson-annotations', version: '2.10.2'
-    compile 'io.vertx:vertx-web-client:3.8.5'
+    compile 'io.vertx:vertx-web-client:4.0.0'
     compile group: 'org.eclipse.jgit', name: 'org.eclipse.jgit', version: '5.6.1.202002131546-r'
     compile files("../indexer/opt/kythe-v0.0.28/indexers/java_indexer.jar")
-    compile(group: 'com.github.codebrig', name: 'phenomena', version: 'b0ca173d7f') {
+    implementation ('com.codebrig:phenomena:0.3.5') {
         exclude group: 'io.grakn.client', module: 'grakn-client'
         exclude group: 'io.grakn.client', module: 'api'
         exclude group: 'io.graql', module: 'graql-lang'
@@ -31,6 +38,8 @@ dependencies {
         exclude group: 'io.graql', module: 'graql-lang'
     }
     compile group: 'ch.qos.logback', name: 'logback-classic', version: '1.2.3'
+    compile 'io.vertx:vertx-auth-jwt:4.0.0'
+    implementation files('../lib/bblfsh-client-1.11.1.jar')
 }
 
 test {

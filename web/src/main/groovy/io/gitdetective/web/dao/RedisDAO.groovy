@@ -1,26 +1,23 @@
 package io.gitdetective.web.dao
 
+import groovy.util.logging.Slf4j
 import io.vertx.blueprint.kue.util.RedisHelper
 import io.vertx.core.AsyncResult
 import io.vertx.core.Future
 import io.vertx.core.Handler
 import io.vertx.core.json.JsonArray
 import io.vertx.core.json.JsonObject
-import io.vertx.core.logging.Logger
-import io.vertx.core.logging.LoggerFactory
-import io.vertx.redis.RedisClient
 import io.vertx.redis.client.Redis
 import io.vertx.redis.client.RedisAPI
-import io.vertx.redis.op.RangeOptions
 
 import java.time.Instant
 
 /**
- * @author <a href="mailto:brandon.fergerson@codebrig.com">Brandon Fergerson</a>
+ * @author [Brandon Fergerson](mailto:bfergerson@apache.org)
  */
+@Slf4j
 class RedisDAO {
 
-    private final static Logger log = LoggerFactory.getLogger(RedisDAO.class)
     private final RedisAPI redis
 
     RedisDAO(Redis redis) {
@@ -95,7 +92,7 @@ class RedisDAO {
 
     void getProjectReferenceLeaderboard(int topCount, Handler<AsyncResult<JsonArray>> handler) {
         redis.zrevrange(Arrays.asList("gitdetective:project_reference_leaderboard", "0", Long.toString(topCount - 1),
-                RangeOptions.WITHSCORES.toString()), {
+                "WITHSCORES"), {
             if (it.failed()) {
                 handler.handle(Future.failedFuture(it.cause()))
             } else {

@@ -1,8 +1,13 @@
 package io.gitdetective.web.service
 
 import com.codebrig.arthur.SourceLanguage
+import grakn.client.Grakn
 import grakn.client.GraknClient
-import graql.lang.statement.Statement
+import grakn.client.concept.answer.ConceptMap
+import grakn.client.rpc.RPCSession
+import graql.lang.Graql
+import graql.lang.pattern.variable.ThingVariable
+import graql.lang.query.GraqlMatch
 import groovy.util.logging.Slf4j
 import io.gitdetective.web.WebServices
 import io.gitdetective.web.dao.PostgresDAO
@@ -24,10 +29,10 @@ import static graql.lang.Graql.*
 @Slf4j
 class ProjectService extends AbstractVerticle {
 
-    private final GraknClient.Session session
+    private final RPCSession.Core session
     private final PostgresDAO postgres
 
-    ProjectService(GraknClient.Session session, PostgresDAO postgres) {
+    ProjectService(RPCSession.Core session, PostgresDAO postgres) {
         this.session = Objects.requireNonNull(session)
         this.postgres = Objects.requireNonNull(postgres)
     }
@@ -54,26 +59,29 @@ class ProjectService extends AbstractVerticle {
 
     void getOrCreateProject(String userId, String projectName, Handler<AsyncResult<String>> handler) {
         vertx.executeBlocking({
-            try (def writeTx = session.transaction().write()) {
-                def getProjectAnswer = writeTx.execute(match(
+            try (def writeTx = session.transaction(Grakn.Transaction.Type.WRITE)) {
+                List<ConceptMap> getProjectAnswer = writeTx.query().match(match(
                         var("p").isa("project")
                                 .has("project_name", projectName)
-                ).get("p"))
+                ).get("p")).collect()
 
                 if (getProjectAnswer.isEmpty()) {
-                    def createProjectAnswer = writeTx.execute(insert(
-                            var("u").id(userId),
-                            var("p").isa("project")
-                                    .has("project_name", projectName)
-                                    .has("create_date", LocalDateTime.now().truncatedTo(ChronoUnit.MILLIS))
-                                    .has("reference_count", 0),
-                            var().rel("has_project", var("u"))
-                                    .rel("is_project", var("p")).isa("owns_project")
-                    ))
+                    List<ConceptMap> createProjectAnswer = writeTx.query().insert(match(var("u").iid(userId))
+                            .insert(
+                                    var("p").isa("project")
+                                            .has("project_name", projectName)
+                                            .has("create_date", LocalDateTime.now().truncatedTo(ChronoUnit.MILLIS))
+                                            .has("reference_count", 0),
+                                    var().rel("has_project", var("u"))
+                                            .rel("is_project", var("p")).isa("owns_project")
+                            )).collect()
                     writeTx.commit()
-                    handler.handle(Future.succeededFuture(createProjectAnswer.get(0).get("p").asEntity().id().value))
+
+                    def projectId = createProjectAnswer.get(0).get("p").asEntity().IID
+                    log.info ("Created project: {} - Id: {}", projectName ,projectId)
+                    handler.handle(Future.succeededFuture(projectId))
                 } else {
-                    handler.handle(Future.succeededFuture(getProjectAnswer.get(0).get("p").asEntity().id().value))
+                    handler.handle(Future.succeededFuture(getProjectAnswer.get(0).get("p").asEntity().IID))
                 }
             }
         }, false, handler)
@@ -81,16 +89,16 @@ class ProjectService extends AbstractVerticle {
 
     void getProjectId(String projectName, Handler<AsyncResult<String>> handler) {
         vertx.executeBlocking({
-            try (def readTx = session.transaction().read()) {
-                def projectIdAnswer = readTx.execute(match(
+            try (def readTx = session.transaction(Grakn.Transaction.Type.READ)) {
+                List<ConceptMap> projectIdAnswer = readTx.query().match(match(
                         var("p").isa("project")
                                 .has("name", projectName)
-                ).get("p"))
+                ).get("p")).collect()
 
                 if (projectIdAnswer.isEmpty()) {
                     handler.handle(Future.succeededFuture())
                 } else {
-                    handler.handle(Future.succeededFuture(projectIdAnswer.get(0).get("p").asEntity().id().value))
+                    handler.handle(Future.succeededFuture(projectIdAnswer.get(0).get("p").asEntity().IID))
                 }
             }
         }, false, handler)
@@ -98,24 +106,24 @@ class ProjectService extends AbstractVerticle {
 
     void getFileCount(String projectName, Handler<AsyncResult<Long>> handler) {
         vertx.executeBlocking({
-            try (def readTx = session.transaction().read()) {
-                def fileCountAnswer = readTx.execute(match(
+            try (def readTx = session.transaction(Grakn.Transaction.Type.READ)) {
+                def fileCountAnswer = readTx.query().match(match(
                         var("p").isa("project")
                                 .has("name", projectName),
                         var("fi").isa("file"),
                         var().rel("has_defines_file", var("p"))
                                 .rel("is_defines_file", var("fi")).isa("defines_file")
-                ).get("fi").count())
+                ).get("fi").count()).get()
 
-                handler.handle(Future.succeededFuture(fileCountAnswer.get(0).number().longValue()))
+                handler.handle(Future.succeededFuture(fileCountAnswer.asLong()))
             }
         }, false, handler)
     }
 
     void getFunctionCount(String projectName, Handler<AsyncResult<Long>> handler) {
         vertx.executeBlocking({
-            try (def readTx = session.transaction().read()) {
-                def functionCountAnswer = readTx.execute(match(
+            try (def readTx = session.transaction(Grakn.Transaction.Type.READ)) {
+                def functionCountAnswer = readTx.query().match(match(
                         var("p").isa("project")
                                 .has("name", projectName),
                         var("fi").isa("file"),
@@ -124,23 +132,23 @@ class ProjectService extends AbstractVerticle {
                         var("f").isa("function"),
                         var().rel("has_defines_function", var("fi"))
                                 .rel("is_defines_function", var("f")).isa("defines_function")
-                ).get("f").count())
+                ).get("f").count()).get()
 
-                handler.handle(Future.succeededFuture(functionCountAnswer.get(0).number().longValue()))
+                handler.handle(Future.succeededFuture(functionCountAnswer.asLong()))
             }
         }, false, handler)
     }
 
     void getFunctionIds(String projectIdOrName, Handler<AsyncResult<List<String>>> handler) {
         vertx.executeBlocking({
-            try (def readTx = session.transaction().read()) {
+            try (def readTx = session.transaction(Grakn.Transaction.Type.READ)) {
                 def projectIdOrNameVar
                 if (projectIdOrName.contains("/")) {
                     projectIdOrNameVar = var("p").has("project_name", projectIdOrName)
                 } else {
-                    projectIdOrNameVar = var("p").id(projectIdOrName)
+                    projectIdOrNameVar = var("p").iid(projectIdOrName)
                 }
-                def functionIdsAnswer = readTx.execute(match(
+                List<ConceptMap> functionIdsAnswer = readTx.query().match(match(
                         projectIdOrNameVar,
                         var("fi").isa("file"),
                         var().rel("has_defines_file", var("p"))
@@ -148,10 +156,10 @@ class ProjectService extends AbstractVerticle {
                         var("f").isa("function"),
                         var().rel("has_defines_function", var("fi"))
                                 .rel("is_defines_function", var("f")).isa("defines_function")
-                ).get("f"))
+                ).get("f")).collect()
 
                 handler.handle(Future.succeededFuture(
-                        functionIdsAnswer.stream().map({ it.get("f").asEntity().id().value })
+                        functionIdsAnswer.stream().map({ it.get("f").asEntity().IID })
                                 .collect(Collectors.toList())
                 ))
             }
@@ -161,8 +169,8 @@ class ProjectService extends AbstractVerticle {
     void getMostReferencedFunctionsInformation(String projectName, int limit,
                                                Handler<AsyncResult<List<FunctionReferenceInformation>>> handler) {
         vertx.executeBlocking({
-            try (def readTx = session.transaction().read()) {
-                def mostReferencedFunctionsAnswer = readTx.execute(match(
+            try (def readTx = session.transaction(Grakn.Transaction.Type.READ)) {
+                List<ConceptMap> mostReferencedFunctionsAnswer = readTx.query().match(match(
                         var("p").isa("project")
                                 .has("name", projectName),
                         var("fi").isa("file"),
@@ -174,14 +182,15 @@ class ProjectService extends AbstractVerticle {
                                 .has("reference_count", var("ref_count")),
                         var().rel("has_defines_function", var("fi"))
                                 .rel("is_defines_function", var("f")).isa("defines_function"),
-                ).get("f", "k_uri", "q_name", "ref_count").sort("ref_count", "desc").limit(limit))
+                ).get("f", "k_uri", "q_name", "ref_count").sort("ref_count", "desc")
+                        .limit(limit)).collect()
 
                 def result = []
                 mostReferencedFunctionsAnswer.each {
-                    def functionId = it.get("f").asEntity().id().value
-                    def kytheUri = it.get("k_uri").asAttribute().value() as String
-                    def qualifiedName = it.get("q_name").asAttribute().value() as String
-                    def referenceCount = it.get("ref_count").asAttribute().value() as int
+                    def functionId = it.get("f").asEntity().IID
+                    def kytheUri = it.get("k_uri").asAttribute().asString().getValue()
+                    def qualifiedName = it.get("q_name").asAttribute().asString().getValue()
+                    def referenceCount = it.get("ref_count").asAttribute().asLong().getValue() as int
                     result << new FunctionReferenceInformation(functionId, kytheUri, qualifiedName, referenceCount)
                 }
                 handler.handle(Future.succeededFuture(result))
@@ -196,15 +205,15 @@ class ProjectService extends AbstractVerticle {
             functionMap.put(it.functionId, it)
         }
         vertx.executeBlocking({
-            try (def readTx = session.transaction().read()) {
-                def callerFunctionOrs = new ArrayList<Statement>()
-                def callerProjectOrs = new ArrayList<Statement>()
+            try (def readTx = session.transaction(Grakn.Transaction.Type.READ)) {
+                def callerFunctionOrs = new ArrayList<ThingVariable>()
+                def callerProjectOrs = new ArrayList<ThingVariable>()
                 partialFunctionReferences.each {
-                    callerFunctionOrs << var("f").id(it.functionId)
-                    callerProjectOrs << var("p_ref").id(it.projectId)
+                    callerFunctionOrs << var("f").iid(it.functionId)
+                    callerProjectOrs << var("p_ref").iid(it.projectId)
                 }
 
-                def functionReferencesAnswer = readTx.execute(match(
+                List<ConceptMap> functionReferencesAnswer = readTx.query().match(match(
                         or(callerFunctionOrs),
                         var("f_ref").isa("function")
                                 .has("kythe_uri", var("k_uri"))
@@ -220,16 +229,16 @@ class ProjectService extends AbstractVerticle {
                                 .has("project_name", var("p_name")),
                         var().rel("has_defines_file", var("p_ref"))
                                 .rel("is_defines_file", var("fi_ref")).isa("defines_file")
-                ).get("f", "k_uri", "q_name", "f_loc", "p_name").limit(limit))
+                ).get("f", "k_uri", "q_name", "f_loc", "p_name").limit(limit)).collect()
 
                 def result = []
                 functionReferencesAnswer.each {
-                    def functionId = it.get("f").asEntity().id().value
+                    def functionId = it.get("f").asEntity().IID
                     def ref = functionMap.get(functionId)
-                    ref.kytheUri = it.get("k_uri").asAttribute().value() as String
-                    ref.qualifiedName = it.get("q_name").asAttribute().value() as String
-                    ref.fileLocation = it.get("f_loc").asAttribute().value() as String
-                    ref.projectName = it.get("p_name").asAttribute().value() as String
+                    ref.kytheUri = it.get("k_uri").asAttribute().asString().getValue()
+                    ref.qualifiedName = it.get("q_name").asAttribute().asString().getValue()
+                    ref.fileLocation = it.get("f_loc").asAttribute().asString().getValue()
+                    ref.projectName = it.get("p_name").asAttribute().asString().getValue()
                     result << ref
                 }
                 handler.handle(Future.succeededFuture(result))
@@ -240,18 +249,17 @@ class ProjectService extends AbstractVerticle {
     void getOrCreateFile(String projectId, String qualifiedName, String fileLocation,
                          Handler<AsyncResult<String>> handler) {
         vertx.executeBlocking({
-            try (def writeTx = session.transaction().write()) {
-                def getFileAnswer = writeTx.execute(match(
-                        var("p").id(projectId),
+            try (def writeTx = session.transaction(Grakn.Transaction.Type.WRITE)) {
+                List<ConceptMap> getFileAnswer = writeTx.query().match(match(
+                        var("p").iid(projectId),
                         var("fi").isa("file")
                                 .has("qualified_name", qualifiedName),
                         var().rel("has_defines_file", var("p"))
                                 .rel("is_defines_file", var("fi")).isa("defines_file")
-                ).get("fi"))
+                ).get("fi")).collect()
 
                 if (getFileAnswer.isEmpty()) {
-                    def createFileAnswer = writeTx.execute(insert(
-                            var("p").id(projectId),
+                    List<ConceptMap> createFileAnswer = writeTx.query().insert(match(var("p").iid(projectId)).insert(
                             var("fi").isa("file")
                                     .has("qualified_name", qualifiedName)
                                     .has("language", SourceLanguage.getSourceLanguage(fileLocation).key)
@@ -259,11 +267,11 @@ class ProjectService extends AbstractVerticle {
                                     .has("reference_count", 0),
                             var().rel("has_defines_file", var("p"))
                                     .rel("is_defines_file", var("fi")).isa("defines_file")
-                    ))
+                    )).collect()
                     writeTx.commit()
-                    handler.handle(Future.succeededFuture(createFileAnswer.get(0).get("fi").asEntity().id().value))
+                    handler.handle(Future.succeededFuture(createFileAnswer.get(0).get("fi").asEntity().IID))
                 } else {
-                    handler.handle(Future.succeededFuture(getFileAnswer.get(0).get("fi").asEntity().id().value))
+                    handler.handle(Future.succeededFuture(getFileAnswer.get(0).get("fi").asEntity().IID))
                 }
             }
         }, false, handler)
@@ -272,21 +280,20 @@ class ProjectService extends AbstractVerticle {
     void getOrCreateFiles(List<Tuple3<String, String, String>> fileData,
                           Handler<AsyncResult<List<String>>> handler) {
         vertx.executeBlocking({
-            try (def writeTx = session.transaction().write()) {
+            try (def writeTx = session.transaction(Grakn.Transaction.Type.WRITE)) {
                 def fileIds = new ArrayList<String>()
                 boolean wroteData = false
                 fileData.each {
-                    def getFileAnswer = writeTx.execute(match(
-                            var("p").id(it.v1),
+                    List<ConceptMap> getFileAnswer = writeTx.query().match(match(
+                            var("p").iid(it.v1),
                             var("fi").isa("file")
                                     .has("qualified_name", it.v2),
-                            var().rel("has_defines_file", var("p"))
+                            rel("has_defines_file", var("p"))
                                     .rel("is_defines_file", var("fi")).isa("defines_file")
-                    ).get("fi"))
+                    ).get("fi")).collect()
 
                     if (getFileAnswer.isEmpty()) {
-                        def createFileAnswer = writeTx.execute(insert(
-                                var("p").id(it.v1),
+                        List<ConceptMap> createFileAnswer = writeTx.query().insert(match(var("p").iid(it.v1)).insert(
                                 var("fi").isa("file")
                                         .has("qualified_name", it.v2)
                                         .has("language", SourceLanguage.getSourceLanguage(it.v3).key)
@@ -294,11 +301,11 @@ class ProjectService extends AbstractVerticle {
                                         .has("reference_count", 0),
                                 var().rel("has_defines_file", var("p"))
                                         .rel("is_defines_file", var("fi")).isa("defines_file")
-                        ))
+                        )).collect()
                         wroteData = true
-                        fileIds << createFileAnswer.get(0).get("fi").asEntity().id().value
+                        fileIds << createFileAnswer.get(0).get("fi").asEntity().IID
                     } else {
-                        fileIds << getFileAnswer.get(0).get("fi").asEntity().id().value
+                        fileIds << getFileAnswer.get(0).get("fi").asEntity().IID
                     }
                 }
                 if (wroteData) {
@@ -323,7 +330,7 @@ class ProjectService extends AbstractVerticle {
                              Handler<AsyncResult<String>> handler) {
         log.info("getOrCreateFunction - File id: $fileId - Function: $function - Reference count: $referenceCount")
         vertx.executeBlocking({
-            try (def writeTx = session.transaction().write()) {
+            try (def writeTx = session.transaction(Grakn.Transaction.Type.WRITE)) {
                 def functionId = getOrCreateFunction(writeTx, fileId, function, referenceCount)
                 writeTx.commit()
                 handler.handle(Future.succeededFuture(functionId))
@@ -333,70 +340,70 @@ class ProjectService extends AbstractVerticle {
         }, false, handler)
     }
 
-    static String getOrCreateFunction(GraknClient.Transaction writeTx, String fileId,
+    static String getOrCreateFunction(Grakn.Transaction writeTx, String fileId,
                                       FunctionInformation function, int referenceCount) {
-        def getFunctionAnswer = writeTx.execute(match(
+        List<ConceptMap> getFunctionAnswer = writeTx.query().match(match(
                 var("f").isa("function")
                         .has("kythe_uri", function.kytheUri)
-                        .has("qualified_name", var("q_name"), var("q_name_rel"))
-        ).get("f", "q_name", "q_name_rel"))
+                        .has("qualified_name", var("q_name"))
+        ).get("f", "q_name", "q_name_rel")).collect()
 
         if (getFunctionAnswer.isEmpty()) {
             log.info("createFunction - File id: $fileId - Function: $function - Reference count: $referenceCount")
-            def createFunctionAnswer
+            List<ConceptMap> createFunctionAnswer
             if (fileId != null) {
-                createFunctionAnswer = writeTx.execute(insert(
-                        var("fi").id(fileId),
+                createFunctionAnswer = writeTx.query().insert(match(var("fi").iid(fileId)).insert(
                         var("f").isa("function")
                                 .has("kythe_uri", function.kytheUri)
                                 .has("qualified_name", function.qualifiedName)
                                 .has("reference_count", referenceCount),
                         var().rel("has_defines_function", var("fi"))
                                 .rel("is_defines_function", var("f")).isa("defines_function")
-                ))
+                )).collect()
             } else {
-                createFunctionAnswer = writeTx.execute(insert(
+                createFunctionAnswer = writeTx.query().insert(insert(
                         var("f").isa("function")
                                 .has("kythe_uri", function.kytheUri)
                                 .has("qualified_name", function.qualifiedName)
                                 .has("reference_count", referenceCount)
-                ))
+                )).collect()
             }
-            return createFunctionAnswer.get(0).get("f").asEntity().id().value
+            return createFunctionAnswer.get(0).get("f").asEntity().IID
         } else {
             log.info("getFunction - File id: $fileId - Function: $function - Reference count: $referenceCount")
             if (fileId != null) {
                 //function definer; ensure qualified name is correct
-                def currentQualifiedName = getFunctionAnswer.get(0).get("q_name").asAttribute().value() as String
-                def qualifiedNameRelId = getFunctionAnswer.get(0).get("q_name_rel").asRelation().id().value
-                def functionId = getFunctionAnswer.get(0).get("f").asEntity().id().value
+                def currentQualifiedName = getFunctionAnswer.get(0).get("q_name").asAttribute().asString().getValue()
+                def qualifiedNameRelId = getFunctionAnswer.get(0).get("q_name_rel").asRelation().IID
+                def functionId = getFunctionAnswer.get(0).get("f").asEntity().IID
                 if (currentQualifiedName != function.qualifiedName) {
-                    writeTx.execute(parse(
+                    writeTx.query().match(parseQuery(
                             'match $r id ' + qualifiedNameRelId + '; delete $r;'
-                    ))
-                    writeTx.execute(match(
-                            var("f").id(functionId)).insert(
+                    ) as GraqlMatch)
+                    writeTx.query().insert(match(
+                            var("f").iid(functionId)).insert(
                             var("f").has("qualified_name", function.qualifiedName)
                     ))
                 }
 
                 //function definer; ensure function is associated to file
-                def getFunctionFileRelationAnswer = writeTx.execute(match(
-                        var("f").id(functionId),
-                        var("fi").id(fileId),
+                def getFunctionFileRelationAnswer = writeTx.query().match(match(
+                        var("f").iid(functionId),
+                        var("fi").iid(fileId),
                         var().rel("has_defines_function", var("fi"))
                                 .rel("is_defines_function", var("f")).isa("defines_function")
-                ).get())
+                ).get()).collect()
                 if (getFunctionFileRelationAnswer.isEmpty()) {
-                    writeTx.execute(insert(
-                            var("f").id(functionId),
-                            var("fi").id(fileId),
+                    writeTx.query().insert(match(
+                            var("f").iid(functionId),
+                            var("fi").iid(fileId)
+                    ).insert(
                             var().rel("has_defines_function", var("fi"))
                                     .rel("is_defines_function", var("f")).isa("defines_function")
                     ))
                 }
             }
-            return getFunctionAnswer.get(0).get("f").asEntity().id().value
+            return getFunctionAnswer.get(0).get("f").asEntity().IID
         }
     }
 
@@ -404,11 +411,11 @@ class ProjectService extends AbstractVerticle {
                                  Instant callerCommitDate, String callerCommitSha1, int callerLineNumber,
                                  FunctionInformation callerFunction, FunctionInformation calleeFunction,
                                  Handler<AsyncResult<Void>> handler) {
-        def callerFunctionFut = Future.future()
+        def callerFunctionFut = Promise.promise()
         getOrCreateFunction(callerFileId, callerFunction, 0, callerFunctionFut)
-        def calleeFunctionFut = Future.future()
+        def calleeFunctionFut = Promise.promise()
         getOrCreateFunction(calleeFunction, 1, calleeFunctionFut)
-        CompositeFuture.all(callerFunctionFut, calleeFunctionFut).setHandler({
+        CompositeFuture.all(callerFunctionFut.future(), calleeFunctionFut.future()).onComplete({
             if (it.succeeded()) {
                 def callerFunctionId = it.result().list().get(0) as String
                 def calleeFunctionId = it.result().list().get(1) as String
@@ -435,7 +442,7 @@ class ProjectService extends AbstractVerticle {
     void getOrCreateFunctionReference(String callerFunctionId, String calleeFunctionId,
                                       Handler<AsyncResult<String>> handler) {
         vertx.executeBlocking({
-            try (def writeTx = session.transaction().write()) {
+            try (def writeTx = session.transaction(Grakn.Transaction.Type.WRITE)) {
                 def functionReferenceId = getOrCreateFunctionReference(writeTx, callerFunctionId, calleeFunctionId)
                 writeTx.commit()
                 handler.handle(Future.succeededFuture(functionReferenceId))
@@ -445,25 +452,26 @@ class ProjectService extends AbstractVerticle {
         }, false, handler)
     }
 
-    static String getOrCreateFunctionReference(GraknClient.Transaction writeTx,
+    static String getOrCreateFunctionReference(Grakn.Transaction writeTx,
                                                String callerFunctionId, String calleeFunctionId) {
-        def getReferenceAnswer = writeTx.execute(match(
-                var("f1").id(callerFunctionId),
-                var("f2").id(calleeFunctionId),
+        List<ConceptMap> getReferenceAnswer = writeTx.query().match(match(
+                var("f1").iid(callerFunctionId),
+                var("f2").iid(calleeFunctionId),
                 var("ref").rel("has_reference_call", var("f1"))
                         .rel("is_reference_call", var("f2")).isa("reference_call")
-        ).get("ref"))
+        ).get("ref")).collect()
 
         if (getReferenceAnswer.isEmpty()) {
-            def createReferenceAnswer = writeTx.execute(insert(
-                    var("f1").id(callerFunctionId),
-                    var("f2").id(calleeFunctionId),
+            List<ConceptMap> createReferenceAnswer = writeTx.query().insert(match(
+                    var("f1").iid(callerFunctionId),
+                    var("f2").iid(calleeFunctionId)
+            ).insert(
                     var("ref").rel("has_reference_call", var("f1"))
                             .rel("is_reference_call", var("f2")).isa("reference_call")
-            ))
-            return createReferenceAnswer.get(0).get("ref").asRelation().id().value
+            )).collect()
+            return createReferenceAnswer.get(0).get("ref").asRelation().IID
         } else {
-            return getReferenceAnswer.get(0).get("ref").asRelation().id().value
+            return getReferenceAnswer.get(0).get("ref").asRelation().IID
         }
     }
 }

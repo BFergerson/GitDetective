@@ -52,10 +52,10 @@ class CreateJobs extends AbstractVerticle {
 
     @Override
     void start() throws Exception {
-        def jobsFut = Future.future()
-        def jobs = new JobsDAO(vertx, config(), jobsFut.completer())
+        def jobsFut = Promise.promise()
+        def jobs = new JobsDAO(vertx, config(), jobsFut)
 
-        jobsFut.setHandler({
+        jobsFut.future().onComplete({
             def futures = new ArrayList<Future>()
             new File(projectsFile).eachLine {
                 def fut = Future.future()
@@ -74,7 +74,7 @@ class CreateJobs extends AbstractVerticle {
                 })
             }
 
-            CompositeFuture.all(futures).setHandler({
+            CompositeFuture.all(futures).onComplete({
                 vertx.close()
             })
         })

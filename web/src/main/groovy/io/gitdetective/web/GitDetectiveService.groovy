@@ -2,8 +2,11 @@ package io.gitdetective.web
 
 import com.google.common.base.Charsets
 import com.google.common.io.Resources
+import grakn.client.Grakn
 import grakn.client.GraknClient
+import grakn.client.rpc.RPCSession
 import graql.lang.Graql
+import groovy.util.logging.Slf4j
 import io.gitdetective.web.dao.JobsDAO
 import io.gitdetective.web.dao.PostgresDAO
 import io.gitdetective.web.dao.RedisDAO
@@ -17,18 +20,13 @@ import io.gitdetective.web.work.UpdateProjectReferenceCounts
 import io.vertx.blueprint.kue.queue.Job
 import io.vertx.blueprint.kue.queue.Priority
 import io.vertx.blueprint.kue.util.RedisHelper
-import io.vertx.core.AbstractVerticle
-import io.vertx.core.CompositeFuture
-import io.vertx.core.DeploymentOptions
-import io.vertx.core.Future
+import io.vertx.core.*
 import io.vertx.core.json.Json
 import io.vertx.core.json.JsonArray
 import io.vertx.core.json.JsonObject
-import io.vertx.core.logging.Logger
-import io.vertx.core.logging.LoggerFactory
 import io.vertx.ext.bridge.PermittedOptions
 import io.vertx.ext.web.Router
-import io.vertx.ext.web.handler.sockjs.BridgeOptions
+import io.vertx.ext.web.handler.sockjs.SockJSBridgeOptions
 import io.vertx.ext.web.handler.sockjs.SockJSHandler
 
 import java.time.Instant
@@ -41,13 +39,13 @@ import static io.gitdetective.web.WebServices.*
  *
  * @author <a href="mailto:brandon.fergerson@codebrig.com">Brandon Fergerson</a>
  */
+@Slf4j
 class GitDetectiveService extends AbstractVerticle {
 
-    private final static Logger log = LoggerFactory.getLogger(GitDetectiveService.class)
     private final Router router
     private JobsDAO jobs
     private PostgresDAO postgres
-    private GraknClient.Session graknSession
+    private GraknClient.Core graknClient
     private ProjectService projectService
     private SystemService systemService
     private UserService userService
@@ -58,13 +56,13 @@ class GitDetectiveService extends AbstractVerticle {
     }
 
     @Override
-    void start(Future<Void> startFuture) throws Exception {
+    void start(Promise<Void> startPromise) throws Exception {
         jobs = new JobsDAO(vertx, config())
         uploadsDirectory = config().getString("uploads.directory")
         def redis = new RedisDAO(RedisHelper.client(vertx, config()))
-        def postgresFuture = Future.future()
+        def postgresFuture = Promise.promise()
         postgres = new PostgresDAO(vertx, config().getJsonObject("storage"), postgresFuture)
-        postgresFuture.setHandler({
+        postgresFuture.future().onComplete({
             if (it.succeeded()) {
                 //boot/setup grakn
                 vertx.executeBlocking({
@@ -72,26 +70,21 @@ class GitDetectiveService extends AbstractVerticle {
                     String graknHost = config().getString("grakn.host")
                     int graknPort = config().getInteger("grakn.port")
                     String graknKeyspace = config().getString("grakn.keyspace")
-                    def graknClient = new GraknClient("$graknHost:$graknPort")
-                    try {
-                        graknSession = graknClient.session(graknKeyspace)
-                    } catch (all) {
-                        all.printStackTrace()
-                        throw new ConnectException("Connection refused: $graknHost:$graknPort")
-                    }
-                    setupOntology(graknSession)
+                    graknClient = GraknClient.core("$graknHost:$graknPort")
+                    setupOntology()
 
                     //setup services
-                    systemService = new SystemService(graknSession, postgres)
-                    projectService = new ProjectService(graknSession, postgres)
-                    userService = new UserService(graknSession)
+                    def dataSession = graknClient.session(graknKeyspace, Grakn.Session.Type.DATA)
+                    systemService = new SystemService(dataSession, postgres)
+                    projectService = new ProjectService(dataSession, postgres)
+                    userService = new UserService(dataSession)
                     //todo: async/handler stuff
                     vertx.deployVerticle(systemService)
                     vertx.deployVerticle(projectService)
                     vertx.deployVerticle(userService)
-                    vertx.deployVerticle(new UpdateFunctionReferenceCounts(postgres, graknSession), new DeploymentOptions().setWorker(true))
-                    vertx.deployVerticle(new UpdateFileReferenceCounts(graknSession), new DeploymentOptions().setWorker(true))
-                    vertx.deployVerticle(new UpdateProjectReferenceCounts(graknSession), new DeploymentOptions().setWorker(true))
+                    vertx.deployVerticle(new UpdateFunctionReferenceCounts(postgres, dataSession), new DeploymentOptions().setWorker(true))
+                    vertx.deployVerticle(new UpdateFileReferenceCounts(dataSession), new DeploymentOptions().setWorker(true))
+                    vertx.deployVerticle(new UpdateProjectReferenceCounts(dataSession), new DeploymentOptions().setWorker(true))
 
                     if (config().getBoolean("launch_website")) {
                         log.info "Launching GitDetective website"
@@ -100,15 +93,15 @@ class GitDetectiveService extends AbstractVerticle {
                         vertx.deployVerticle(new GHArchiveSync(jobs), options)
                     }
                     it.complete()
-                }, false, startFuture)
+                }, false, startPromise)
             } else {
-                startFuture.fail(it.cause())
+                startPromise.fail(it.cause())
             }
         })
 
         //event bus bridge
         SockJSHandler sockJSHandler = SockJSHandler.create(vertx)
-        BridgeOptions tooltipBridgeOptions = new BridgeOptions()
+        SockJSBridgeOptions tooltipBridgeOptions = new SockJSBridgeOptions()
                 .addInboundPermitted(new PermittedOptions().setAddressRegex(".+"))
                 .addOutboundPermitted(new PermittedOptions().setAddressRegex(".+"))
         sockJSHandler.bridge(tooltipBridgeOptions)
@@ -141,7 +134,7 @@ class GitDetectiveService extends AbstractVerticle {
             def context = timer.time()
             log.debug "Getting active jobs"
 
-            jobs.kue.jobRangeByState("active", 0, Integer.MAX_VALUE, "asc").setHandler({
+            jobs.kue.jobRangeByState("active", 0, Integer.MAX_VALUE, "asc").onComplete({
                 if (it.failed()) {
                     it.cause().printStackTrace()
                     request.reply(it.cause())
@@ -260,14 +253,14 @@ class GitDetectiveService extends AbstractVerticle {
 
                 //check last queue/build
                 def futures = new ArrayList<Future>()
-                def canQueueFuture = Future.future()
-                futures.add(canQueueFuture)
-                jobs.getProjectLastQueued(githubRepository, canQueueFuture.completer())
-                def canBuildFuture = Future.future()
-                futures.add(canBuildFuture)
-                redis.getProjectLastBuilt(githubRepository, canBuildFuture.completer())
+                def canQueueFuture = Promise.promise()
+                futures.add(canQueueFuture.future())
+                jobs.getProjectLastQueued(githubRepository, canQueueFuture)
+                def canBuildFuture = Promise.promise()
+                futures.add(canBuildFuture.future())
+                redis.getProjectLastBuilt(githubRepository, canBuildFuture)
 
-                CompositeFuture.all(futures).setHandler({
+                CompositeFuture.all(futures).onComplete({
                     if (it.failed()) {
                         it.cause().printStackTrace()
                     } else {
@@ -308,10 +301,6 @@ class GitDetectiveService extends AbstractVerticle {
         return postgres
     }
 
-    GraknClient.Session getGraknSession() {
-        return graknSession
-    }
-
     SystemService getSystemService() {
         return systemService
     }
@@ -324,13 +313,30 @@ class GitDetectiveService extends AbstractVerticle {
         return userService
     }
 
-    static void setupOntology(GraknClient.Session graknSession) {
+    void setupOntology() {
         log.info "Setting up Grakn ontology"
-        def tx = graknSession.transaction().write()
-        tx.execute(Graql.parse(Resources.toString(Resources.getResource(
-                "gitdetective-schema.gql"), Charsets.UTF_8)))
-        tx.commit()
-        tx.close()
+        def graknKeyspace = config().getString("grakn.keyspace")
+        if (!graknClient.databases().contains(graknKeyspace)) {
+            graknClient.databases().create(graknKeyspace)
+            log.info "Created keyspace: $graknKeyspace"
+        }
+        try (def schemaSession = graknClient.session(graknKeyspace, Grakn.Session.Type.SCHEMA)) {
+            try (def tx = schemaSession.transaction(Grakn.Transaction.Type.WRITE)) {
+                tx.query().define(Graql.parseQuery(Resources.toString(Resources.getResource(
+                        "gitdetective-schema.gql"), Charsets.UTF_8)))
+                tx.commit()
+            }
+        }
+        log.info "Ontology setup"
+    }
+
+    static void setupOntology(RPCSession.Core graknSession) {
+        log.info "Setting up Grakn ontology"
+        try (def tx = graknSession.transaction(Grakn.Transaction.Type.WRITE)) {
+            tx.query().define(Graql.parseQuery(Resources.toString(Resources.getResource(
+                    "gitdetective-schema.gql"), Charsets.UTF_8)))
+            tx.commit()
+        }
         log.info "Ontology setup"
     }
 }

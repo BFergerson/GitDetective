@@ -1,5 +1,6 @@
 package io.gitdetective.web.work
 
+import groovy.util.logging.Slf4j
 import io.gitdetective.web.dao.JobsDAO
 import io.reactivex.Observable
 import io.reactivex.ObservableEmitter
@@ -7,8 +8,6 @@ import io.reactivex.ObservableOnSubscribe
 import io.vertx.blueprint.kue.queue.Job
 import io.vertx.core.*
 import io.vertx.core.json.JsonObject
-import io.vertx.core.logging.Logger
-import io.vertx.core.logging.LoggerFactory
 
 import java.time.Instant
 import java.time.LocalDate
@@ -23,10 +22,10 @@ import java.util.zip.GZIPInputStream
  *
  * @author <a href="mailto:brandon.fergerson@codebrig.com">Brandon Fergerson</a>
  */
+@Slf4j
 class GHArchiveSync extends AbstractVerticle {
 
     public final static String STANDALONE_MODE = "GHArchiveStandaloneMode"
-    private final static Logger log = LoggerFactory.getLogger(GHArchiveSync.class)
     private final JobsDAO jobs
 
     GHArchiveSync(JobsDAO jobs) {
@@ -55,15 +54,15 @@ class GHArchiveSync extends AbstractVerticle {
                         def archiveFile = fromDate.toString() + "-$i"
                         def dlFile = downloadArchive(archiveFile)
                         if (dlFile != null) {
-                            def fut = Future.future()
-                            futures.add(fut)
-                            processArchive(dlFile, archiveFile, fut.completer())
+                            def fut = Promise.promise()
+                            futures.add(fut.future())
+                            processArchive(dlFile, archiveFile, fut)
                         }
                     }
                     fromDate = fromDate.plusDays(1)
                 }
 
-                CompositeFuture.all(futures).setHandler({
+                CompositeFuture.all(futures).onComplete({
                     if (it.failed()) {
                         it.cause().printStackTrace()
                         standalone.fail(-1, it.cause().message)

@@ -3,16 +3,16 @@ package io.gitdetective.web
 import com.google.common.cache.Cache
 import com.google.common.cache.CacheBuilder
 import com.google.common.collect.Lists
+import groovy.util.logging.Slf4j
 import io.gitdetective.web.model.FunctionInformation
 import io.gitdetective.web.service.ProjectService
 import io.vertx.core.AbstractVerticle
 import io.vertx.core.CompositeFuture
 import io.vertx.core.Future
+import io.vertx.core.Promise
 import io.vertx.core.json.Json
 import io.vertx.core.json.JsonArray
 import io.vertx.core.json.JsonObject
-import io.vertx.core.logging.Logger
-import io.vertx.core.logging.LoggerFactory
 import io.vertx.ext.auth.PubSecKeyOptions
 import io.vertx.ext.auth.jwt.JWTAuth
 import io.vertx.ext.auth.jwt.JWTAuthOptions
@@ -35,9 +35,9 @@ import static java.util.Objects.requireNonNull
  *
  * @author <a href="mailto:brandon.fergerson@codebrig.com">Brandon Fergerson</a>
  */
+@Slf4j
 class GitDetectiveWebsite extends AbstractVerticle {
 
-    private final static Logger log = LoggerFactory.getLogger(GitDetectiveWebsite.class)
     private final static ResourceBundle buildBundle = ResourceBundle.getBundle("gitdetective_build")
     private static volatile long CURRENTLY_INDEXING_COUNT = 0
     private static volatile long CURRENTLY_IMPORTING_COUNT = 0
@@ -105,8 +105,7 @@ class GitDetectiveWebsite extends AbstractVerticle {
         def provider = JWTAuth.create(vertx, new JWTAuthOptions()
                 .addPubSecKey(new PubSecKeyOptions()
                         .setAlgorithm("HS256")
-                        .setPublicKey(config().getString("api_key"))
-                        .setSymmetric(true)))
+                        .setBuffer(config().getString("api_key"))))
         def v1ApiRouter = Router.router(vertx)
         router.mountSubRouter("/api", v1ApiRouter)
         v1ApiRouter.route("/*").handler(JWTAuthHandler.create(provider))
@@ -180,7 +179,7 @@ class GitDetectiveWebsite extends AbstractVerticle {
 
             vertx.executeBlocking({ blocking ->
                 def results = new ArrayList<String>()
-                def writeTx = service.graknSession.transaction().write()
+                def writeTx = service.graknSession.transaction(Grakn.Transaction.Type.WRITE)
                 for (int i = 0; i < request.size(); i++) {
                     def req = request.getJsonObject(i)
                     def fileId = req.getString("file_id")
@@ -214,7 +213,7 @@ class GitDetectiveWebsite extends AbstractVerticle {
 
             vertx.executeBlocking({ blocking ->
                 def futures = new ArrayList<Future>()
-                def writeTx = service.graknSession.transaction().write()
+                def writeTx = service.graknSession.transaction(Grakn.Transaction.Type.WRITE)
                 for (int i = 0; i < request.size(); i++) {
                     def req = request.getJsonObject(i)
                     def projectId = requireNonNull(req.getString("project_id"))
@@ -232,7 +231,7 @@ class GitDetectiveWebsite extends AbstractVerticle {
                 }
                 writeTx.commit()
 
-                CompositeFuture.all(futures).setHandler({
+                CompositeFuture.all(futures).onComplete({
                     if (it.succeeded()) {
                         blocking.complete()
                     } else {
@@ -342,7 +341,7 @@ class GitDetectiveWebsite extends AbstractVerticle {
                 getProjectReferenceLeaderboard(ctx, 5),
                 getFunctionReferenceLeaderboard(ctx, 5),
                 getDatabaseStatistics(ctx)
-        )).setHandler({
+        )).onComplete({
             log.debug "Rendering index page"
             engine.render(ctx.data(), "webroot/index.hbs", { res ->
                 if (res.succeeded()) {
@@ -376,7 +375,7 @@ class GitDetectiveWebsite extends AbstractVerticle {
         CompositeFuture.all(Lists.asList(
                 getUserProjectCount(ctx, username),
                 getUserMostReferencedProjectsInformation(ctx, username)
-        )).setHandler({
+        )).onComplete({
             log.debug "Rendering user page: $username"
             engine.render(ctx.data(), "webroot/user.hbs", { res ->
                 if (res.succeeded()) {
@@ -422,7 +421,7 @@ class GitDetectiveWebsite extends AbstractVerticle {
 //                getProjectLastIndexed(ctx, repo),
 //                getProjectLastIndexedCommitInformation(ctx, repo),
                 getProjectMostReferencedFunctionsInformation(ctx, githubRepository)
-        )).setHandler({
+        )).onComplete({
             if (it.failed()) {
                 it.cause().printStackTrace()
             }
@@ -445,7 +444,7 @@ class GitDetectiveWebsite extends AbstractVerticle {
                 log.debug "Checking repository: $githubRepository"
                 autoBuildCache.put(githubRepository, true)
 
-                vertx.eventBus().send(GET_TRIGGER_INFORMATION, repo, {
+                vertx.eventBus().request(GET_TRIGGER_INFORMATION, repo, {
                     def triggerInformation = it.result().body() as JsonObject
                     if (triggerInformation.getBoolean("can_build")) {
                         log.info "Auto-building: " + repo.getString("github_repository")
@@ -464,7 +463,7 @@ class GitDetectiveWebsite extends AbstractVerticle {
 
         //load and send page data
         log.debug "Loading project leaderboard page"
-        getProjectReferenceLeaderboard(ctx, 100).setHandler({
+        getProjectReferenceLeaderboard(ctx, 100).onComplete({
             if (it.failed()) {
                 ctx.fail(it.cause())
             } else {
@@ -489,7 +488,7 @@ class GitDetectiveWebsite extends AbstractVerticle {
 
         //load and send page data
         log.debug "Loading function leaderboard page"
-        getFunctionReferenceLeaderboard(ctx, 100).setHandler({
+        getFunctionReferenceLeaderboard(ctx, 100).onComplete({
             if (it.failed()) {
                 ctx.fail(it.cause())
             } else {
@@ -507,8 +506,7 @@ class GitDetectiveWebsite extends AbstractVerticle {
     }
 
     private Future getActiveJobs(RoutingContext ctx) {
-        def future = Future.future()
-        def handler = future.completer()
+        def promise = Promise.promise()
         vertx.eventBus().request(GET_ACTIVE_JOBS, new JsonObject(), {
             if (it.failed()) {
                 ctx.fail(it.cause())
@@ -530,14 +528,13 @@ class GitDetectiveWebsite extends AbstractVerticle {
 
                 ctx.put("active_jobs", activeJobs)
             }
-            handler.handle(Future.succeededFuture())
+            promise.handle(Future.succeededFuture())
         })
-        return future
+        return promise.future()
     }
 
     private Future getProjectReferenceLeaderboard(RoutingContext ctx, int limit) {
-        def future = Future.future()
-        def handler = future.completer()
+        def promise = Promise.promise()
         service.systemService.getTotalMostReferencedProjectsInformation(limit, {
             if (it.failed()) {
                 ctx.fail(it.cause())
@@ -552,28 +549,26 @@ class GitDetectiveWebsite extends AbstractVerticle {
                 }
                 ctx.put("project_reference_leaderboard", totalProjectReferences)
             }
-            handler.handle(Future.succeededFuture())
+            promise.handle(Future.succeededFuture())
         })
-        return future
+        return promise.future()
     }
 
     private Future getFunctionReferenceLeaderboard(RoutingContext ctx, int limit) {
-        def future = Future.future()
-        def handler = future.completer()
+        def promise = Promise.promise()
         service.systemService.getTotalMostReferencedFunctionsInformation(limit, {
             if (it.failed()) {
                 ctx.fail(it.cause())
             } else {
                 ctx.put("function_reference_leaderboard", new JsonArray(Json.encode(it.result())))
             }
-            handler.handle(Future.succeededFuture())
+            promise.handle(Future.succeededFuture())
         })
-        return future
+        return promise.future()
     }
 
     private Future getLatestBuildLog(RoutingContext ctx, JsonObject githubRepository) {
-        def future = Future.future()
-        def handler = future.completer()
+        def promise = Promise.promise()
         vertx.eventBus().request(GET_LATEST_JOB_LOG, githubRepository, {
             if (it.failed()) {
                 ctx.fail(it.cause())
@@ -583,28 +578,26 @@ class GitDetectiveWebsite extends AbstractVerticle {
                 ctx.put("latest_job_log_id", jobLog.getLong("job_id"))
                 ctx.put("latest_job_log_position", jobLog.getJsonArray("logs").size() - 1)
             }
-            handler.handle(Future.succeededFuture())
+            promise.handle(Future.succeededFuture())
         })
-        return future
+        return promise.future()
     }
 
     private Future getUserProjectCount(RoutingContext ctx, String githubUsername) {
-        def future = Future.future()
-        def handler = future.completer()
+        def promise = Promise.promise()
         service.userService.getProjectCount("github:" + githubUsername, {
             if (it.failed()) {
                 ctx.fail(it.cause())
             } else {
                 ctx.put("user_project_count", it.result())
             }
-            handler.handle(Future.succeededFuture())
+            promise.handle(Future.succeededFuture())
         })
-        return future
+        return promise.future()
     }
 
     private Future getUserMostReferencedProjectsInformation(RoutingContext ctx, String githubUsername) {
-        def future = Future.future()
-        def handler = future.completer()
+        def promise = Promise.promise()
         service.userService.getMostReferencedProjectsInformation("github:" + githubUsername, 10, {
             if (it.failed()) {
                 ctx.fail(it.cause())
@@ -619,14 +612,13 @@ class GitDetectiveWebsite extends AbstractVerticle {
                 }
                 ctx.put("user_most_referenced_projects", userProjectReferences)
             }
-            handler.handle(Future.succeededFuture())
+            promise.handle(Future.succeededFuture())
         })
-        return future
+        return promise.future()
     }
 
     private Future getProjectReferenceTrend(RoutingContext ctx, String githubRepository) {
-        def future = Future.future()
-        def handler = future.completer()
+        def promise = Promise.promise()
         service.projectService.getFunctionIds("github:" + githubRepository, {
             if (it.succeeded()) {
                 service.postgres.getProjectReferenceTrend(it.result(), {
@@ -646,7 +638,7 @@ class GitDetectiveWebsite extends AbstractVerticle {
                             trendData.add(data)
                         }
                         ctx.put("project_reference_trend", cumulativeTrendData)
-                        handler.handle(Future.succeededFuture())
+                        promise.handle(Future.succeededFuture())
                     } else {
                         ctx.fail(it.cause())
                     }
@@ -655,12 +647,11 @@ class GitDetectiveWebsite extends AbstractVerticle {
                 ctx.fail(it.cause())
             }
         })
-        return future
+        return promise.future()
     }
 
     private Future getLiveProjectReferenceTrend(RoutingContext ctx, String githubRepository) {
-        def future = Future.future()
-        def handler = future.completer()
+        def promise = Promise.promise()
         service.projectService.getFunctionIds("github:" + githubRepository, {
             if (it.succeeded()) {
                 service.postgres.getLiveProjectReferenceTrend(it.result(), {
@@ -680,7 +671,7 @@ class GitDetectiveWebsite extends AbstractVerticle {
                             trendData.add(data)
                         }
                         ctx.put("live_project_reference_trend", cumulativeTrendData)
-                        handler.handle(Future.succeededFuture())
+                        promise.handle(Future.succeededFuture())
                     } else {
                         ctx.fail(it.cause())
                     }
@@ -689,40 +680,37 @@ class GitDetectiveWebsite extends AbstractVerticle {
                 ctx.fail(it.cause())
             }
         })
-        return future
+        return promise.future()
     }
 
     private Future getProjectFileCount(RoutingContext ctx, String githubRepository) {
-        def future = Future.future()
-        def handler = future.completer()
+        def promise = Promise.promise()
         service.projectService.getFileCount("github:" + githubRepository, {
             if (it.failed()) {
                 ctx.fail(it.cause())
             } else {
                 ctx.put("project_file_count", it.result())
             }
-            handler.handle(Future.succeededFuture())
+            promise.handle(Future.succeededFuture())
         })
-        return future
+        return promise.future()
     }
 
     private Future getProjectFunctionCount(RoutingContext ctx, String githubRepository) {
-        def future = Future.future()
-        def handler = future.completer()
+        def promise = Promise.promise()
         service.projectService.getFunctionCount("github:" + githubRepository, {
             if (it.failed()) {
                 ctx.fail(it.cause())
             } else {
                 ctx.put("project_function_count", it.result())
             }
-            handler.handle(Future.succeededFuture())
+            promise.handle(Future.succeededFuture())
         })
-        return future
+        return promise.future()
     }
 
     private Future getProjectMostReferencedFunctionsInformation(RoutingContext ctx, String githubRepository) {
-        def future = Future.future()
-        def handler = future.completer()
+        def promise = Promise.promise()
         service.projectService.getMostReferencedFunctionsInformation("github:" + githubRepository, 10, {
             if (it.failed()) {
                 ctx.fail(it.cause())
@@ -741,9 +729,9 @@ class GitDetectiveWebsite extends AbstractVerticle {
                 }
                 ctx.put("project_most_referenced_functions", projectFunctionReferences)
             }
-            handler.handle(Future.succeededFuture())
+            promise.handle(Future.succeededFuture())
         })
-        return future
+        return promise.future()
     }
 
 //    private Future getProjectFirstIndexed(RoutingContext ctx, JsonObject githubRepository) {
@@ -803,9 +791,8 @@ class GitDetectiveWebsite extends AbstractVerticle {
                 .put("stat2", "Functions").put("value2", asPrettyNumber(TOTAL_FUNCTION_COUNT)))
         ctx.put("database_statistics", stats)
 
-        def future = Future.future()
-        def handler = future.completer()
-        handler.handle(Future.succeededFuture())
-        return future
+        def promise = Promise.promise()
+        promise.handle(Future.succeededFuture())
+        return promise.future()
     }
 }

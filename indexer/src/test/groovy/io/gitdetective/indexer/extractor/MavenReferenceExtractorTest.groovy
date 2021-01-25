@@ -56,8 +56,7 @@ class MavenReferenceExtractorTest {
         def provider = JWTAuth.create(vertx, new JWTAuthOptions()
                 .addPubSecKey(new PubSecKeyOptions()
                         .setAlgorithm("HS256")
-                        .setPublicKey(indexerConfig.getString("gitdetective_service.api_key"))
-                        .setSymmetric(true)))
+                        .setBuffer(indexerConfig.getString("gitdetective_service.api_key"))))
         def apiKey = provider.generateToken(new JsonObject())
 
         def async = test.async()
@@ -96,8 +95,7 @@ class MavenReferenceExtractorTest {
         def provider = JWTAuth.create(vertx, new JWTAuthOptions()
                 .addPubSecKey(new PubSecKeyOptions()
                         .setAlgorithm("HS256")
-                        .setPublicKey(indexerConfig.getString("gitdetective_service.api_key"))
-                        .setSymmetric(true)))
+                        .setBuffer(indexerConfig.getString("gitdetective_service.api_key"))))
         def apiKey = provider.generateToken(new JsonObject())
 
         def async = test.async()

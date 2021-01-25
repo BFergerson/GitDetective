@@ -15,10 +15,10 @@ services:
     ports:
       - "9432:9432"
   grakn:
-    image: graknlabs/grakn:1.6.2
+    image: graknlabs/grakn:2.0.0-alpha-3
     container_name: grakn
     ports:
-      - "48555:48555"
+      - "1729:1729"
   timescaledb:
     image: timescale/timescaledb:latest-pg11
     container_name: timescaledb

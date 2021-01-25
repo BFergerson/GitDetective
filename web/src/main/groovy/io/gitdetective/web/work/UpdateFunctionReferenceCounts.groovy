@@ -1,6 +1,8 @@
 package io.gitdetective.web.work
 
-import grakn.client.GraknClient
+import grakn.client.Grakn
+import grakn.client.rpc.RPCSession
+import graql.lang.Graql
 import groovy.util.logging.Slf4j
 import io.gitdetective.web.WebLauncher
 import io.gitdetective.web.dao.PostgresDAO
@@ -32,9 +34,9 @@ class UpdateFunctionReferenceCounts extends AbstractVerticle {
                     'GROUP BY callee_function_id'
 
     private final PostgresDAO postgres
-    private final GraknClient.Session graknSession
+    private final RPCSession.Core graknSession
 
-    UpdateFunctionReferenceCounts(PostgresDAO postgres, GraknClient.Session graknSession) {
+    UpdateFunctionReferenceCounts(PostgresDAO postgres, RPCSession.Core graknSession) {
         this.postgres = postgres
         this.graknSession = graknSession
     }
@@ -66,9 +68,9 @@ class UpdateFunctionReferenceCounts extends AbstractVerticle {
     }
 
     void createFunctionReferenceCountTable(Handler<AsyncResult<Void>> handler) {
-        postgres.client.query(DROP_FUNCTION_REFERENCE_COUNT_TABLE, {
+        postgres.client.query(DROP_FUNCTION_REFERENCE_COUNT_TABLE).execute({
             if (it.succeeded()) {
-                postgres.client.query(CREATE_FUNCTION_REFERENCE_COUNT_TABLE, {
+                postgres.client.query(CREATE_FUNCTION_REFERENCE_COUNT_TABLE).execute({
                     if (it.succeeded()) {
                         updateGraknReferenceCounts(handler)
                     } else {
@@ -87,17 +89,16 @@ class UpdateFunctionReferenceCounts extends AbstractVerticle {
                 def connection = it.result()
                 connection.prepare("SELECT * FROM function_reference_count", {
                     if (it.succeeded()) {
-                        PreparedQuery pq = it.result()
-                        Transaction tx = connection.begin()
-                        AtomicReference<GraknClient.Transaction> graknWriteTx
-                                = new AtomicReference<>(graknSession.transaction().write())
+                        def pq = it.result()
+                        def tx = connection.begin()
+                        def graknWriteTx = new AtomicReference<>(graknSession.transaction(Grakn.Transaction.Type.WRITE))
 
                         RowStream<Row> stream = pq.createStream(50, ArrayTuple.EMPTY)
                         stream.exceptionHandler({
                             handler.handle(Future.failedFuture(it))
                         })
                         stream.endHandler(v -> {
-                            tx.commit()
+                            tx.result().commit()
                             graknWriteTx.get().commit()
                             graknWriteTx.set(null)
                             handler.handle(Future.succeededFuture())
@@ -107,15 +108,16 @@ class UpdateFunctionReferenceCounts extends AbstractVerticle {
                         stream.handler(row -> {
                             if (insertCount > 0 && insertCount % 500 == 0) {
                                 graknWriteTx.get().commit()
-                                graknWriteTx.set(graknSession.transaction().write())
+                                graknWriteTx.set(graknSession.transaction(Grakn.Transaction.Type.WRITE))
                             }
                             insertCount++
 
-                            graknWriteTx.get().execute(parse(
+                            graknWriteTx.get().query().delete(parseQuery(
                                     'match $x id ' + row.getString(0) + ', has reference_count $ref_count via $r; delete $r;'
                             ))
-                            graknWriteTx.get().execute(match(
-                                    var("f").id(row.getString(0))).insert(
+                            graknWriteTx.get().query().insert(match(
+                                    var("f").iid(row.getString(0))
+                            ).insert(
                                     var("f").has("reference_count", row.getLong(1))
                             ))
                         })

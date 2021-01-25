@@ -2,44 +2,44 @@ define
 
 ##########---------- Entities ----------##########
 user sub entity,
-    key username,
-    has create_date,
-    plays has_project;
+    owns username @key,
+    owns create_date,
+    plays owns_project:has_project;
 project sub entity,
-    key project_name,
-    has create_date,
-    has reference_count,
-    plays is_project,
-    plays has_defines_file;
+    owns project_name @key,
+    owns create_date,
+    owns reference_count,
+    plays owns_project:is_project,
+    plays defines_file:has_defines_file;
 file sub entity,
-    has language,
-    has subkind,
-    has file_location,
-    has qualified_name,
-    has reference_count,
-    plays is_defines_file,
-    plays has_defines_function,
-    plays has_reference_call;
+    owns language,
+    owns subkind,
+    owns file_location,
+    owns qualified_name,
+    owns reference_count,
+    plays defines_file:is_defines_file,
+    plays defines_function:has_defines_function,
+    plays reference_call:has_reference_call;
 function sub entity,
-    key kythe_uri,
-    has subkind,
-    has qualified_name,
-    has reference_count,
-    plays is_defines_function,
-    plays is_reference_call,
-    plays has_reference_call;
+    owns kythe_uri @key,
+    owns subkind,
+    owns qualified_name,
+    owns reference_count,
+    plays defines_function:is_defines_function,
+    plays reference_call:is_reference_call,
+    plays reference_call:has_reference_call;
 
 ##########---------- Attributes ----------##########
-language sub attribute, datatype string;
-name sub attribute, abstract, datatype string;
-create_date sub attribute, datatype date;
-subkind sub attribute, datatype string;
-file_location sub attribute, datatype string;
-username sub name, datatype string;
-project_name sub name, datatype string;
-qualified_name sub name, datatype string;
-kythe_uri sub attribute, datatype string;
-reference_count sub attribute, datatype long;
+language sub attribute, value string;
+name sub attribute, abstract, value string;
+create_date sub attribute, value datetime;
+subkind sub attribute, value string;
+file_location sub attribute, value string;
+username sub name, value string;
+project_name sub name, value string;
+qualified_name sub name, value string;
+kythe_uri sub attribute, value string;
+reference_count sub attribute, value long;
 
 ##########---------- Relationships ----------##########
 owns_project sub relation,

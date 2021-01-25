@@ -1,6 +1,7 @@
 package io.gitdetective.web.work
 
-import grakn.client.GraknClient
+import grakn.client.Grakn
+import grakn.client.rpc.RPCSession
 import groovy.util.logging.Slf4j
 import io.gitdetective.web.WebLauncher
 import io.vertx.core.AbstractVerticle
@@ -10,16 +11,18 @@ import io.vertx.core.Handler
 
 import java.util.concurrent.TimeUnit
 
-import static graql.lang.Graql.*
+import static graql.lang.Graql.match
+import static graql.lang.Graql.parseQuery
+import static graql.lang.Graql.var
 
 @Slf4j
 class UpdateProjectReferenceCounts extends AbstractVerticle {
 
     public static final String PERFORM_TASK_NOW = "UpdateProjectReferenceCounts"
 
-    private final GraknClient.Session graknSession
+    private final RPCSession.Core graknSession
 
-    UpdateProjectReferenceCounts(GraknClient.Session graknSession) {
+    UpdateProjectReferenceCounts(RPCSession.Core graknSession) {
         this.graknSession = graknSession
     }
 
@@ -50,27 +53,33 @@ class UpdateProjectReferenceCounts extends AbstractVerticle {
     }
 
     void updateGraknProjectReferenceCounts(Handler<AsyncResult<Void>> handler) {
-        def writeTx = graknSession.transaction().write()
-        writeTx.stream(match(
-                var("p").isa("project")
-                        .has("reference_count", var("p_ref_count"), var("p_ref_count_relation"))
-        ).get()).forEach({
-            def projectId = it.get("p").asEntity().id().value
-            def projectRefCount = it.get("p_ref_count").asAttribute().value() as long
-            def projectRefCountRelationId = it.get("p_ref_count_relation").asRelation().id().value
+        def writeTx = graknSession.transaction(Grakn.Transaction.Type.WRITE)
+        writeTx.query().match(match(
+                var("p").isa("project").has("reference_count", var("p_ref_count"))
+        ).get("p", "p_ref_count")).forEach({
+            def projectId = it.get("p").asEntity().IID
+            def projectRefCount = it.get("p_ref_count").asAttribute().asLong().getValue()
 
-            def actualProjectRefCount = writeTx.execute(match(
-                    var("p").id(projectId),
+            def actualProjectRefCount = writeTx.query().match(match(
+                    var("p").iid(projectId),
                     var("fi").isa("file").has("reference_count", var("fi_ref_count")),
                     var().rel("has_defines_file", var("p"))
                             .rel("is_defines_file", var("fi")).isa("defines_file")
-            ).get("fi_ref_count").sum("fi_ref_count")).get(0).number().longValue()
+            ).sum("fi_ref_count")).get()
+            if (!actualProjectRefCount.isLong()) {
+                actualProjectRefCount = 0
+            } else {
+                actualProjectRefCount = actualProjectRefCount.asLong()
+            }
+
             if (actualProjectRefCount != projectRefCount) {
-                writeTx.execute(parse(
+                def projectRefCountRelationId = it.get("p_ref_count_relation").asRelation().IID
+                writeTx.query().delete(parseQuery(
                         'match $r id ' + projectRefCountRelationId + '; delete $r;'
                 ))
-                writeTx.execute(match(
-                        var("p").id(projectId)).insert(
+                writeTx.query().insert(match(
+                        var("p").iid(projectId)
+                ).insert(
                         var("p").has("reference_count", actualProjectRefCount)
                 ))
             }

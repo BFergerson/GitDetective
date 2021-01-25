@@ -61,11 +61,11 @@ class JobsDAO {
         kue.createJob(jobType, data)
                 .setMax_attempts(0)
                 .setPriority(priority)
-                .save().setHandler({ job ->
+                .save().onComplete({ job ->
             if (job.failed()) {
                 handler.handle(Future.failedFuture(job.cause()))
             } else {
-                job.result().log(initialMessage + " (id: " + job.result().id + ")").setHandler({
+                job.result().log(initialMessage + " (id: " + job.result().id + ")").onComplete({
                     if (jobType == "ImportGithubProject") {
                         //shouldn't ever start at import... either way import stage isn't associated to build history
                         //comes from either index or calculate
@@ -91,7 +91,7 @@ class JobsDAO {
             } else {
                 def latestJobId = it.result() as Optional<Long>
                 if (latestJobId.isPresent()) {
-                    kue.getJob(latestJobId.get()).setHandler({
+                    kue.getJob(latestJobId.get()).onComplete({
                         if (it.failed()) {
                             handler.handle(Future.failedFuture(it.cause()))
                         } else if (it.result().isPresent()) {
@@ -112,7 +112,7 @@ class JobsDAO {
     }
 
     void getJobLogs(long jobId, Handler<AsyncResult<JsonArray>> handler) {
-        kue.getJobLog(jobId).setHandler({
+        kue.getJobLog(jobId).onComplete({
             if (it.failed()) {
                 handler.handle(Future.failedFuture(it.cause()))
             } else {
@@ -134,7 +134,7 @@ class JobsDAO {
     }
 
     void getActiveCount(String jobType, Handler<AsyncResult<Long>> handler) {
-        kue.activeCount(jobType).setHandler(handler)
+        kue.activeCount(jobType).onComplete(handler)
     }
 
     void getProjectLastIndexedCommitInformation(String githubRepository, Handler<AsyncResult<JsonObject>> handler) {
@@ -160,5 +160,4 @@ class JobsDAO {
     Kue getKue() {
         return kue
     }
-
 }

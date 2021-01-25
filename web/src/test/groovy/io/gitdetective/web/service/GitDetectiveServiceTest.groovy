@@ -4,7 +4,9 @@ import ch.qos.logback.classic.Level
 import ch.qos.logback.classic.Logger
 import com.google.common.base.Charsets
 import com.google.common.io.Resources
+import grakn.client.Grakn
 import grakn.client.GraknClient
+import grakn.client.rpc.RPCSession
 import graql.lang.Graql
 import groovy.util.logging.Slf4j
 import io.gitdetective.web.GitDetectiveService
@@ -19,6 +21,9 @@ import io.vertx.pgclient.PgPool
 import io.vertx.sqlclient.PoolOptions
 import org.slf4j.LoggerFactory
 
+import static graql.lang.Graql.match
+import static graql.lang.Graql.parseQuery
+import static graql.lang.Graql.var
 import static org.slf4j.Logger.ROOT_LOGGER_NAME
 
 @Slf4j
@@ -30,18 +35,18 @@ abstract class GitDetectiveServiceTest {
     }
 
     static Vertx vertx
-    static GraknClient graknClient
-    static GraknClient.Session graknSession
+    static GraknClient.Core graknClient
+    static RPCSession.Core graknSession
     static PgPool postgresClient
     static PostgresDAO postgres
 
     static void setUp(Handler<AsyncResult<Void>> handler) {
         String graknHost = "localhost"
-        int graknPort = 48555
+        int graknPort = 1729
         String graknKeyspace = "grakn"
-        graknClient = new GraknClient("$graknHost:$graknPort")
+        graknClient = GraknClient.core("$graknHost:$graknPort")
         try {
-            graknSession = graknClient.session(graknKeyspace)
+            graknSession = graknClient.session(graknKeyspace, Grakn.Session.Type.DATA)
         } catch (all) {
             handler.handle(Future.failedFuture(all.cause))
         }
@@ -49,9 +54,9 @@ abstract class GitDetectiveServiceTest {
 
         log.info("Loading test data")
         try {
-            def tx = graknSession.transaction().write()
-            tx.execute(Graql.match(Graql.var("x").isa("thing")).delete("x"))
-            tx.execute(Graql.parse(Resources.toString(Resources.getResource(
+            def tx = graknSession.transaction(Grakn.Transaction.Type.WRITE)
+            tx.query().delete(match(var("x").isa("thing")).delete(var("x").isa("thing")))
+            tx.query().insert(parseQuery(Resources.toString(Resources.getResource(
                     "test-data.gql"), Charsets.UTF_8)))
             tx.commit()
             tx.close()
@@ -75,8 +80,8 @@ abstract class GitDetectiveServiceTest {
 
     static void tearDown(TestContext test) {
         log.info("Tearing down Vertx")
-        def tx = graknSession.transaction().write();
-        tx.execute(Graql.match(Graql.var("x").isa("thing")).delete("x"))
+        def tx = graknSession.transaction(Grakn.Transaction.Type.WRITE);
+        tx.query().delete(match(var("x").isa("thing")).delete(var("x").isa("thing")))
         tx.commit()
         tx.close()
         graknSession.close()

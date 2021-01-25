@@ -191,7 +191,7 @@ class MyProjectOtherProjectTest {
     }
 
     protected static void doMyProjectImport(GitDetectiveService detectiveService, Handler<AsyncResult<Void>> handler) {
-        def createProjectsAsync = Future.future()
+        def createProjectsAsync = Promise.promise()
         String userId = null
         detectiveService.userService.getOrCreateUser("github:bfergerson", {
             if (it.failed()) {
@@ -207,8 +207,8 @@ class MyProjectOtherProjectTest {
             })
         })
 
-        def createFilesAsync = Future.future()
-        createProjectsAsync.setHandler({
+        def createFilesAsync = Promise.promise()
+        createProjectsAsync.future().onComplete({
             detectiveService.projectService.getOrCreateFile(myProjectId, "com.gitdetective.MyClass",
                     "src/main/java/com/gitdetective/MyClass.java", {
                 if (it.succeeded()) {
@@ -220,8 +220,8 @@ class MyProjectOtherProjectTest {
             })
         })
 
-        def createFunctionAsync = Future.future()
-        createFilesAsync.setHandler({
+        def createFunctionAsync = Promise.promise()
+        createFilesAsync.future().onComplete({
             myProjectMyMethod = new FunctionInformation(
                     "kythe://kythe?lang=java?path=com/gitdetective/MyClass.java#6a69bc35ea8774d37510f3405373b2a65e029a4528321575191a00912b83818f",
                     "com.gitdetective.MyClass.myMethod()"
@@ -235,11 +235,12 @@ class MyProjectOtherProjectTest {
                 }
             })
         })
-        CompositeFuture.all(createProjectsAsync, createFilesAsync, createFunctionAsync).setHandler(handler)
+        CompositeFuture.all(createProjectsAsync.future(), createFilesAsync.future(), createFunctionAsync.future())
+                .onComplete(handler)
     }
 
     protected static void doOtherProjectImport(GitDetectiveService detectiveService, Handler<AsyncResult<Void>> handler) {
-        def createProjectsAsync = Future.future()
+        def createProjectsAsync = Promise.promise()
         String userId = null
         detectiveService.userService.getOrCreateUser("github:bfergerson", {
             if (it.failed()) {
@@ -255,8 +256,8 @@ class MyProjectOtherProjectTest {
             })
         })
 
-        def createFilesAsync = Future.future()
-        createProjectsAsync.setHandler({
+        def createFilesAsync = Promise.promise()
+        createProjectsAsync.future().onComplete({
             detectiveService.projectService.getOrCreateFile(otherProjectId, "com.gitdetective.App2",
                     "src/main/java/com/gitdetective/App2.java", {
                 if (it.succeeded()) {
@@ -268,8 +269,8 @@ class MyProjectOtherProjectTest {
             })
         })
 
-        def createFunctionAsync = Future.future()
-        createFilesAsync.setHandler({
+        def createFunctionAsync = Promise.promise()
+        createFilesAsync.future().onComplete({
             otherProjectMain = new FunctionInformation(
                     "kythe://kythe?lang=java?path=com/gitdetective/App2.java#d1986b43119e8013b76b5a57426d0ed51d3ef15a8bdb166657ef6aff91d3e6fc",
                     "com.gitdetective.App2.main(java.lang.String[])"
@@ -283,6 +284,7 @@ class MyProjectOtherProjectTest {
                 }
             })
         })
-        CompositeFuture.all(createProjectsAsync, createFilesAsync, createFunctionAsync).setHandler(handler)
+        CompositeFuture.all(createProjectsAsync.future(), createFilesAsync.future(), createFunctionAsync.future())
+                .onComplete(handler)
     }
 }

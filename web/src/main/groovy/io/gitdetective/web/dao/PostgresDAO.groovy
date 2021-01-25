@@ -76,13 +76,13 @@ class PostgresDAO {
     }
 
     private void installTablesIfNecessary(Handler<AsyncResult<Void>> handler) {
-        client.query("SELECT 1", {
+        client.query("SELECT 1").execute({
             if (it.succeeded()) {
-                client.query("SELECT 1 FROM information_schema.tables WHERE table_name = 'function_reference'", {
+                client.query("SELECT 1 FROM information_schema.tables WHERE table_name = 'function_reference'").execute({
                     if (it.succeeded()) {
                         if (it.result().isEmpty()) {
                             client.query(Resources.toString(Resources.getResource(
-                                    "reference-storage-schema.sql"), Charsets.UTF_8), {
+                                    "reference-storage-schema.sql"), Charsets.UTF_8)).execute({
                                 if (it.succeeded()) {
                                     handler.handle(Future.succeededFuture())
                                 } else {
@@ -105,20 +105,20 @@ class PostgresDAO {
     void insertFunctionReference(String callerProjectId, String callerFunctionId, String calleeFunctionId,
                                  String callerCommitSha1, Instant callerCommitDate, int callerLineNumber,
                                  Handler<AsyncResult<Void>> handler) {
-        client.preparedQuery(INSERT_FUNCTION_REFERENCE, Tuple.of(callerProjectId, callerFunctionId, calleeFunctionId,
+        client.preparedQuery(INSERT_FUNCTION_REFERENCE).execute(Tuple.of(callerProjectId, callerFunctionId, calleeFunctionId,
                 callerCommitSha1, OffsetDateTime.ofInstant(callerCommitDate, UTC), callerLineNumber), handler)
     }
 
     void removeFunctionReference(String callerProjectId, String callerFunctionId, String calleeFunctionId,
                                  String callerCommitSha1, Instant callerCommitDate,
                                  Handler<AsyncResult<Void>> handler) {
-        client.preparedQuery(REMOVE_FUNCTION_REFERENCE, Tuple.of(callerProjectId, callerFunctionId, calleeFunctionId,
+        client.preparedQuery(REMOVE_FUNCTION_REFERENCE).execute(Tuple.of(callerProjectId, callerFunctionId, calleeFunctionId,
                 callerCommitSha1, OffsetDateTime.ofInstant(callerCommitDate, UTC)), handler)
     }
 
     void getLiveProjectReferenceTrend(List<String> projectFunctionsIds, Handler<AsyncResult<ProjectLiveReferenceTrend>> handler) {
-        client.preparedQuery(GET_LIVE_PROJECT_REFERENCE_TREND,
-                Tuple.tuple().addStringArray(projectFunctionsIds.toArray() as String[]), {
+        client.preparedQuery(GET_LIVE_PROJECT_REFERENCE_TREND).execute(
+                Tuple.tuple().addArrayOfString(projectFunctionsIds.toArray() as String[]), {
             if (it.succeeded()) {
                 def trend = new ProjectLiveReferenceTrend()
                 it.result().each {
@@ -136,8 +136,8 @@ class PostgresDAO {
     }
 
     void getProjectReferenceTrend(List<String> projectFunctionsIds, Handler<AsyncResult<ProjectReferenceTrend>> handler) {
-        client.preparedQuery(GET_PROJECT_REFERENCE_TREND,
-                Tuple.tuple().addStringArray(projectFunctionsIds.toArray() as String[]), {
+        client.preparedQuery(GET_PROJECT_REFERENCE_TREND).execute(
+                Tuple.tuple().addArrayOfString(projectFunctionsIds.toArray() as String[]), {
             if (it.succeeded()) {
                 def trend = new ProjectReferenceTrend()
                 it.result().each {
@@ -154,7 +154,7 @@ class PostgresDAO {
 
     void getFunctionReferences(String functionId, int limit,
                                Handler<AsyncResult<List<FunctionReference>>> handler) {
-        client.preparedQuery(GET_FUNCTION_REFERENCES, Tuple.of(functionId, limit), {
+        client.preparedQuery(GET_FUNCTION_REFERENCES).execute(Tuple.of(functionId, limit), {
             if (it.succeeded()) {
                 def result = []
                 it.result().each {

@@ -266,7 +266,7 @@ class GithubRepositoryCloner extends AbstractVerticle {
                 job.data.put("commit_date", latestCommitDate)
                 job.data.put("output_directory", outputDirectory.absolutePath)
                 job.data.put("build_target", (res.result() as File).absolutePath)
-                job.save().setHandler({
+                job.save().onComplete({
                     if (it.succeeded()) {
                         vertx.eventBus().send(builderAddress, job)
                     } else {

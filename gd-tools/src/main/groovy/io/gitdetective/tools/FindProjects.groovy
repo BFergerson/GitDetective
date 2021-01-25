@@ -55,7 +55,7 @@ class FindProjects extends AbstractVerticle {
                 System.exit(-1)
             }
 
-            vertx.eventBus().send(GHArchiveSync.STANDALONE_MODE, new JsonObject()
+            vertx.eventBus().request(GHArchiveSync.STANDALONE_MODE, new JsonObject()
                     .put("from_date", fromDate.toString())
                     .put("to_date", toDate.toString()), new DeliveryOptions().setSendTimeout(Integer.MAX_VALUE), {
                 if (it.failed()) {

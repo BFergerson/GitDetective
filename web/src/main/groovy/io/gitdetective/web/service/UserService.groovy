@@ -1,6 +1,8 @@
 package io.gitdetective.web.service
 
-import grakn.client.GraknClient
+import grakn.client.Grakn
+import grakn.client.concept.answer.ConceptMap
+import grakn.client.rpc.RPCSession
 import groovy.util.logging.Slf4j
 import io.gitdetective.web.model.ProjectReferenceInformation
 import io.vertx.core.AbstractVerticle
@@ -16,30 +18,34 @@ import static graql.lang.Graql.*
 @Slf4j
 class UserService extends AbstractVerticle {
 
-    private final GraknClient.Session session
+    private final RPCSession.Core session
 
-    UserService(GraknClient.Session session) {
+    UserService(RPCSession.Core session) {
         this.session = Objects.requireNonNull(session)
     }
 
     void getOrCreateUser(String username, Handler<AsyncResult<String>> handler) {
         vertx.executeBlocking({
-            try (def writeTx = session.transaction().write()) {
-                def getUserAnswer = writeTx.execute(match(
+            try (def writeTx = session.transaction(Grakn.Transaction.Type.WRITE)) {
+                List<ConceptMap> getUserAnswer = writeTx.query().match(match(
                         var("u").isa("user")
                                 .has("username", username)
-                ).get("u"))
+                ).get("u")).collect()
 
                 if (getUserAnswer.isEmpty()) {
-                    def createUserAnswer = writeTx.execute(insert(
+                    List<ConceptMap> createUserAnswer = writeTx.query().insert(insert(
                             var("u").isa("user")
                                     .has("username", username)
                                     .has("create_date", LocalDateTime.now().truncatedTo(ChronoUnit.MILLIS))
-                    ))
+                    )).collect()
                     writeTx.commit()
-                    handler.handle(Future.succeededFuture(createUserAnswer.get(0).get("u").asEntity().id().value))
+
+                    //todo: grakn isn't recognizing inserted data in other transaction
+                    def userId = createUserAnswer[0].get("u").asEntity().IID
+                    log.info("Created user {} - Id {}", username, userId)
+                    handler.handle(Future.succeededFuture(userId))
                 } else {
-                    handler.handle(Future.succeededFuture(getUserAnswer.get(0).get("u").asEntity().id().value))
+                    handler.handle(Future.succeededFuture(getUserAnswer[0].get("u").asEntity().IID))
                 }
             }
         }, false, handler)
@@ -47,16 +53,16 @@ class UserService extends AbstractVerticle {
 
     void getProjectCount(String username, Handler<AsyncResult<Long>> handler) {
         vertx.executeBlocking({
-            try (def readTx = session.transaction().read()) {
-                def projectCountAnswer = readTx.execute(match(
+            try (def readTx = session.transaction(Grakn.Transaction.Type.READ)) {
+                def projectCountAnswer = readTx.query().match(match(
                         var("u").isa("user")
                                 .has("username", username),
                         var("p").isa("project"),
                         var().rel("has_project", var("u"))
                                 .rel("is_project", var("p")).isa("owns_project")
-                ).get("p").count())
+                ).get("p").count()).get()
 
-                handler.handle(Future.succeededFuture(projectCountAnswer.get(0).number().longValue()))
+                handler.handle(Future.succeededFuture(projectCountAnswer.asLong()))
             }
         }, false, handler)
     }
@@ -64,8 +70,8 @@ class UserService extends AbstractVerticle {
     void getMostReferencedProjectsInformation(String username, int limit,
                                               Handler<AsyncResult<List<ProjectReferenceInformation>>> handler) {
         vertx.executeBlocking({
-            try (def readTx = session.transaction().read()) {
-                def mostReferencedProjectsAnswer = readTx.execute(match(
+            try (def readTx = session.transaction(Grakn.Transaction.Type.READ)) {
+                def mostReferencedProjectsAnswer = readTx.query().match(match(
                         var("u").isa("user")
                                 .has("username", username),
                         var("p").isa("project")
@@ -77,8 +83,8 @@ class UserService extends AbstractVerticle {
 
                 def result = []
                 mostReferencedProjectsAnswer.each {
-                    def projectName = it.get("p_name").asAttribute().value() as String
-                    def referenceCount = it.get("ref_count").asAttribute().value() as int
+                    def projectName = it.get("p_name").asAttribute().asString().getValue()
+                    def referenceCount = it.get("ref_count").asAttribute().asLong().getValue() as int
                     result << new ProjectReferenceInformation(projectName, referenceCount)
                 }
                 handler.handle(Future.succeededFuture(result))
